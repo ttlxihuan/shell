@@ -1,0 +1,247 @@
+#!/bin/bash
+#
+# Nginx快速编译安装shell脚本
+#
+# 安装命令
+# bash nginx-install.sh new
+# bash nginx-install.sh $verions_num
+# 
+# 查看最新版命令
+# bash nginx-install.sh
+#
+# 可运行系统：
+# CentOS 5+
+# Ubuntu 15+
+#
+# 注意：
+#
+# nginx异常退出一般是系统kill掉了，通过 dmesg | tail -n 50 来查看，一般是高并发时内存占用过大
+#
+# 优化点：
+# ==============================================================
+# ************************************************************
+# ******************** 最大并发连接数调整 ********************
+# ************************************************************
+#
+#  nginx作为http服务器的时候：
+#    max_clients = worker_processes * worker_connections
+#  nginx作为反向代理服务器的时候：（主要是反向代理时会产生代理连接占用）
+#    max_clients = worker_processes * worker_connections/4
+#
+# 配置说明：在nginx.conf 最上面（默认）
+#
+# worker_processes  4; #工作进程数，一般是几核就指定几个，安装时就自动按几核设置好的
+# events {
+#     worker_connections  2048; #每个工作进程最大连接数，直接影响并发数量
+# }
+#
+# worker_rlimit_nofile 15360; #每个工作进程打开的最大文件描述符，这个值不可超过系统最大文件描述符，系统查看命令 ulimit -n 。修改可以通过命令 ulimit -n 65535
+#
+# ==============================================================
+#
+####################################################################################
+##################################### 安装处理 #####################################
+####################################################################################
+# 加载基本处理
+source basic.sh
+#域名
+NGINX_HOST='nginx.org'
+# 获取版本配置
+VERSION_URL="http://$NGINX_HOST/en/download.html"
+VERSION_MATCH='Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz'
+VERSION_RULE='\d+\.\d+\.\d+'
+# 安装目录
+INSTALL_PATH="$INSTALL_BASE_PATH/nginx/"
+# 初始化安装
+init_install NGINX_VERSION "$1"
+# 获取工作目录
+WORK_PATH='nginx'
+# ************** 相关配置 ******************
+# 编译初始选项（这里的指定必需有编译项）
+CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NGINX_VERSION --user=nginx --group=nginx "
+# 编译增加项（这里的配置会随着编译版本自动生成编译项）
+# 这里配置编译所需要扩展或模块，以模块或扩展名来定义
+# 比如 --with-mod 、 --enable-mod 、 --with-mod-dir= 、 --enable-mod-dir= 应该指定为 mod 或 mod=val，如果是上下版本编译增减项则为 ?mod 或 ?=mod=val
+# 比如 --without-mod 或 --disable-mod 应该指定为 !mod，如果是上下版本编译增加项则为 ?!mod
+# 可直接配置 -mod 、 --mod 、 ?-mod 、 ?--mod 如果指定了?则会判断编译器中是否存在这项
+# 所有未配置 ? 的项在解析时未匹配成功则解析不通过
+ADD_OPTIONS='threads ?ipv6 http_ssl_module http_stub_status_module'
+# 依赖包-包管理器对应包名配置
+# 包管理器所需包配置，包名对应命令：yum apt dnf pkg，如果只配置一个则全部通用
+OPENSSL_DEVEL_PACKGE_NAMES=('openssl-devel' 'libssl-dev')
+ZLIB_DEVEL_PACKGE_NAMES=('zlib-devel' 'zlib1g.dev')
+PCRE_DEVEL_PACKGE_NAMES=('pcre-devel' 'libpcre3-dev')
+echo "install nginx-$NGINX_VERSION"
+echo "install path: $INSTALL_PATH"
+# ************** 编译安装 ******************
+# 下载nginx包
+download_software http://$NGINX_HOST/download/nginx-$NGINX_VERSION.tar.gz
+# 解析选项
+parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+# 安装依赖
+echo "install dependence"
+if ! if_command pcre-config;then
+    # 安装pcre
+    packge_manager_run install -PCRE_DEVEL_PACKGE_NAMES
+fi
+# ssl 模块
+if in_options 'http_ssl_module' $CONFIGURE_OPTIONS;then
+    # 注意nginx获取openssl目录时是指定几个目录的，所以安装目录变动了会导致编译失败
+    # 或者使用参数 --with-openssl=DIR 指定openssl编译源文件目录（不是安装后的目录）
+    if if_lib 'openssl' '>=' '1.0.1' && which -a openssl|grep -P '^/usr(/local|/pkg)?/bin/openssl$';then
+        echo 'openssl ok'
+    else
+        # 安装openssl
+        packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
+    fi
+fi
+# http_gzip_module 模块
+if ! in_options '!http_gzip_module' $CONFIGURE_OPTIONS;then
+    if if_lib 'libzip';then
+        echo 'libzip ok'
+    else
+        # 安装zlib
+        packge_manager_run install -ZLIB_DEVEL_PACKGE_NAMES
+    fi
+fi
+# 编译安装
+configure_install $CONFIGURE_OPTIONS
+# 创建用户组
+add_user nginx
+# 配置文件处理
+echo "nginx config set"
+cd $INSTALL_PATH$NGINX_VERSION/conf
+if [ ! -d "vhosts" ]; then
+    mkdir vhosts
+    mkdir certs
+    cd vhosts
+    cat > ssl <<conf
+#常规https配置
+#ssl                  on;
+ssl_certificate      certs/ssl.pem;
+ssl_certificate_key  certs/ssl.key;
+
+#ssl_session_cache    shared:SSL:1m;
+ssl_session_timeout  5m;
+
+#ssl_ciphers  HIGH:!aNULL:!MD5;
+#ssl_prefer_server_ciphers  on;
+if ( \$scheme = http ) {
+ return 301 https://\$host\$request_uri;
+}
+conf
+    cat > ssl_websocket <<conf
+# 代理websocket wss连接
+location /websocket {
+    proxy_pass http://127.0.0.1:800;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+conf
+    cat > php <<conf
+# PHP配置
+if (!-e \$request_filename) {
+    rewrite  ^/(.*)$ /index.php?s=\$1  last;
+    break;
+}
+
+# proxy the PHP scripts to Apache listening on 127.0.0.1:80
+#
+#location ~ \.php$ {
+#    proxy_pass   http://127.0.0.1;
+#}
+
+# pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+#
+location ~ \.php\$ {
+    fastcgi_pass   127.0.0.1:9000;
+    fastcgi_index  index.php;
+    fastcgi_param  SCRIPT_FILENAME  \$document_root\$fastcgi_script_name;
+    include        fastcgi_params;
+}
+include vhosts/static;
+conf
+    cat > static <<conf
+# 常规静态配置
+location = / {
+    index index.html index.htm index.php;
+}
+#error_page  404              /404.html;
+
+# redirect server error pages to the static page /50x.html
+#
+# error_page   500 502 503 504  /50x.html;
+# location = /50x.html {
+#     root   html;
+# }
+
+# deny access to .htaccess files, if Apache's document root
+# concurs with nginx's one
+#
+
+location ~* ^.+\.(jpg|jpeg|png|css|js|gif|html|htm|xls)$ {
+    access_log  off;
+    expires     30d;
+}
+conf
+    cat > static.conf.default <<conf
+server {
+    listen 80;
+    #listen 443 ssl;
+    server_name  localhost;
+    root /www/localhost/dist;
+    include vhosts/static;
+    #include vhosts/ssl;
+}
+conf
+    cat > php.conf.default <<conf
+server {
+    listen 80;
+    #listen 443 ssl;
+    server_name localhost;
+    root /www/localhost/public;
+    include vhosts/php;
+    #include vhosts/ssl;
+}
+conf
+    cd ../
+fi
+if [ ! -e "nginx.conf" ]; then
+    cp nginx.conf.default nginx.conf
+fi
+# 修改工作用户
+sed -ir 's/#user\s+nobody/user nginx/' nginx.conf
+# 开户gzip
+sed -ir 's/#gzip\s+on/gzip  on/' nginx.conf
+# 修改工作子进程数
+sed -ir "s/worker_processes\s+[0-9]+;/worker_processes  $HTREAD_NUM;/" nginx.conf
+# 修改每个工作进程最大连接数
+sed -ir "s/worker_connections\s+[0-9]+;/worker_connections  4096;/" nginx.conf
+# 添加引入虚拟配置目录
+if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then
+    LAST_NUM=`cat nginx.conf|grep -n }|tail -n 1|grep -oP '\d+'`
+    LAST_NUM=`expr $LAST_NUM - 1`
+    echo "`cat nginx.conf|head -n $LAST_NUM`" > nginx.conf
+    echo "    # 如果服务器需要上传大文件时需要设置，否则报413 Request Entity Too Large 错误" >> nginx.conf
+    echo "    # client_max_body_size 150m;" >> nginx.conf
+    echo "    include vhosts/*.conf;" >> nginx.conf
+    echo "}" >> nginx.conf
+fi
+# openssl: error while loading shared libraries: libssl.so.1.1
+#if ! ldconfig -v|grep libssl.so; then
+#    echo `whereis libssl.so|grep -oP '(/\w+)+/'|grep -oP '(/\w+)+'` >> /etc/ld.so.conf
+#fi
+cd $INSTALL_PATH$NGINX_VERSION/sbin
+if [ -n "`./nginx -t|grep error`" ]; then
+    echo "nginx config error"
+else
+    if [ -n "ps aux|grep nginx" ]; then
+        ./nginx
+    else
+        ./nginx -s reload
+    fi
+fi
+echo "install nginx-$NGINX_VERSION success!";
+# 安装成功
+exit 0
