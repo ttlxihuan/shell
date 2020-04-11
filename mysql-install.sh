@@ -82,24 +82,15 @@
 ####################################################################################
 # 加载基本处理
 source basic.sh
+# 获取工作目录
+INSTALL_NAME='mysql'
 # 获取版本配置
 VERSION_URL="https://dev.mysql.com/downloads/mysql/"
 VERSION_MATCH='mysql-\d+\.\d+\.\d+'
 VERSION_RULE='\d+\.\d+\.\d+'
-# 安装目录
-INSTALL_PATH="$INSTALL_BASE_PATH/mysql/"
 # 初始化安装
 init_install MYSQL_VERSION "$1"
-# 获取工作目录
-WORK_PATH='mysql'
-# ************** 相关配置 ******************
-# 依赖包-包管理器对应包名配置
-# 包管理器所需包配置，包名对应命令：yum apt dnf pkg，如果只配置一个则全部通用
-OPENSSL_DEVEL_PACKGE_NAMES=('openssl-devel' 'libssl-dev')
-NCURES_DEVEL_PACKGE_NAMES=('ncurses-devel' 'libncurses5-dev')
-echo "install mysql-$MYSQL_VERSION"
-echo "install path: $INSTALL_PATH"
-# ************** 编译安装 ******************
+# ************** 参数解析 ******************
 # 密码处理
 if [ -n "$2" ]; then
     MYSQL_ROOT_PASSWORD=$2
@@ -124,6 +115,7 @@ if [ -n $3 ]; then
 else
     MYSQL_SYNC_BIN=''
 fi
+# ************** 编译安装 ******************
 # 下载mysql包
 download_software https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/mysql-$MYSQL_VERSION.tar.gz
 # mysql-5.7 开始需要使用boots包才能编译
@@ -145,14 +137,24 @@ if [ -z "$INSTALL_CMAKE" ];then
 fi
 # 安装编译器
 tools_install $INSTALL_CMAKE
-packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES -NCURES_DEVEL_PACKGE_NAMES
+if if_lib "openssl";then
+    echo 'openssl ok'
+else
+    # 安装openssl-dev
+    packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
+fi
+if if_lib 'ncurses';then
+    echo 'ncurses ok'
+else
+    packge_manager_run install -NCURSES_DEVEL_PACKGE_NAMES
+fi
 # 新增加的压缩功能，指定使用系统zstd库
 if if_version "" ">=" "8.0.18" && [ -d 'extra/zstd' ];then
     if ! if_command zstd; then
         download_software https://github.com/facebook/zstd/archive/master.zip
         make_install
     fi
-    CMAKE_CONFIG=$CMAKE_CONFIG" -DWITH_ZSTD=system"
+    # CMAKE_CONFIG=$CMAKE_CONFIG" -DWITH_ZSTD=system"
 fi
 packge_manager_run remove mariadb*
 # 获取当前安装要求最低gcc版本
@@ -163,7 +165,7 @@ for ITEM in `which -a gcc`; do
     if if_version $GCC_MIN_VERSION '<=' $GCC_CURRENT_VERSION;then
         if if_many_version gcc -v;then
             GCC_INSTALL=`echo $ITEM|grep -oP '/([\w+\.]+/)+'`
-            CMAKE_CONFIG="-DCMAKE_C_COMPILER=$GCC_INSTALL/gcc -DCMAKE_CXX_COMPILER=$GCC_INSTALL/g++ $CMAKE_CONFIG"
+            CMAKE_CONFIG="-DCMAKE_C_COMPILER="$GCC_INSTALL"gcc -DCMAKE_CXX_COMPILER="$GCC_INSTALL"g++ $CMAKE_CONFIG"
         fi
         break
     fi
@@ -178,12 +180,12 @@ if [ -e "CMakeCache.txt" ];then
     rm -f CMakeCache.txt
 fi
 # 编译安装
-cmake_install $INSTALL_CMAKE ../ -DCMAKE_INSTALL_PREFIX=$INSTALL_BASE$MYSQL_VERSION -DMYSQL_DATADIR=$INSTALL_BASE$MYSQL_VERSION/database -DSYSCONFDIR=$INSTALL_BASE$MYSQL_VERSION/etc -DSYSTEMD_PID_DIR=$INSTALL_BASE$MYSQL_VERSION/run -DMYSQLX_UNIX_ADDR=$INSTALL_BASE$MYSQL_VERSION/run/mysqlx.sock -DMYSQL_UNIX_ADDR=$INSTALL_BASE$MYSQL_VERSION/run/mysql.sock $CMAKE_CONFIG
+cmake_install $INSTALL_CMAKE ../ -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH$MYSQL_VERSION -DMYSQL_DATADIR=$INSTALL_PATH$MYSQL_VERSION/database -DSYSCONFDIR=$INSTALL_PATH$MYSQL_VERSION/etc -DSYSTEMD_PID_DIR=$INSTALL_PATH$MYSQL_VERSION/run -DMYSQLX_UNIX_ADDR=$INSTALL_PATH$MYSQL_VERSION/run/mysqlx.sock -DMYSQL_UNIX_ADDR=$INSTALL_PATH$MYSQL_VERSION/run/mysql.sock $CMAKE_CONFIG
 
 # 创建用户
 add_user mysql
 
-cd $INSTALL_BASE$MYSQL_VERSION
+cd $INSTALL_PATH$MYSQL_VERSION
 MY_CNF="etc/my.cnf"
 # 部分目录创建
 if [ ! -d "./run" ];then
@@ -225,10 +227,10 @@ if [ ! -d "./etc" ];then
 #
 
 datadir=database
-socket=$INSTALL_BASE$MYSQL_VERSION/run/mysql.sock
+socket=$INSTALL_PATH$MYSQL_VERSION/run/mysql.sock
 
-log-error=$INSTALL_BASE$MYSQL_VERSION/run/mysqld.log
-pid-file=$INSTALL_BASE$MYSQL_VERSION/run/mysqld.pid
+log-error=$INSTALL_PATH$MYSQL_VERSION/run/mysqld.log
+pid-file=$INSTALL_PATH$MYSQL_VERSION/run/mysqld.pid
 MY_CONF
         fi
     fi
@@ -237,7 +239,7 @@ chown -R root:mysql ./*
 touch ./run/mysqld.pid ./run/mysqld.log
 chown -R mysql:mysql ./run ./database
 echo "mysql config set"
-MYSQL_RUN_PATH="$INSTALL_BASE$MYSQL_VERSION/run"
+MYSQL_RUN_PATH="$INSTALL_PATH$MYSQL_VERSION/run"
 sed -i "s/^datadir.*=.*data.*/datadir=database/" $MY_CNF
 sed -i "s#^socket.*=.*#socket=$MYSQL_RUN_PATH/mysql.sock#" $MY_CNF
 sed -i "s#^log-error.*=.*#log-error=$MYSQL_RUN_PATH/mysqld.log#" $MY_CNF
@@ -372,17 +374,6 @@ do
        break;
    fi
 done
-
-# 配置启动命令
-if [ -e "$CURRENT_PATH/services.sh" ]; then
-    if [ -z "`cat $CURRENT_PATH/services.sh|grep mysqld -o`" ]; then
-        echo "open_service \"mysqld\" \"ps aux|grep mysqld|grep usr\" \"$OPEN_SERVICE\"" >> $CURRENT_PATH/services.sh
-    else
-        echo "open_service is add command"
-    fi
-else
-    echo "services.sh is not exists"
-fi
 
 if [ -n "`netstat -ntlp|grep mysql`" ]; then
     echo 'edit init mysql password';

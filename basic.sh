@@ -1,26 +1,4 @@
 #!/bin/bash
-
-####################################################################################
-##################################### 基本配置 #####################################
-####################################################################################
-# 包管理器安装命令，针对不同的系统
-PACKGE_MANAGER_INSTALL_COMMAND=('yum -y install' 'apt -y install' 'dnf -y install' 'pkg -y install')
-# 包管理器删除命令，针对不同的系统
-PACKGE_MANAGER_REMOVE_COMMAND=('yum -y erase' 'apt -y remove' 'dnf -y erase' 'pkg -y delete')
-# 验证是否安装
-# PACKGE_MANAGER_CHECK_COMMAND=('yum list' 'apt list' 'dnf list' 'pkg list')
-
-# 包管理器对应的安装包名，顺序与包管理器操作命令一样
-XZ_PACKGE_NAMES=('xz' 'xz-utils')
-UNZIP_PACKGE_NAMES=('unzip')
-LIBTOOL_PACKGE_NAMES=('libtool')
-
-#基本安装目录
-INSTALL_BASE_PATH="/usr/local"
-
-####################################################################################
-##################################### 初始准备 #####################################
-####################################################################################
 # 切换工作目录
 # @command chdir $path
 # @param $path      切换的子目录
@@ -119,7 +97,7 @@ download_software(){
     if [ -z "$DIR_NAME" ];then
         error_exit "work dir empty"
     fi
-    chdir $WORK_PATH
+    chdir $INSTALL_NAME
     if [ ! -e "$FILE_NAME" ];then
         if ! wget --no-check-certificate -T 7200 $1; then
             curl -OLkN --connect-timeout 7200 $1
@@ -250,7 +228,11 @@ make_install(){
     make install 2>&1
     if_error "make install fail!"
     if [ -n "$1" ];then
-        local PREFIX_PATH=${1#*=}
+        local PREFIX_PATH=$1
+        if [[ "$1" =~ "=" ]];then
+            PREFIX_PATH=${1#*=}
+        fi
+        echo "env path: $PREFIX_PATH"
         # 添加动态库地址
         add_pkg_config $PREFIX_PATH
         # 添加环境目录
@@ -387,6 +369,9 @@ tools_install(){
     for TOOL in $*; do
         if ! if_command $TOOL;then
             packge_manager_run install $TOOL 2> /dev/null
+            if ! if_command $TOOL;then
+                error_exit "install tool: $TOOL fail!"
+            fi
         fi
     done
     return 0
@@ -433,16 +418,18 @@ if_lib(){
     # 一般三方库需要有个以 -devel 为后缀的配置工具名安装后就会把以 .pc 为后缀的文件写到到 pkg-config 默认管理目录
     # 例如：安装openssl后需要再安装openssl-devel才可以使用 pkg-config 查看 openssl
     # 安装pkg-config
-    tools_install pkg-config
-#    if ! if_command pkg-config;then
-#        # 获取最新版
-#        get_version PKG_CONFIG_VERSION https://pkg-config.freedesktop.org/releases/ 'pkg-config-\d+\.\d+\.tar\.gz'
-#        echo "install pkg-config-$PKG_CONFIG_VERSION"
-#        # 下载
-#        download_software https://pkg-config.freedesktop.org/releases/pkg-config-$PKG_CONFIG_VERSION.tar.gz
-#        # 编译安装
-#        configure_install --with-internal-glib --prefix=$INSTALL_BASE_PATH/pkg-config/$PKG_CONFIG_VERSION
-#    fi
+    if ! if_command pkg-config;then
+        packge_manager_run install -PKGCONFIG_PACKGE_NAMES
+    fi
+    if ! if_command pkg-config;then
+        # 获取最新版
+        get_version PKG_CONFIG_VERSION https://pkg-config.freedesktop.org/releases/ 'pkg-config-\d+\.\d+\.tar\.gz'
+        echo "install pkg-config-$PKG_CONFIG_VERSION"
+        # 下载
+        download_software https://pkg-config.freedesktop.org/releases/pkg-config-$PKG_CONFIG_VERSION.tar.gz
+        # 编译安装
+        configure_install --with-internal-glib --prefix=$INSTALL_BASE_PATH/pkg-config/$PKG_CONFIG_VERSION
+    fi
     if pkg-config --exists "$1";then
         if [ -n "$2" ] && [ -n "$3" ] && ! pkg-config --cflags --libs "$1 $2 $3" > /dev/null;then
             return 1
@@ -497,6 +484,10 @@ init_install (){
         echo "unknown version $2"
         exit 1;
     fi
+    # 安装目录
+    INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
+    echo "install $INSTALL_NAME-"`eval "echo \$$1"`
+    echo "install path: $INSTALL_PATH"
     # 安装必需工具
     tools_install ntpdate gcc make
     # 更新系统时间
@@ -505,6 +496,8 @@ init_install (){
     source /etc/profile
     return 0
 }
+# 加载配置
+source config.sh
 # 判断系统适用哪个包管理器
 if if_command yum;then
     PACKGE_MANAGER_INDEX=0

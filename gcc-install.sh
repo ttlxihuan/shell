@@ -54,26 +54,17 @@ if [ -z "`curl --connect-timeout 20 -I -X HEAD $MIRRORS_URL/releases/ 2>&1| grep
         exit 1
     fi
 fi
+# 获取工作目录
+INSTALL_NAME='gcc'
 # 获取版本配置
 VERSION_URL="$MIRRORS_URL/releases/"
 VERSION_MATCH='gcc-\d+\.\d+\.\d+'
 VERSION_RULE='\d+\.\d+\.\d+'
-# 安装目录
-INSTALL_PATH="$INSTALL_BASE_PATH/gcc/"
 # 初始化安装
 init_install GCC_VERSION "$1"
-# 获取工作目录
-WORK_PATH='gcc'
-# ************** 相关配置 ******************
+# ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 GCC_CONFIGURE_WITH=''
-# 依赖包-包管理器对应包名配置
-# 包管理器所需包配置，包名对应命令：yum apt dnf pkg，如果只配置一个则全部通用
-GCC_C_PACKGE_NAMES=('gcc-c++' '')
-BZIP2_PACKGE_NAMES=('bzip2' '')
-M4_PACKGE_NAMES=('m4' '')
-echo "install gcc-$GCC_VERSION"
-echo "install path: $INSTALL_PATH"
 # ************** 编译安装 ******************
 if [ -e "$INSTALL_PATH$GCC_VERSION/bin/gcc" ];then
     echo "gcc-$GCC_VERSION already install!"

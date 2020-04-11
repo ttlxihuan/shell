@@ -46,33 +46,19 @@
 source basic.sh
 #域名
 NGINX_HOST='nginx.org'
+# 获取工作目录
+INSTALL_NAME='nginx'
 # 获取版本配置
 VERSION_URL="http://$NGINX_HOST/en/download.html"
 VERSION_MATCH='Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz'
 VERSION_RULE='\d+\.\d+\.\d+'
-# 安装目录
-INSTALL_PATH="$INSTALL_BASE_PATH/nginx/"
 # 初始化安装
 init_install NGINX_VERSION "$1"
-# 获取工作目录
-WORK_PATH='nginx'
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NGINX_VERSION --user=nginx --group=nginx "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-# 这里配置编译所需要扩展或模块，以模块或扩展名来定义
-# 比如 --with-mod 、 --enable-mod 、 --with-mod-dir= 、 --enable-mod-dir= 应该指定为 mod 或 mod=val，如果是上下版本编译增减项则为 ?mod 或 ?=mod=val
-# 比如 --without-mod 或 --disable-mod 应该指定为 !mod，如果是上下版本编译增加项则为 ?!mod
-# 可直接配置 -mod 、 --mod 、 ?-mod 、 ?--mod 如果指定了?则会判断编译器中是否存在这项
-# 所有未配置 ? 的项在解析时未匹配成功则解析不通过
 ADD_OPTIONS='threads ?ipv6 http_ssl_module http_stub_status_module'
-# 依赖包-包管理器对应包名配置
-# 包管理器所需包配置，包名对应命令：yum apt dnf pkg，如果只配置一个则全部通用
-OPENSSL_DEVEL_PACKGE_NAMES=('openssl-devel' 'libssl-dev')
-ZLIB_DEVEL_PACKGE_NAMES=('zlib-devel' 'zlib1g.dev')
-PCRE_DEVEL_PACKGE_NAMES=('pcre-devel' 'libpcre3-dev')
-echo "install nginx-$NGINX_VERSION"
-echo "install path: $INSTALL_PATH"
 # ************** 编译安装 ******************
 # 下载nginx包
 download_software http://$NGINX_HOST/download/nginx-$NGINX_VERSION.tar.gz
@@ -87,11 +73,22 @@ fi
 # ssl 模块
 if in_options 'http_ssl_module' $CONFIGURE_OPTIONS;then
     # 注意nginx获取openssl目录时是指定几个目录的，所以安装目录变动了会导致编译失败
-    # 或者使用参数 --with-openssl=DIR 指定openssl编译源文件目录（不是安装后的目录）
-    if if_lib 'openssl' '>=' '1.0.1' && which -a openssl|grep -P '^/usr(/local|/pkg)?/bin/openssl$';then
+    # 当安装了多个版本时使用参数 --with-openssl=DIR 指定openssl编译源文件目录（不是安装后的目录）
+    if if_many_version openssl version;then
+        # 暂存编译目录
+        NGINX_CONFIGURE_PATH=`pwd`
+        # 获取最新版
+        get_version OPENSSL_VERSION https://www.openssl.org/source/ 'openssl-\d+\.\d+\.\d+[a-z]*\.tar\.gz[^\.]' '\d+\.\d+\.\d+[a-z]*'
+        # 下载
+        download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
+        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-openssl=`pwd`"
+        cd $NGINX_CONFIGURE_PATH
+    elif if_lib 'openssl' '>=' '1.0.1' && which -a openssl|grep -P '^/usr(/local|/pkg)?/bin/openssl$';then
         echo 'openssl ok'
     else
-        # 安装openssl
+        # 删除原来版本
+        packge_manager_run remove -OPENSSL_DEVEL_PACKGE_NAMES
+        # 重新安装openssl
         packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
     fi
 fi

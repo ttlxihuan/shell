@@ -19,25 +19,17 @@
 ####################################################################################
 # 加载基本处理
 source basic.sh
+# 获取工作目录
+INSTALL_NAME='python'
 # 获取版本配置
 VERSION_URL="https://www.python.org/downloads/source/"
 VERSION_MATCH='Python-\d+\.\d+\.\d+\.tgz'
 VERSION_RULE='\d+\.\d+\.\d+'
-# 安装目录
-INSTALL_PATH="$INSTALL_BASE_PATH/python/"
 # 初始化安装
 init_install PYTHON_VERSION "$1"
-# 获取工作目录
-WORK_PATH='python'
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PYTHON_VERSION"
-# 依赖包-包管理器对应包名配置
-# 包管理器所需包配置，包名对应命令：yum apt dnf pkg，如果只配置一个则全部通用
-AUTOCONF_PACKGE_NAMES=('autoconf')
-
-echo "install python-$PYTHON_VERSION"
-echo "install path: $INSTALL_PATH"
 # ************** 编译安装 ******************
 # 下载python包
 download_software https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz

@@ -45,44 +45,18 @@
 source basic.sh
 # 域名
 PHP_HOST='cn2.php.net'
+# 获取工作目录
+INSTALL_NAME='php'
 # 获取版本配置
 VERSION_URL="https://$PHP_HOST/supported-versions.php"
 VERSION_MATCH='#v\d+\.\d+\.\d+'
 # 初始化安装
 init_install PHP_VERSION "$1"
-# 安装目录
-INSTALL_PATH="$INSTALL_BASE_PATH/php/"
-# 获取工作目录
-WORK_PATH='php'
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-# 这里配置编译所需要扩展或模块，以模块或扩展名来定义
-# 比如 --with-mod 、 --enable-mod 、 --with-mod-dir= 、 --enable-mod-dir= 应该指定为 mod 或 mod=val，如果是上下版本编译增减项则为 ?mod 或 ?=mod=val
-# 比如 --without-mod 或 --disable-mod 应该指定为 !mod，如果是上下版本编译增加项则为 ?!mod
-# 可直接配置 -mod 、 --mod 、 ?-mod 、 ?--mod 如果指定了?则会判断编译器中是否存在这项
-# 所有未配置 ? 的项在解析时未匹配成功则解析不通过
 ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath pcntl ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 ftp shmop gmp'
-# 依赖包-包管理器对应包名配置
-# 包管理器所需包配置，包名对应命令：yum apt dnf pkg，如果只配置一个则全部通用
-CA_CERT_PACKGE_NAMES=('ca-certificates')
-OPENSSL_DEVEL_PACKGE_NAMES=('openssl-devel' 'libssl-dev')
-ZLIB_DEVEL_PACKGE_NAMES=('zlib-devel' 'zlib1g.dev')
-CURL_DEVEL_PACKGE_NAMES=('curl-devel' 'libcurl4-openssl-dev')
-PNG_DEVEL_PACKGE_NAMES=('libpng-devel' 'libpng-dev')
-GMP_DEVEL_PACKGE_NAMES=('gmp-devel' 'libgmp-dev')
-JPEG_DEVEL_PACKGE_NAMES=('libjpeg-devel' 'libjpeg-dev')
-ZIP_DEVEL_PACKGE_NAMES=('libzip-devel' 'libzip-dev')
-PYTHON_DEVEL_PACKGE_NAMES=('python-devel' 'python-dev')
-LIBXML2_DEVEL_PACKGE_NAMES=('libxml2-devel' 'libxml2-dev')
-FREETYPE_DEVEL_PACKGE_NAMES=('freetype-devel' 'libfreetype6-dev')
-ONIGURUMA_DEVEL_PACKGE_NAMES=('oniguruma-devel' 'libonig-dev')
-LIBMCRYPT_DEVEL_PACKGE_NAMES=('libmcrypt-devel' 'libmcrypt-dev')
-TCL_PACKGE_NAMES=('tcl')
-# 开始安装
-echo "install php-$PHP_VERSION"
-echo "install path: $INSTALL_PATH"
 # ************** 编译安装 ******************
 # 下载PHP包
 download_software https://$PHP_HOST/distributions/php-$PHP_VERSION.tar.gz

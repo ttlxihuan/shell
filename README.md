@@ -56,3 +56,41 @@ nginx 1.15.0
 ```
 find -name '*.sh'|sed -i 's/\r//' file
 ```
+
+### 快速使用
+创建一个sh脚本
+```
+vim install.sh
+```
+
+复制输入下面的脚本代码并保存
+```
+#!/bin/bash
+if ! which wget 2>&1 &>/dev/null || ! which unzip 2>&1 &>/dev/null ;then
+    echo 'require install wget and unzip'
+    exit 1
+fi
+if [ ! -d "shell-master" ];then
+    wget --no-check-certificate https://github.com/ttlxihuan/shell/archive/master.zip
+    unzip master.zip
+fi
+cd shell-master
+for NAME in ${@:1}; do
+    if [ -e "$NAME-install.sh" ];then
+         nohup bash $NAME-install.sh new 2>&1 &> ../$NAME-install.log &
+    else
+         echo 'unknown install: $NAME'
+    fi
+done
+exit 0
+```
+
+执行安装，需要安装什么就增加对应的包名
+```
+bash install.sh nginx php mysql git
+```
+
+### 安装说明
+安装速度取决于系统的硬件和网速（尤其是境外网速），编译安装相对较慢的有gcc和mysql，因为新版的mysql安装需要更高的gcc所以建议在安装mysql前先安装好高版本的GCC5.3以上
+
+

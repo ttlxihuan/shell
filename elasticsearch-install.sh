@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# Nginx快速编译安装shell脚本
+# elasticsearch快速编译安装shell脚本
 #
 # 安装命令
-# bash nginx-install.sh new
-# bash nginx-install.sh $verions_num
+# bash elasticsearch-install.sh new
+# bash elasticsearch-install.sh $verions_num
 # 
 # 查看最新版命令
-# bash nginx-install.sh
+# bash elasticsearch-install.sh
 #
 # 可运行系统：
 # CentOS 5+
@@ -105,19 +105,14 @@
 ####################################################################################
 # 加载基本处理
 source basic.sh
+# 获取工作目录
+INSTALL_NAME='elasticsearch'
 # 获取版本配置
 VERSION_URL="https://www.elastic.co/downloads/elasticsearch"
 VERSION_MATCH='elasticsearch-\d+\.\d+\.\d+'
 VERSION_RULE='\d+\.\d+\.\d+'
-# 安装目录
-INSTALL_PATH="$INSTALL_BASE_PATH/elasticsearch/"
 # 初始化安装
 init_install ELASTICSEARCH_VERSION "$1"
-# 获取工作目录
-WORK_PATH='elasticsearch'
-
-echo "install elasticsearch-$ELASTICSEARCH_VERSION"
-echo "install path: $INSTALL_PATH"
 # ************** 安装 ******************
 # 下载elasticsearch包
 # 到7.0以上包名有变动
