@@ -77,6 +77,23 @@
 # netstat -n |grep "^tcp" |awk '{print $6}' |sort|uniq -c |sort -n
 #
 #
+#
+#
+# 同步报：The replication receiver thread cannot start because the master has GTID_MODE = ON and this server has GTID_MODE = OFF.
+# 需要在当前数据库上开启 GTID_MODE
+# 1、先关闭同步
+#       stop slave;
+# 2、开启服务器只允许可以安全使用GTID记录
+#       set global enforce_gtid_consistency=on;
+# 3、开启GTID_MODE
+#       set global gtid_mode=ON;
+# 4、如果报错 ERROR 1788 (HY000): The value of @@GLOBAL.GTID_MODE can only be changed one step at a time: OFF <-> OFF_PERMISSIVE <-> ON_PERMISSIVE <-> ON. Also note that this value must be stepped up or down simultaneously on all servers. See the Manual for instructions.
+#       set global gtid_mode=OFF_PERMISSIVE;
+#       set global gtid_mode=ON_PERMISSIVE;
+# 5、稍等片刻再执行
+#       set global gtid_mode=ON;
+#
+#
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
@@ -375,6 +392,7 @@ do
    fi
 done
 
+# 修改密码，建立主从复制
 if [ -n "`netstat -ntlp|grep mysql`" ]; then
     echo 'edit init mysql password';
     echo "init password: $TEMP_PASSWORD"
@@ -390,11 +408,13 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
                 sleep 5;
             else
                 echo "new password: $MYSQL_ROOT_PASSWORD"
+                echo "#  root password: $MYSQL_ROOT_PASSWORD" >> $MY_CNF
                 break
             fi
         done
     else
         echo "init password edit fail"
+        echo "# init root password: $TEMP_PASSWORD" >> $MY_CNF
     fi
     
     # 配置主从
@@ -415,11 +435,6 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
         # Replication Slave       Slave_SQL_Running  必需项
         echo "mysql -uroot --password=\"$MYSQL_ROOT_PASSWORD\" -e \"create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;\""
         mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -e "create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;"
-        echo "iptables port add"
-        if [ -e "$CURRENT_PATH/iptables.sh" ]; then
-            echo "-1 3306 -1 yes" >> $CURRENT_PATH/iptables.conf
-            bash $CURRENT_PATH/iptables.sh
-        fi
     elif [[ "$MYSQL_SYNC_BIN" == 'slave' ]]; then
         echo 'config slave';
         MASTER_USER=`echo $MYSQL_SYNC_BIN_HOST|grep -P '^[^@]+' -o`
