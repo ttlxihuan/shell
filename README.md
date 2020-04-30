@@ -77,9 +77,10 @@ fi
 cd shell-master
 for NAME in ${@:1}; do
     if [ -e "$NAME-install.sh" ];then
-         nohup bash $NAME-install.sh new 2>&1 &> ../$NAME-install.log &
+        echo "install $NAME"
+        nohup bash $NAME-install.sh new 2>&1 &> ../$NAME-install.log &
     else
-         echo 'unknown install: $NAME'
+        echo "unknown install: $NAME"
     fi
 done
 exit 0

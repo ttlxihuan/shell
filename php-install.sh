@@ -322,16 +322,25 @@ cd $INSTALL_PATH$PHP_VERSION
 cp -f etc/php-fpm.conf.default etc/php-fpm.conf
 cp -f etc/php-fpm.d/www.conf.default etc/php-fpm.d/www.conf
 
+
 # 修改配置参数
-sed -ir "s/pm.max_children\s*=\s*[0-9]+/pm.max_children = 2024/" etc/php-fpm.d/www.conf
+MAX_CHILDREN=$(expr $HTREAD_NUM * 200)
+MIN_SPARE=$(expr $MAX_CHILDREN * 0.1)
+MAX_SPARE=$(expr $MAX_CHILDREN * 0.5)
+INIT_CHILDREN=$(expr $MAX_CHILDREN * 0.3)
+sed -ir "s/pm.max_children\s*=\s*[0-9]+/pm.max_children = $MAX_CHILDREN/" etc/php-fpm.d/www.conf
+sed -ir "s/pm.start_servers\s*=\s*[0-9]+/pm.start_servers = $INIT_CHILDREN/" etc/php-fpm.d/www.conf
+sed -ir "s/pm.min_spare_servers\s*=\s*[0-9]+/pm.min_spare_servers = $MIN_SPARE/" etc/php-fpm.d/www.conf
+sed -ir "s/pm.max_spare_servers\s*=\s*[0-9]+/pm.max_spare_servers = $MAX_SPARE/" etc/php-fpm.d/www.conf
+sed -ir "s/pm.max_requests\s*=\s*[0-9]+/pm.max_requests = $MAX_CHILDREN/" etc/php-fpm.d/www.conf
 # 开启opcache
 if [ -z "`cat lib/php.ini|grep zend_extension=opcache.so`" ]; then
     echo "zend_extension=opcache.so" >> lib/php.ini
 fi
-# 开启opcache
-sed -ir 's/;opcache.enable=1/opcache.enable=1/' lib/php.ini
+# 修改配置
+sed -ir 's/;opcache.enable=[0-1]/opcache.enable=1/' lib/php.ini
 # CLI环境下，PHP启用OPcache
-sed -ir 's/;opcache.enable_cli=1/opcache.enable_cli=1/' lib/php.ini
+sed -ir 's/;opcache.enable_cli=[0-1]/opcache.enable_cli=1/' lib/php.ini
 # OPcache共享内存存储大小,单位MB
 sed -ir 's/;opcache.memory_consumption=[0-9]+/opcache.memory_consumption=512/' lib/php.ini
 # 缓存多少个PHP文件
@@ -342,6 +351,8 @@ sed -ir 's/;opcache.fast_shutdown=[0-9]+/opcache.fast_shutdown=1/' lib/php.ini
 sed -ir 's/;opcache.validate_timestamps=[0-9]+/opcache.validate_timestamps=0/' lib/php.ini
 # 设置缓存的过期时间（单位是秒）,为0的话每次都要检查，当opcache.validate_timestamps=0此配置无效
 # sed -ir 's/;opcache.revalidate_freq=[0-9]+/opcache.revalidate_freq=60/' lib/php.ini
+# 上传配置
+sed -ir 's/upload_max_filesize\s+=\s+[0-9]+M/upload_max_filesize = 8M/' lib/php.ini
 
 # 启动服务
 echo './sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid'
