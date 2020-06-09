@@ -166,6 +166,9 @@ location = / {
 }
 #error_page  404              /404.html;
 
+# 去掉响应头服务器标识
+server_tokens off;
+
 # redirect server error pages to the static page /50x.html
 #
 # error_page   500 502 503 504  /50x.html;
@@ -223,6 +226,9 @@ if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then
     echo "`cat nginx.conf|head -n $LAST_NUM`" > nginx.conf
     echo "    # 如果服务器需要上传大文件时需要设置，否则报413 Request Entity Too Large 错误" >> nginx.conf
     echo "    # client_max_body_size 150m;" >> nginx.conf
+    echo "    # 去掉代理响应标识" >> nginx.conf
+    echo "    proxy_hide_header X-Powered-By;" >> nginx.conf
+    echo "    proxy_hide_header Server;" >> nginx.conf
     echo "    include vhosts/*.conf;" >> nginx.conf
     echo "}" >> nginx.conf
 fi
