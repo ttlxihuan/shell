@@ -71,7 +71,7 @@ if ! which wget 2>&1 &>/dev/null || ! which unzip 2>&1 &>/dev/null ;then
     exit 1
 fi
 if [ ! -d "shell-master" ];then
-    wget --no-check-certificate https://github.com/ttlxihuan/shell/archive/master.zip
+    wget --no-check-certificate -O master.zip https://github.com/ttlxihuan/shell/archive/master.zip
     unzip master.zip
 fi
 cd shell-master
