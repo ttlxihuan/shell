@@ -60,6 +60,8 @@ INSTALL_NAME='gcc'
 VERSION_URL="$MIRRORS_URL/releases/"
 VERSION_MATCH='gcc-\d+\.\d+\.\d+'
 VERSION_RULE='\d+\.\d+\.\d+'
+# 安装最小版本
+GCC_VERSION_MIN='4.0.0'
 # 初始化安装
 init_install GCC_VERSION "$1"
 # ************** 编译项配置 ******************

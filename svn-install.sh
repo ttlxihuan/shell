@@ -31,6 +31,8 @@ INSTALL_NAME='svn'
 VERSION_URL="https://downloads.apache.org/subversion/"
 VERSION_MATCH='subversion-\d+\.\d+\.\d+\.tar\.gz'
 VERSION_RULE='\d+\.\d+\.\d+'
+# 安装最小版本
+SVN_VERSION_MIN='1.0.0'
 # 初始化安装
 init_install SVN_VERSION "$1"
 # 版本服务工作目录

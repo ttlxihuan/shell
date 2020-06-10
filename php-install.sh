@@ -50,6 +50,8 @@ INSTALL_NAME='php'
 # 获取版本配置
 VERSION_URL="https://$PHP_HOST/supported-versions.php"
 VERSION_MATCH='#v\d+\.\d+\.\d+'
+# 安装最小版本
+PHP_VERSION_MIN='5.0.0'
 # 初始化安装
 init_install PHP_VERSION "$1"
 # ************** 相关配置 ******************

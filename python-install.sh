@@ -25,6 +25,8 @@ INSTALL_NAME='python'
 VERSION_URL="https://www.python.org/downloads/source/"
 VERSION_MATCH='Python-\d+\.\d+\.\d+\.tgz'
 VERSION_RULE='\d+\.\d+\.\d+'
+# 安装最小版本
+PYTHON_VERSION_MIN='2.0.0'
 # 初始化安装
 init_install PYTHON_VERSION "$1"
 # ************** 相关配置 ******************

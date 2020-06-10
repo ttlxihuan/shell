@@ -27,6 +27,8 @@ INSTALL_NAME='redis'
 VERSION_URL="http://download.redis.io/releases/"
 VERSION_MATCH='redis-\d+\.\d+\.\d+\.tar\.gz'
 VERSION_RULE='\d+\.\d+\.\d+'
+# 安装最小版本
+REDIS_VERSION_MIN='2.9.0'
 # 初始化安装
 init_install REDIS_VERSION "$1"
 # ************** 编译安装 ******************

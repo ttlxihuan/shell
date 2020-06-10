@@ -484,10 +484,14 @@ init_install (){
         echo "unknown version $2"
         exit 1;
     fi
+    local INSTALL_VERSION=`eval "echo \$"$1` INSTALL_VERSION_MIN=`eval "echo \$"$1"_MIN"`
     # 安装目录
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
-    echo "install $INSTALL_NAME-"`eval "echo \$"$1`
+    echo "install $INSTALL_NAME-$INSTALL_VERSION"
     echo "install path: $INSTALL_PATH"
+    if [ -n "$INSTALL_VERSION_MIN" ] && if_version "$INSTALL_VERSION" "<" "$INSTALL_VERSION_MIN"; then
+        error_exit "install min version: $INSTALL_VERSION_MIN"
+    fi
     # 安装必需工具
     tools_install ntpdate gcc make
     # 更新系统时间

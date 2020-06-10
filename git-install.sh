@@ -27,6 +27,8 @@ INSTALL_NAME='git'
 VERSION_URL="https://mirrors.edge.kernel.org/pub/software/scm/git/"
 VERSION_MATCH='git-\d+\.\d+\.\d+\.tar\.gz'
 VERSION_RULE='\d+\.\d+\.\d+'
+# 安装最小版本
+GIT_VERSION_MIN='1.9.0'
 # 初始化安装
 init_install GIT_VERSION "$1"
 # ************** 编译项配置 ******************

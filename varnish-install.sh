@@ -25,6 +25,8 @@ INSTALL_NAME='varnish'
 VERSION_URL="http://varnish-cache.org/releases/index.html"
 VERSION_MATCH='varnish-\d+\.\d+\.\d+.tgz'
 VERSION_RULE='\d+\.\d+\.\d+'
+# 安装最小版本
+VARNISH_VERSION_MIN='3.0.0'
 # 初始化安装
 init_install VARNISH_VERSION "$1"
 # ************** 相关配置 ******************

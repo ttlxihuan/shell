@@ -105,6 +105,8 @@ INSTALL_NAME='mysql'
 VERSION_URL="https://dev.mysql.com/downloads/mysql/"
 VERSION_MATCH='mysql-\d+\.\d+\.\d+'
 VERSION_RULE='\d+\.\d+\.\d+'
+# 安装最小版本
+MYSQL_VERSION_MIN='5.0.0'
 # 初始化安装
 init_install MYSQL_VERSION "$1"
 # ************** 参数解析 ******************
@@ -178,7 +180,7 @@ packge_manager_run remove mariadb*
 GCC_MIN_VERSION=`grep -P 'GCC \d+(\.\d+)+' cmake/os/Linux.cmake -o|grep -P '\d+(\.\d+)+' -o|tail -n 1`
 # 获取当前安装的gcc版本
 for ITEM in `which -a gcc`; do
-    GCC_CURRENT_VERSION=`$ITEM -v 2>&1|grep -P '\d+(\.\d+)+' -o|tail -n 1`
+    GCC_CURRENT_VERSION=`$ITEM -v 2>&1|grep -oP '\d+(\.\d+)+'|tail -n 1`
     if if_version $GCC_MIN_VERSION '<=' $GCC_CURRENT_VERSION;then
         if if_many_version gcc -v;then
             GCC_INSTALL=`echo $ITEM|grep -oP '/([\w+\.]+/)+'`
