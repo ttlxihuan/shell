@@ -486,7 +486,7 @@ init_install (){
     fi
     # 安装目录
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
-    echo "install $INSTALL_NAME-"`eval "echo \$$1"`
+    echo "install $INSTALL_NAME-"`eval "echo \$"$1`
     echo "install path: $INSTALL_PATH"
     # 安装必需工具
     tools_install ntpdate gcc make
