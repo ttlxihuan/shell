@@ -41,5 +41,20 @@ echo "install dependence"
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 
+# 添加启动连接
+ln -svf $INSTALL_PATH$PYTHON_VERSION/bin/python /usr/local/bin/python
+
+# 添加不同版本的连接
+if if_version "$PYTHON_VERSION" ">=" "3.0.0";then
+    PYTHON_NAME='python3'
+elif if_version "$PYTHON_VERSION" ">=" "2.0.0";then
+    PYTHON_NAME='python2'
+else
+    PYTHON_NAME=''
+fi
+if [ -n "$PYTHON_NAME" ];then
+    ln -svf $INSTALL_PATH$PYTHON_VERSION/bin/python /usr/local/bin/$PYTHON_NAME
+fi
+
 echo "install python-$PYTHON_VERSION success!"
 

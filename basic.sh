@@ -232,7 +232,7 @@ make_install(){
         if [[ "$1" =~ "=" ]];then
             PREFIX_PATH=${1#*=}
         fi
-        echo "env path: $PREFIX_PATH"
+        echo "add env path: $PREFIX_PATH"
         # 添加动态库地址
         add_pkg_config $PREFIX_PATH
         # 添加环境目录
@@ -466,6 +466,25 @@ random_password(){
     done
     eval "$1='$PASSWORD_STR'"
 }
+# 运行安装脚本
+# @command run_install_shell $shell_file $version_num [$other ...]
+# @param $shell_file        安装脚本名
+# @param $version_num       安装版本号
+# @param $other             其它安装参数集
+# return 1|0
+run_install_shell (){
+    if [ -z "$1" ] || [ ! -e "$CURRENT_PATH/$1" ]; then
+        error_exit "install shell error: $1"
+    fi
+    if [ -z "$2" ]; then
+        error_exit "must install version num"
+    fi
+    local CURRENT_PWD=`pwd`
+    cd $CURRENT_PATH
+    bash ${@:1}
+    if_error "run $1 fail"
+    cd $CURRENT_PWD
+}
 # 初始化安装
 # @command start_install [$version_num]
 # @param $version_num       版本号，为空则打印版本号并退出
@@ -481,12 +500,18 @@ init_install (){
     elif echo "$2"|grep -qP "$VERSION_RULE";then
         eval "$1=\"$2\""
     else
-        echo "unknown version $2"
-        exit 1;
+        error_exit "unknown version $2"
     fi
     local INSTALL_VERSION=`eval "echo \$"$1` INSTALL_VERSION_MIN=`eval "echo \$"$1"_MIN"`
+    if ps aux|grep "$INSTALL_NAME-install.sh"|grep -v "grep $INSTALL_NAME-install.sh"|grep -vqP "\s+$$\s+"; then
+        error_exit "$INSTALL_NAME already installing"
+    fi
     # 安装目录
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
+    if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -name "$INSTALL_NAME"|grep -q "$INSTALL_NAME";then
+        echo "$INSTALL_NAME-$INSTALL_VERSION already installed, if not install must delete those path: $INSTALL_PATH$INSTALL_VERSION/"
+        exit 0
+    fi
     echo "install $INSTALL_NAME-$INSTALL_VERSION"
     echo "install path: $INSTALL_PATH"
     if [ -n "$INSTALL_VERSION_MIN" ] && if_version "$INSTALL_VERSION" "<" "$INSTALL_VERSION_MIN"; then

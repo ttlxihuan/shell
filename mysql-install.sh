@@ -190,7 +190,7 @@ for ITEM in `which -a gcc`; do
     fi
 done
 if ! if_command gcc || if_version $GCC_MIN_VERSION '>' $GCC_CURRENT_VERSION;then
-    bash $CURRENT_PATH/gcc-install.sh $GCC_MIN_VERSION
+    run_install_shell gcc-install.sh $GCC_MIN_VERSION
     if_error 'install gcc fail'
     CMAKE_CONFIG="-DCMAKE_C_COMPILER=/usr/local/gcc/$GCC_MIN_VERSION/bin/gcc -DCMAKE_CXX_COMPILER=/usr/local/gcc/$GCC_MIN_VERSION/bin/g++ $CMAKE_CONFIG"
 fi

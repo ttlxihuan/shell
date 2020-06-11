@@ -68,10 +68,6 @@ init_install GCC_VERSION "$1"
 # 编译初始选项（这里的指定必需有编译项）
 GCC_CONFIGURE_WITH=''
 # ************** 编译安装 ******************
-if [ -e "$INSTALL_PATH$GCC_VERSION/bin/gcc" ];then
-    echo "gcc-$GCC_VERSION already install!"
-    exit 0
-fi
 # 下载GCC包
 download_software $MIRRORS_URL/releases/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.gz
 # 暂存编译目录
@@ -145,7 +141,14 @@ do
     fi
 done
 ldconfig
-echo 'export PATH=$PATH:'"$INSTALL_PATH$GCC_VERSION/bin" >> /etc/profile
-source /etc/profile
+# echo 'export PATH=$PATH:'"$INSTALL_PATH$GCC_VERSION/bin" >> /etc/profile
+# source /etc/profile
 packge_manager_run remove -GCC_C_PACKGE_NAMES
+
+# 添加启动连接，下载连接不加容易在其它工具使用时出现 C++ compiler None does not work 类似的错误
+ln -svf $INSTALL_PATH$GCC_VERSION/bin/gcc /usr/local/bin/gcc
+ln -svf $INSTALL_PATH$GCC_VERSION/bin/c++ /usr/local/bin/c++
+ln -svf $INSTALL_PATH$GCC_VERSION/bin/g++ /usr/local/bin/g++
+ln -svf $INSTALL_PATH$GCC_VERSION/bin/cpp /usr/local/bin/cpp
+
 echo "install gcc-$GCC_VERSION success!";

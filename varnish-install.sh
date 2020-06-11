@@ -72,7 +72,7 @@ if if_version "$VARNISH_VERSION" ">=" "6.2.0"; then
     packge_manager_run install -PYTHON3_DOCUTILS_PACKGE_NAMES -PYTHON3_SPHINX_PACKGE_NAMES
     if ! if_command pip3 || ! pip3 show sphinx -q; then
         if ! if_command python3;then
-            bash python-install.sh new
+            run_install_shell python-install.sh new
         fi
         if if_command pip3;then
             pip3 install sphinx
