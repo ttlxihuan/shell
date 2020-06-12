@@ -503,12 +503,12 @@ init_install (){
         error_exit "unknown version $2"
     fi
     local INSTALL_VERSION=`eval "echo \$"$1` INSTALL_VERSION_MIN=`eval "echo \$"$1"_MIN"`
-    if ps aux|grep "$INSTALL_NAME-install.sh"|grep -v "grep $INSTALL_NAME-install.sh"|grep -vqP "\s+$$\s+"; then
+    if ps aux|grep -P "$INSTALL_NAME-install\.sh\s+(new|\d+\.\d+)"|grep -vqP "\s+$$\s+"; then
         error_exit "$INSTALL_NAME already installing"
     fi
     # 安装目录
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
-    if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -name "$INSTALL_NAME"|grep -q "$INSTALL_NAME";then
+    if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -type f -executable|grep -qP "$INSTALL_NAME|bin";then
         echo "$INSTALL_NAME-$INSTALL_VERSION already installed, if not install must delete those path: $INSTALL_PATH$INSTALL_VERSION/"
         exit 0
     fi

@@ -65,6 +65,8 @@ SQLITE_DEVEL_PACKGE_NAMES=('sqlite-devel' 'sqlite-dev')
 GCC_C_PACKGE_NAMES=('gcc-c++')
 # 安装bzip2
 BZIP2_PACKGE_NAMES=('bzip2')
+# 安装bzip2
+BZIP2_DEVEL_PACKGE_NAMES=('bzip2-devel' 'bzip2-dev')
 # 安装m4
 M4_PACKGE_NAMES=('m4')
 # 安装autoconf
@@ -87,3 +89,5 @@ PYTHON3_SPHINX_PACKGE_NAMES=('-' 'python3-sphinx')
 PYTHON_DOCUTILS_PACKGE_NAMES=('python-docutils')
 # 安装python-sphinx
 PYTHON_SPHINX_PACKGE_NAMES=('python-sphinx')
+# 安装readline
+READLINE_DEVEL_PACKGE_NAMES=('readline-devel' 'readline-dev')

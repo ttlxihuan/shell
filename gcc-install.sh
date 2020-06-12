@@ -21,6 +21,10 @@
 # 依赖说明
 # https://gcc.gnu.org/install/prerequisites.html
 #
+#
+# 注意：如果有的时候编译时提示某个文件不存在，可以尝试重新解压再编译，比如提示config.host文件不存在
+#
+#
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
@@ -74,58 +78,42 @@ download_software $MIRRORS_URL/releases/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.gz
 GCC_CONFIGURE_PATH=`pwd`
 # 安装依赖
 echo "install dependence"
-packge_manager_run install -GCC_C_PACKGE_NAMES -BZIP2_PACKGE_NAMES ntpdate -M4_PACKGE_NAMES
-# 提取必需依赖
-# while 循环使用的是管道，会开启子进程，无法修改外部的变量
-PACKAGE_LISTS=`cat contrib/download_prerequisites| grep -P '\-\d+\.\d+(\.\d+)?\.tar'`
-for LINE in `echo -e $PACKAGE_LISTS`
-do
-    PACKAGE_VERSION_FILE=`echo $LINE|grep -P '\w+\-\d+\.\d+(\.\d+)?\.tar\.(bz2|gz)' -o`
-    PACKAGE=`echo $PACKAGE_VERSION_FILE|grep -P '^\w+' -o`
-    PACKAGE_VERSION_DIR=`echo $PACKAGE_VERSION_FILE|grep -P '\w+\-\d+\.\d+(\.\d+)?' -o`
-    PACKAGE_VERSION=`echo $PACKAGE_VERSION_DIR|grep -P '\d+\.\d+(\.\d+)?' -o`
-    PACKAGE_CONFIGURE_WITH=$GCC_CONFIGURE_WITH
-    GCC_CONFIGURE_WITH="$PACKAGE_CONFIGURE_WITH --with-$PACKAGE=$INSTALL_BASE_PATH/$PACKAGE/$PACKAGE_VERSION"
-    echo "install $PACKAGE_VERSION_DIR"
-    if [ -d "$INSTALL_BASE_PATH/$PACKAGE/$PACKAGE_VERSION" ]; then
-        echo "$PACKAGE_VERSION_DIR already install";
-        continue;
+packge_manager_run install -GCC_C_PACKGE_NAMES -BZIP2_PACKGE_NAMES -M4_PACKGE_NAMES
+# 部分版需要下载配置文件
+if [ ! -e "./configure" ] && [ -e "./contrib/download_prerequisites" ];then
+    ./contrib/download_prerequisites
+    if_error "install gcc fail"
+else
+    # 下载必需依赖
+    PACKAGE_LISTS=`cat contrib/download_prerequisites| grep -oP '\w+\-\d+\.\d+(\.\d+)?'`
+    # while 循环使用的是管道，会开启子进程，无法修改外部的变量
+    for LINE in `echo -e $PACKAGE_LISTS`
+    do
+        PACKAGE=`echo $LINE|grep -P '^\w+' -o`
+        if [ -d "$GCC_CONFIGURE_PATH/$PACKAGE" ];then
+            echo "$LINE already download, if download fail when you must delete $LINE";
+            continue;
+        fi
+        DOWNLOAD_FILENAME=`echo $LINE|sed 's/\./\\\./'`
+        PACKAGE_VERSION_FILE=`cat $GCC_CONFIGURE_PATH/contrib/download_prerequisites|grep -oP "$DOWNLOAD_FILENAME(\.\w+)+"|head -n 1`
+        if [ -z "$PACKAGE_VERSION_FILE" ];then
+            PACKAGE_VERSION_FILE=$LINE`cat $GCC_CONFIGURE_PATH/contrib/download_prerequisites|grep -oiP "$PACKAGE(\.\w+)+"|grep -oP '(\.\w+)+$'|head -n 1`
+        fi
+        # 下载安装包， 这里有问题，需要把内容复制到gcc的安装根目录下
+        download_software $MIRRORS_URL/infrastructure/$PACKAGE_VERSION_FILE
+        ln -sf `pwd` $GCC_CONFIGURE_PATH/$PACKAGE
+    done
+    # 如果不能获取依赖的包，则使用安装包提供的下载脚本
+    if [ -z "$PACKAGE_LISTS" ];then
+        bash contrib/download_prerequisites
+        if_error "install gcc fail"
     fi
-    # 下载安装包
-    download_software $MIRRORS_URL/infrastructure/$PACKAGE_VERSION_FILE
-    cd $PACKAGE_VERSION_DIR
-    if [[ "$PACKAGE" == "isl" ]];then
-        PACKAGE_CONFIGURE_WITH=' --with-gmp-prefix='`echo $PACKAGE_CONFIGURE_WITH|grep -P "[^=]+gmp/\d+\.\d+\.\d+" -o`
-    fi
-    configure_install --prefix=$INSTALL_BASE_PATH/$PACKAGE/$PACKAGE_VERSION$PACKAGE_CONFIGURE_WITH
-    if [[ "$PACKAGE" == "isl" ]];then
-        echo "mv lib/*.py file"
-        # 清除py文件，这些文件会影响共享的动态链接库ldconfig命令执行失败
-        for PY_FILE in `find $INSTALL_BASE_PATH/$PACKAGE/$PACKAGE_VERSION/lib/ -name "*.py"`
-        do
-            if [ -n "$PY_FILE" ] && [ -e "$PY_FILE" ];then
-                echo "mv $PY_FILE $INSTALL_BASE_PATH/$PACKAGE/$PACKAGE_VERSION"
-                mv $PY_FILE $INSTALL_BASE_PATH/$PACKAGE/$PACKAGE_VERSION
-            fi
-        done
-    fi
-    # 共享的动态链接库，加载配置
-    if [ -d "$INSTALL_BASE_PATH/$PACKAGE/$PACKAGE_VERSION/lib" ] && [ -z "`cat /etc/ld.so.conf|grep "$INSTALL_BASE_PATH/$PACKAGE/$PACKAGE_VERSION"`" ];then
-        echo "$INSTALL_BASE_PATH/$PACKAGE/$PACKAGE_VERSION/lib" >> /etc/ld.so.conf
-        ldconfig
-    fi
-done
-# 进入编译目录
-cd $GCC_CONFIGURE_PATH
+    # 进入编译目录
+    cd $GCC_CONFIGURE_PATH
+fi
 # 64位系统需要禁用multilib
 if [ -n "`uname -a|grep -P 'el\d+\.x\d+_\d+' -o|grep x86_64 -o`" ]; then
     GCC_CONFIGURE_WITH=$GCC_CONFIGURE_WITH' --disable-multilib'
-fi
-# 新版需要下载配置文件
-if [ ! -e "./configure" ] && [ -e "./contrib/download_prerequisites" ];then
-    ./contrib/download_prerequisites
-     mkdir gcc-make-tmp
-     cd gcc-make-tmp
 fi
 # 编译安装
 configure_install --prefix=$INSTALL_PATH$GCC_VERSION$GCC_CONFIGURE_WITH

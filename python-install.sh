@@ -37,7 +37,10 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PYTHON_VERSION"
 download_software https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz
 # 安装依赖
 echo "install dependence"
-
+if ! if_command 'gcc';then
+    packge_manager_run install -GCC_C_PACKGE_NAMES
+fi
+packge_manager_run install -BZIP2_DEVEL_PACKGE_NAMES
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 
