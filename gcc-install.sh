@@ -101,7 +101,7 @@ else
         fi
         # 下载安装包， 这里有问题，需要把内容复制到gcc的安装根目录下
         download_software $MIRRORS_URL/infrastructure/$PACKAGE_VERSION_FILE
-        ln -sf `pwd` $GCC_CONFIGURE_PATH/$PACKAGE
+        mv `pwd` $GCC_CONFIGURE_PATH/$PACKAGE
     done
     # 如果不能获取依赖的包，则使用安装包提供的下载脚本
     if [ -z "$PACKAGE_LISTS" ];then
