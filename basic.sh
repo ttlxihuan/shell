@@ -308,10 +308,10 @@ add_path(){
     if [ -z "$2" ]; then
         ENV_NAME='PATH'
     fi
-    if ! grep -qP "^export\s+$ENV_NAME=(\$$ENV_NAME:)?$1/?$" /etc/profile && ! eval "echo \$$ENV_NAME"|grep -qP "^(.+:)*$1(:.+)*$"; then
+    if ! grep -qP "^export\s+$ENV_NAME=(.*:)?$1/?$" /etc/profile && ! eval echo '$'$ENV_NAME|grep -qP "^(.*:)?$1(:.*)?$"; then
         # add environment variable
         echo "export $ENV_NAME=\$$ENV_NAME:$1" >> /etc/profile
-        export "$ENV_NAME"=`eval "echo \\$$ENV_NAME"`:"$1"
+        export "$ENV_NAME"=`eval echo '$'$ENV_NAME`:"$1"
     fi
     return 0
 }
@@ -484,6 +484,7 @@ run_install_shell (){
     bash ${@:1}
     if_error "run $1 fail"
     cd $CURRENT_PWD
+    source /etc/profile
 }
 # 初始化安装
 # @command start_install [$version_num]
