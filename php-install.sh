@@ -214,7 +214,7 @@ if in_options openssl $CONFIGURE_OPTIONS;then
                 if_error 'open make configure fail'
             fi
             # 编译安装
-            configure_install --prefix=/usr/local
+            configure_install --prefix=$INSTALL_BASE_PATH/openssl/$OPENSSL_VERSION
         fi
     fi
 fi
@@ -233,7 +233,7 @@ if ! in_options !sqlite3 $CONFIGURE_OPTIONS || ! in_options !pdo-sqlite $CONFIGU
             # 下载
             download_software https://www.sqlite.org/$SPLITE3_PATH
             # 编译安装
-            configure_install --prefix=/usr/local --enable-shared
+            configure_install --prefix=$INSTALL_BASE_PATH/sqlite/$SPLITE3_VERSION --enable-shared
         fi
     fi
 fi
@@ -360,7 +360,7 @@ sed -ir 's/upload_max_filesize\s+=\s+[0-9]+M/upload_max_filesize = 8M/' lib/php.
 echo './sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid'
 ./sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid
 # 添加执行文件连接
-ln -svf $INSTALL_PATH$PHP_VERSION/bin/php /bin/php
+ln -svf $INSTALL_PATH$PHP_VERSION/bin/php /usr/local/bin/php
 # 证书处理 主要针对 https 类的请求处理
 # 更新证书命令会造成 fsockopen 使用ssl 出错等
 PHP_SSL_LOCA_CERT_FILE=`php -r "echo openssl_get_cert_locations()['default_cert_file'];"`
@@ -371,6 +371,3 @@ if [ -n "$PHP_SSL_LOCA_CERT_FILE" ] && [ ! -e "$PHP_SSL_LOCA_CERT_FILE" ];then
     fi
 fi
 echo "install php-$PHP_VERSION success!";
-
-# 安装成功
-exit 0
