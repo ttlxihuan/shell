@@ -4,11 +4,23 @@
 # @param $path      切换的子目录
 # return 1|0
 chdir(){
-    if [ ! -d "$CURRENT_PATH/$1" ];then
-        mkdir -p $CURRENT_PATH/$1
-        if_error "mkdir fail: $CURRENT_PATH/$1"
-    fi
+    mkdirs $CURRENT_PATH/$1
     cd $CURRENT_PATH/$1
+}
+# 递归创建目录
+# @command mkdirs $path [$user]
+# @param $path      创建的目录
+# @param $user      指定目录所有者用户
+# return 1|0
+mkdirs(){
+    if [ ! -d "$1" ];then
+        mkdir -p "$1"
+        if_error "mkdir fail: $1"
+    fi
+    if [ -n "$2" ];then
+        chown -R $2:$2 "$1"
+    fi
+    return 0
 }
 # 添加动态库
 # @command add_pkg_config $path
@@ -260,9 +272,7 @@ configure_install(){
 # @param $configure_options 编译安装选项
 # return 1|0
 cmake_install(){
-    if [ ! -d 'build-tmp' ];then
-        mkdir build-tmp
-    fi
+    mkdirs build-tmp
     cd build-tmp
     make clean 2>&1
     echo "$*"
@@ -331,6 +341,9 @@ packge_manager_run(){
         ;;
         remove)
             COMMAND_STR=${PACKGE_MANAGER_REMOVE_COMMAND[$PACKGE_MANAGER_INDEX]}
+        ;;
+        search)
+            COMMAND_STR=${PACKGE_MANAGER_SEARCH_COMMAND[$PACKGE_MANAGER_INDEX]}
         ;;
         *)
             error_exit "unknown packge manager command: $1"

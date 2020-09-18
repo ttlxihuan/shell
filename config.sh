@@ -11,6 +11,8 @@ PACKGE_MANAGER_INSTALL_COMMAND=('yum -y install' 'apt -y install' 'dnf -y instal
 PACKGE_MANAGER_REMOVE_COMMAND=('yum -y erase' 'apt -y remove' 'dnf -y erase' 'pkg -y delete')
 # 已经安装命令
 # PACKGE_MANAGER_CHECK_COMMAND=('yum list' 'apt list' 'dnf list' 'pkg list')
+# 搜索命令
+PACKGE_MANAGER_SEARCH_COMMAND=('yum search' 'apt search' 'dnf search' 'pkg search')
 
 # ************** 包管理器安装应对的包名 ************** #
 # 此配置需要与包管理器命令顺序一至，配置规则：
