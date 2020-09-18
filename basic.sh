@@ -102,7 +102,10 @@ download_software(){
         if ! wget --no-check-certificate -T 7200 $1; then
             curl -OLkN --connect-timeout 7200 $1
         fi
-        if_error "download fail: $1"
+        if [ $? -ne 0 ];then
+            mv $FILE_NAME "`date +'%Y_%m_%d_%H_%M_%S'`_error_$FILE_NAME"
+            error_exit "download fail: $1"
+        fi
     fi
     if [ ! -d "$DIR_NAME" ];then
         case "$FILE_NAME" in
