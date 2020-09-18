@@ -63,7 +63,7 @@ find -name '*.sh'|sed -i 's/\r//' file
 vim install.sh
 ```
 
-复制输入下面的脚本代码并保存
+复制输入下面的脚本代码并保存（注意需要安装 wget，如果版本过低下载容易报错）
 ```
 #!/bin/bash
 if ! which wget 2>&1 &>/dev/null || ! which unzip 2>&1 &>/dev/null ;then
