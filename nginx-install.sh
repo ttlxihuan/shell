@@ -217,7 +217,7 @@ sed -ir 's/#gzip\s+on/gzip  on/' nginx.conf
 # 修改工作子进程数
 sed -ir "s/worker_processes\s+[0-9]+;/worker_processes  $HTREAD_NUM;/" nginx.conf
 # 修改每个工作进程最大连接数
-MAX_CONNECTIONS=$(expr $HTREAD_NUM * 1000)
+MAX_CONNECTIONS=$(expr $HTREAD_NUM \* 1000)
 sed -ir "s/worker_connections\s+[0-9]+;/worker_connections  $MAX_CONNECTIONS;/" nginx.conf
 # 添加引入虚拟配置目录
 if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then
