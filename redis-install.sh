@@ -34,12 +34,20 @@ init_install REDIS_VERSION "$1"
 # ************** 编译安装 ******************
 # 下载redis包
 download_software http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
+
+# 新版的redis需要更高的GCC
+if if_version "$REDIS_VERSION" ">=" "6.0.0" && if_version "`cc --version|grep -oP '\d+(\.\d+){2}'|head -1`" "<" "5.1.0";then
+    run_install_shell gcc-install.sh 7.5.0
+    if_error 'install gcc fail'
+fi
+
+# 编译
+make_install
+
 # 复制安装包
 mkdir -p $INSTALL_PATH/$REDIS_VERSION
-mv ./* $INSTALL_PATH/$REDIS_VERSION
+cp -R ./* $INSTALL_PATH/$REDIS_VERSION
 cd $INSTALL_PATH/$REDIS_VERSION
-# 编译
-make_install $INSTALL_PATH$REDIS_VERSION
 
 # redis conf set
 sed -i 's/daemonize no/daemonize yes/' redis.conf
