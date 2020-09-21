@@ -137,10 +137,10 @@ fi
 # ************** 编译安装 ******************
 # 下载mysql包
 download_software https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/mysql-$MYSQL_VERSION.tar.gz
+# 暂存编译目录
+MYSQL_CONFIGURE_PATH=`pwd`
 # mysql-5.7 开始需要使用boots包才能编译
 if [ -n "`curl "https://downloads.mysql.com/archives/community/?tpl=version&os=src&version=$MYSQL_VERSION&osva=" 2>&1 | grep "mysql-boost-$MYSQL_VERSION.tar.gz" -o`" ] || [ -n "`curl "https://dev.mysql.com/downloads/mysql/?tpl=platform&os=src&osva="  2>&1 | grep "mysql-boost-$MYSQL_VERSION.tar.gz" -o`" ];then
-    # 暂存编译目录
-    MYSQL_CONFIGURE_PATH=`pwd`
     download_software https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/mysql-boost-$MYSQL_VERSION.tar.gz $MYSQL_CONFIGURE_PATH/boost/
     CMAKE_CONFIG="-DWITH_BOOST=../boost/"
     cd $MYSQL_CONFIGURE_PATH
@@ -154,8 +154,6 @@ INSTALL_CMAKE=`cat CMakeLists.txt 2>&1|grep -P 'yum\s+install\s+cmake\d?' -o|gre
 if [ -z "$INSTALL_CMAKE" ];then
     INSTALL_CMAKE="cmake"
 fi
-# 安装编译器
-tools_install $INSTALL_CMAKE
 if if_lib "openssl";then
     echo 'openssl ok'
 else
@@ -170,14 +168,18 @@ fi
 # 新增加的压缩功能，指定使用系统zstd库
 if if_version "" ">=" "8.0.18" && [ -d 'extra/zstd' ];then
     if ! if_command zstd; then
-        download_software https://github.com/facebook/zstd/archive/master.zip
+        download_software https://github.com/facebook/zstd/archive/master.zip zstd-master
         make_install
+        cd $MYSQL_CONFIGURE_PATH
     fi
     # CMAKE_CONFIG=$CMAKE_CONFIG" -DWITH_ZSTD=system"
 fi
 packge_manager_run remove mariadb*
 # 获取当前安装要求最低gcc版本
 GCC_MIN_VERSION=`grep -P 'GCC \d+(\.\d+)+' cmake/os/Linux.cmake -o|grep -P '\d+(\.\d+)+' -o|tail -n 1`
+if [[ "$GCC_MIN_VERSION" =~ ^"\d+\.\d+"$ ]];then
+    GCC_MIN_VERSION="$GCC_MIN_VERSION.0"
+fi
 # 获取当前安装的gcc版本
 for ITEM in `which -a gcc`; do
     GCC_CURRENT_VERSION=`$ITEM -v 2>&1|grep -oP '\d+(\.\d+)+'|tail -n 1`
@@ -197,6 +199,17 @@ fi
 # 编译缓存文件删除
 if [ -e "CMakeCache.txt" ];then
     rm -f CMakeCache.txt
+fi
+# 安装编译器
+if ! if_command $INSTALL_CMAKE && [[ "$INSTALL_CMAKE" == "cmake3" ]];then
+    get_version CMAKE_MAX_VERSION "https://cmake.org/files/" "v3\.\d+"
+    get_version CMAKE_VERSION "https://cmake.org/files/v$CMAKE_MAX_VERSION" "cmake-\d+\.\d+\.\d+"
+    download_software "https://cmake.org/files/v$CMAKE_MAX_VERSION/cmake-$CMAKE_VERSION.tar.gz"
+    # 编译安装
+    configure_install --prefix=$INSTALL_BASE_PATH/cmake3/$CMAKE_VERSION
+    ln -svf /$INSTALL_BASE_PATH/cmake3/$CMAKE_VERSION/bin/cmake /usr/bin/$INSTALL_CMAKE
+else
+    tools_install $INSTALL_CMAKE
 fi
 # 编译安装
 cmake_install $INSTALL_CMAKE ../ -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH$MYSQL_VERSION -DMYSQL_DATADIR=$INSTALL_PATH$MYSQL_VERSION/database -DSYSCONFDIR=$INSTALL_PATH$MYSQL_VERSION/etc -DSYSTEMD_PID_DIR=$INSTALL_PATH$MYSQL_VERSION/run -DMYSQLX_UNIX_ADDR=$INSTALL_PATH$MYSQL_VERSION/run/mysqlx.sock -DMYSQL_UNIX_ADDR=$INSTALL_PATH$MYSQL_VERSION/run/mysql.sock $CMAKE_CONFIG
