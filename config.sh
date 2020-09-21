@@ -64,7 +64,7 @@ APR_UTIL_DEVEL_PACKGE_NAMES=('apr-util-devel' 'libapr1-util-dev')
 # 安装sqlite
 SQLITE_DEVEL_PACKGE_NAMES=('sqlite-devel' 'sqlite-dev')
 # 安装gcc-c++
-GCC_C_PACKGE_NAMES=('gcc-c++')
+GCC_C_PACKGE_NAMES=('gcc-c++' 'g++')
 # 安装bzip2
 BZIP2_PACKGE_NAMES=('bzip2')
 # 安装bzip2
