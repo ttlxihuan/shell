@@ -540,6 +540,13 @@ init_install (){
     ntpdate -u ntp.api.bz
     # 加载环境配置
     source /etc/profile
+    # 内存空间不够
+    if if_version `free -tg|tail -1|grep -oP '\d+'|head -1` '<' '3';then
+        dd if=/dev/zero of=/swap bs=1024 count=1M
+        mkswap /swap
+        swapon /swap
+        echo "/swap swap swap sw 0 0" >> /etc/fstab
+    fi
     return 0
 }
 # 加载配置
