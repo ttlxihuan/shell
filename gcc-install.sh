@@ -138,5 +138,6 @@ ln -svf $INSTALL_PATH$GCC_VERSION/bin/gcc /usr/local/bin/gcc
 ln -svf $INSTALL_PATH$GCC_VERSION/bin/c++ /usr/local/bin/c++
 ln -svf $INSTALL_PATH$GCC_VERSION/bin/g++ /usr/local/bin/g++
 ln -svf $INSTALL_PATH$GCC_VERSION/bin/cpp /usr/local/bin/cpp
+ln -svf /usr/local/bin/gcc /usr/bin/cc
 
 echo "install gcc-$GCC_VERSION success!";
