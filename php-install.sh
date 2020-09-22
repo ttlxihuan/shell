@@ -58,7 +58,7 @@ init_install PHP_VERSION "$1"
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath pcntl ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 ftp shmop gmp'
+ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 ftp shmop gmp'
 # ************** 编译安装 ******************
 # 下载PHP包
 download_software https://$PHP_HOST/distributions/php-$PHP_VERSION.tar.gz
@@ -115,7 +115,7 @@ if ! in_options !iconv $CONFIGURE_OPTIONS;then
 fi
 # gmp扩展
 if in_options gmp $CONFIGURE_OPTIONS;then
-    if ldconfig -p|grep -q '/libgmp\.so';then
+    if ldconfig -p|grep -q '/libgmp\.so' && find /usr/include/ -name 'gmp.h'|grep 'gmp' && find /usr/local/include/ -name 'gmp.h'|grep 'gmp';then
         echo 'gmp ok'
     else
         # 安装gmp-dev
@@ -294,20 +294,30 @@ if if_version $PHP_VERSION '>=' 7.4.0;then
         # 安装oniguruma-dev
         packge_manager_run install -ONIGURUMA_DEVEL_PACKGE_NAMES
         if ! if_lib "oniguruma"; then
-            ONIG_PC_FILE='/usr/lib64/pkgconfig/oniguruma.pc'
-            echo 'prefix=/usr' > $ONIG_PC_FILE
-            echo 'exec_prefix=/usr' >> $ONIG_PC_FILE
-            echo 'libdir=/usr/lib64' >> $ONIG_PC_FILE
-            echo 'includedir=/usr/include' >> $ONIG_PC_FILE
-            echo 'datarootdir=/usr/share' >> $ONIG_PC_FILE
-            echo "datadir=/usr/share\n" >> $ONIG_PC_FILE
-            echo 'Name: oniguruma' >> $ONIG_PC_FILE
-            echo 'Description: Regular expression library' >> $ONIG_PC_FILE
-            echo -n 'Version: ' >> $ONIG_PC_FILE
-            echo `grep ONIGURUMA_VERSION /usr/include/oniguruma.h|grep -oP '\d+'`|sed -r 's/\s+/./g' >> $ONIG_PC_FILE
-            echo 'Requires:' >> $ONIG_PC_FILE
-            echo 'Libs: -L${libdir} -lonig' >> $ONIG_PC_FILE
-            echo 'Cflags: -I${includedir}' >> $ONIG_PC_FILE
+            if [ ! -e "/usr/include/oniguruma.h" ];then
+                # 下载
+                download_software https://github.com/kkos/oniguruma/archive/v6.9.4.tar.gz oniguruma-6.9.4
+                if [ ! -e 'configure' ];then
+                    packge_manager_run install autoconf automake libtool
+                    ./autogen.sh
+                fi
+                configure_install --prefix=$INSTALL_BASE_PATH/oniguruma/6.9.4
+            else
+                ONIG_PC_FILE='/usr/lib64/pkgconfig/oniguruma.pc'
+                echo 'prefix=/usr' > $ONIG_PC_FILE
+                echo 'exec_prefix=/usr' >> $ONIG_PC_FILE
+                echo 'libdir=/usr/lib64' >> $ONIG_PC_FILE
+                echo 'includedir=/usr/include' >> $ONIG_PC_FILE
+                echo 'datarootdir=/usr/share' >> $ONIG_PC_FILE
+                echo "datadir=/usr/share\n" >> $ONIG_PC_FILE
+                echo 'Name: oniguruma' >> $ONIG_PC_FILE
+                echo 'Description: Regular expression library' >> $ONIG_PC_FILE
+                echo -n 'Version: ' >> $ONIG_PC_FILE
+                echo `grep ONIGURUMA_VERSION /usr/include/oniguruma.h|grep -oP '\d+'`|sed -r 's/\s+/./g' >> $ONIG_PC_FILE
+                echo 'Requires:' >> $ONIG_PC_FILE
+                echo 'Libs: -L${libdir} -lonig' >> $ONIG_PC_FILE
+                echo 'Cflags: -I${includedir}' >> $ONIG_PC_FILE
+            fi
         fi
     fi
 fi
@@ -326,10 +336,10 @@ cp -f etc/php-fpm.d/www.conf.default etc/php-fpm.d/www.conf
 
 
 # 修改配置参数
-MAX_CHILDREN=$(expr $HTREAD_NUM * 200)
-MIN_SPARE=$(expr $MAX_CHILDREN * 0.1)
-MAX_SPARE=$(expr $MAX_CHILDREN * 0.5)
-INIT_CHILDREN=$(expr $MAX_CHILDREN * 0.3)
+MAX_CHILDREN=$(expr $HTREAD_NUM \* 200)
+MIN_SPARE=$(expr $MAX_CHILDREN \* 0.1)
+MAX_SPARE=$(expr $MAX_CHILDREN \* 0.5)
+INIT_CHILDREN=$(expr $MAX_CHILDREN \* 0.3)
 sed -ir "s/pm.max_children\s*=\s*[0-9]+/pm.max_children = $MAX_CHILDREN/" etc/php-fpm.d/www.conf
 sed -ir "s/pm.start_servers\s*=\s*[0-9]+/pm.start_servers = $INIT_CHILDREN/" etc/php-fpm.d/www.conf
 sed -ir "s/pm.min_spare_servers\s*=\s*[0-9]+/pm.min_spare_servers = $MIN_SPARE/" etc/php-fpm.d/www.conf
