@@ -13,6 +13,9 @@
 # CentOS 5+
 # Ubuntu 15+
 #
+# 未绑定的扩展尽量不要使用静态编译安装，这种安装方式容易出现问题，建议使用phpize安装，先自行下载源码，解压后使用phpize自动生成php扩展环境，剩下直接使用正常编译安装流程 ./configure && make && make install
+# 官方文档：https://www.php.net/manual/zh/install.pecl.phpize.php
+#
 # 常见错误：
 #  1、运行yum报错 Error: Cannot retrieve metalink for repository: epel. Please verify its path and try again
 #       修改 /etc/yum.repos.d/epel.repo 文件的 baseurl 和 mirrorlist 配置，把 baseurl 配置前的#去掉，把 mirrorlist 配置前面增加#
