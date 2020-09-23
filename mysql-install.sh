@@ -166,13 +166,13 @@ else
     packge_manager_run install -NCURSES_DEVEL_PACKGE_NAMES
 fi
 # 新增加的压缩功能，指定使用系统zstd库
-if if_version "" ">=" "8.0.18" && [ -d 'extra/zstd' ];then
+if if_version "$MYSQL_VERSION" ">=" "8.0.18" && [ -d 'extra/zstd' ];then
     if ! if_command zstd; then
         download_software https://github.com/facebook/zstd/archive/master.zip zstd-master
         make_install
         cd $MYSQL_CONFIGURE_PATH
     fi
-    # CMAKE_CONFIG=$CMAKE_CONFIG" -DWITH_ZSTD=system"
+    CMAKE_CONFIG=$CMAKE_CONFIG" -DWITH_ZSTD=system"
 fi
 packge_manager_run remove mariadb*
 # 获取当前安装要求最低gcc版本
@@ -208,6 +208,7 @@ if ! if_command $INSTALL_CMAKE && [[ "$INSTALL_CMAKE" == "cmake3" ]];then
     # 编译安装
     configure_install --prefix=$INSTALL_BASE_PATH/cmake3/$CMAKE_VERSION
     ln -svf /$INSTALL_BASE_PATH/cmake3/$CMAKE_VERSION/bin/cmake /usr/bin/$INSTALL_CMAKE
+    cd $MYSQL_CONFIGURE_PATH
 else
     tools_install $INSTALL_CMAKE
 fi
@@ -385,9 +386,11 @@ fi
 # 增加开机启动
 cp support-files/mysql.server /etc/init.d/mysqld
 # 添加到service服务处理中
-chkconfig --add /etc/init.d/mysqld
-
+if if_command chkconfig;then
+    chkconfig --add /etc/init.d/mysqld
+fi
 if [ -e "/usr/bin/systemctl" ]; then
+    systemctl daemon-reload
     OPEN_SERVICE="systemctl start mysqld"
 else
     OPEN_SERVICE="service mysqld start"
