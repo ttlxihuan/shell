@@ -93,3 +93,5 @@ PYTHON_DOCUTILS_PACKGE_NAMES=('python-docutils')
 PYTHON_SPHINX_PACKGE_NAMES=('python-sphinx')
 # 安装readline
 READLINE_DEVEL_PACKGE_NAMES=('readline-devel' 'readline-dev')
+# 安装libffi
+LIBFFI_DEVEL_PACKGE_NAMES=('libffi-devel' 'libffi-dev')

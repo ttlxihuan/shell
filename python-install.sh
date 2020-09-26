@@ -36,11 +36,13 @@ init_install PYTHON_VERSION "$1"
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PYTHON_VERSION"
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='ssl'
+ADD_OPTIONS='?ipv6'
 # ************** 编译安装 ******************
 # 下载python包
 download_software https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz
 PYTHON_CURRENT_PATH=`pwd`
+# 解析选项
+parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
 echo "install dependence"
 if ! if_command 'gcc';then
@@ -55,11 +57,16 @@ if if_lib 'zlib' '>=' '1.2.8'; then
     echo 'zlib ok'
 else
     download_software http://zlib.net/zlib-1.2.11.tar.gz
-    configure_install --prefix=$INSTALL_PATH"zlib/1.2.11"
+    configure_install --prefix=$INSTALL_BASE_PATH"zlib/1.2.11"
     cd $PYTHON_CURRENT_PATH
 fi
 
 packge_manager_run install -BZIP2_DEVEL_PACKGE_NAMES
+
+# 版本在3.7时需要，以下依赖
+if if_version "$PYTHON_VERSION" "<" "3.7.5" && if_version "$PYTHON_VERSION" ">=" "3.7.0";then
+    packge_manager_run install -LIBFFI_DEVEL_PACKGE_NAMES
+fi
 
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
