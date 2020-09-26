@@ -182,7 +182,7 @@ if [[ "$GCC_MIN_VERSION" =~ ^"\d+\.\d+"$ ]];then
 fi
 # 获取当前安装的gcc版本
 for ITEM in `which -a gcc`; do
-    GCC_CURRENT_VERSION=`$ITEM -v 2>&1|grep -oP '\d+(\.\d+)+'|tail -n 1`
+    GCC_CURRENT_VERSION=`$ITEM -v 2>&1|grep -oP '\d+(\.\d+){2}'|tail -n 1`
     if if_version $GCC_MIN_VERSION '<=' $GCC_CURRENT_VERSION;then
         if if_many_version gcc -v;then
             GCC_INSTALL=`echo $ITEM|grep -oP '/([\w+\.]+/)+'`
