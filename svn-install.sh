@@ -104,7 +104,11 @@ if [ ! -d "$SERVER_WORK_PATH" ];then
     mkdir $SERVER_WORK_PATH;
 fi
 
+# 创建用户
+add_user svnserve
+chown -R svnserve:svnserve $SERVER_WORK_PATH
+
 # 启动服务
-svnserve -d -r $SERVER_WORK_PATH
+sudo -u svnserve svnserve -d -r $SERVER_WORK_PATH
 
 echo "install svn-$SVN_VERSION success!"
