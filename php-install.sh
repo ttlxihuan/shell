@@ -63,7 +63,7 @@ init_install PHP_VERSION "$1"
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 ftp shmop gmp'
+ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 gmp'
 # ************** 编译安装 ******************
 # 下载PHP包
 download_software https://$PHP_HOST/distributions/php-$PHP_VERSION.tar.gz
