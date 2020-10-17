@@ -341,7 +341,7 @@ cp -f etc/php-fpm.d/www.conf.default etc/php-fpm.d/www.conf
 
 
 # 修改配置参数
-MAX_CHILDREN=$(expr $HTREAD_NUM \* 200)
+MAX_CHILDREN=$(expr $HTREAD_NUM \* 10)
 MIN_SPARE=$(expr $MAX_CHILDREN \* 0.1)
 MAX_SPARE=$(expr $MAX_CHILDREN \* 0.5)
 INIT_CHILDREN=$(expr $MAX_CHILDREN \* 0.3)
