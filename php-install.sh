@@ -113,7 +113,7 @@ if ! in_options !iconv $CONFIGURE_OPTIONS;then
         configure_install --prefix=$INSTALL_BASE_PATH/libiconv/$LIBICONV_VERSION --enable-shared
     elif if_many_version iconv --version;then
         # 安装多个版本需要指定安装目录
-        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-iconv="`which iconv|grep -oP '/([^/]+/)+'|grep -oP '(/[^/]+)+'`
+        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-iconv=`which iconv|grep -oP '/([^/]+/)+'|grep -oP '(/[^/]+)+'` "
     else
         echo 'libiconv ok'
     fi
@@ -193,7 +193,7 @@ if in_options zip $CONFIGURE_OPTIONS;then
 fi
 # openssl 扩展使用
 if in_options openssl $CONFIGURE_OPTIONS;then
-    if if_version $PHP_VERSION '<' 7.4.0;then
+    if if_version $PHP_VERSION '<' 7.0.0;then
         if if_lib "openssl";then
             echo 'openssl ok'
         else
@@ -202,7 +202,7 @@ if in_options openssl $CONFIGURE_OPTIONS;then
         fi
     else
         # 安装 openssl
-        if if_lib "openssl" ">=" "1.0.1";then
+        if if_lib "openssl" ">=" "1.0.2";then
             echo 'openssl ok'
         else
             # 获取最新版
@@ -211,7 +211,6 @@ if in_options openssl $CONFIGURE_OPTIONS;then
             # 下载
             download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
             # 移除不要的组件
-            packge_manager_run remove -OPENSSL_DEVEL_PACKGE_NAMES
             packge_manager_run remove openssl -OPENSSL_DEVEL_PACKGE_NAMES
             # 添加编译文件连接
             if [ ! -e './configure' ];then
