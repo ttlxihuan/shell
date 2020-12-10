@@ -251,8 +251,13 @@ if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;the
             packge_manager_run install -LIBXML2_DEVEL_PACKGE_NAMES
         fi
     else
+        if if_version $PHP_VERSION '>=' 8.0.0;then
+            MIN_LIBXML2_VERSION='2.9.0'
+        else
+            MIN_LIBXML2_VERSION='2.7.6'
+        fi
         # 安装libxml2
-        if if_lib "libxml-2.0" ">=" "2.7.6";then
+        if if_lib "libxml-2.0" ">=" "$MIN_LIBXML2_VERSION";then
             echo 'libxml ok'
         else
             # 获取最新版
