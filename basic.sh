@@ -482,6 +482,26 @@ random_password(){
     done
     eval "$1='$PASSWORD_STR'"
 }
+# 常规公式计算
+# @command math_compute $result $formula [$scale]
+# @param $result            计算结果写入变量名
+# @param $formula           计算公式
+# @param $scale             计算小数精度位数，默认是0
+#                           支持运算：+-*/^%
+# return 1|0
+math_compute(){
+    if ! if_command bc; then
+        packge_manager_run install bc
+    fi
+    local SCALE_NUM=0
+    if [ -n "$3" ]; then
+        SCALE_NUM=`echo "$3"|grep -oP '^\d+'`
+        SCALE_NUM=`echo "$SCALE_NUM"|awk '{if($1 == ""){print "0"}else{print $1}}'`
+    fi
+    RESULT_STR=`echo "scale=$SCALE_NUM; $2"|bc|sed 's/\\\\//'`
+    RESULT_STR=`echo $RESULT_STR|awk -F '.' '{if($1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
+    eval "$1='$RESULT_STR'"
+}
 # 运行安装脚本
 # @command run_install_shell $shell_file $version_num [$other ...]
 # @param $shell_file        安装脚本名
@@ -535,9 +555,14 @@ init_install (){
         error_exit "install min version: $INSTALL_VERSION_MIN"
     fi
     # 安装必需工具
-    tools_install ntpdate gcc make
-    # 更新系统时间
-    ntpdate -u ntp.api.bz
+    tools_install gcc make
+    if ! if_command ntpdate; then
+        packge_manager_run install ntpdate 2> /dev/null
+    fi
+    if ! if_command ntpdate; then
+        # 更新系统时间
+        ntpdate -u ntp.api.bz
+    fi
     # 加载环境配置
     source /etc/profile
     # 内存空间不够

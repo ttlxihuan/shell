@@ -215,10 +215,10 @@ sed -ir 's/^#user\s+nobody/user nginx/' nginx.conf
 # 开户gzip
 sed -ir 's/^#gzip\s+on/gzip  on/' nginx.conf
 # 修改工作子进程数，最优化，子进程数 = CPU数 * 3 / 2
-PROCESSES_NUM=$(expr `expr $HTREAD_NUM \* 3` / 2)
+math_compute PROCESSES_NUM "$HTREAD_NUM * 3 / 2"
 sed -ir "s/worker_processes\s+[0-9]+;/worker_processes  $PROCESSES_NUM;/" nginx.conf
 # 修改每个工作进程最大连接数
-MAX_CONNECTIONS=$(expr $HTREAD_NUM \* 1024)
+math_compute MAX_CONNECTIONS "$HTREAD_NUM * 1024"
 sed -ir "s/worker_connections\s+[0-9]+;/worker_connections  $MAX_CONNECTIONS;/" nginx.conf
 # 添加引入虚拟配置目录
 if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then

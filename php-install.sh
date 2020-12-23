@@ -42,6 +42,11 @@
 #           3、在 configure 指定库目录，如： configure --with-iconv=/usr/local/iconv  但使用当前方式时需要注意 --with-iconv 和 --with-iconv-dir 选项意义不一样，建议使用这种操作
 #  7、make时如果报 Error: no such instruction: 类似错误，说明binutils版本过低，需要安装高版本的，建议安装版本2.30+ ，下载地址 http://ftp.gnu.org/gnu/binutils/ 常规编译安装即可
 #
+#  8、configure报：（说明openssl版本过高了，需要低点版本的，类似的问题也都是版本不兼容）
+#       checking for libcurl linked against old openssl... no
+#       checking for curl_easy_perform in -lcurl... no
+#       configure: error: There is something wrong. Please check config.log for more information.
+#
 #
 ####################################################################################
 ##################################### 安装处理 #####################################
@@ -205,8 +210,10 @@ if in_options openssl $CONFIGURE_OPTIONS;then
         if if_lib "openssl" ">=" "1.0.2";then
             echo 'openssl ok'
         else
-            # 获取最新版
-            get_version OPENSSL_VERSION https://www.openssl.org/source/ 'openssl-\d+\.\d+\.\d+[a-z]*\.tar\.gz[^\.]' '\d+\.\d+\.\d+[a-z]*'
+            # 获取较新版
+            # get_version OPENSSL_VERSION https://www.openssl.org/source/ 'openssl-\d+\.\d+\.\d+[a-z]*\.tar\.gz[^\.]' '\d+\.\d+\.\d+[a-z]*'
+            # 使用固定较新版本，版本过新有兼容问题
+            OPENSSL_VERSION='1.1.1g'
             echo "install openssl-$OPENSSL_VERSION"
             # 下载
             download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
@@ -345,10 +352,10 @@ cp -f etc/php-fpm.d/www.conf.default etc/php-fpm.d/www.conf
 
 
 # 修改配置参数
-MAX_CHILDREN=$(expr $HTREAD_NUM \* 10)
-MIN_SPARE=$(expr $MAX_CHILDREN \* 0.1)
-MAX_SPARE=$(expr $MAX_CHILDREN \* 0.5)
-INIT_CHILDREN=$(expr $MAX_CHILDREN \* 0.3)
+math_compute MAX_CHILDREN "$HTREAD_NUM * 10"
+math_compute MIN_SPARE "$MAX_CHILDREN * 0.1"
+math_compute MAX_SPARE "$MAX_CHILDREN * 0.5"
+math_compute INIT_CHILDREN "$MAX_CHILDREN * 0.3"
 sed -ir "s/pm.max_children\s*=\s*[0-9]+/pm.max_children = $MAX_CHILDREN/" etc/php-fpm.d/www.conf
 sed -ir "s/pm.start_servers\s*=\s*[0-9]+/pm.start_servers = $INIT_CHILDREN/" etc/php-fpm.d/www.conf
 sed -ir "s/pm.min_spare_servers\s*=\s*[0-9]+/pm.min_spare_servers = $MIN_SPARE/" etc/php-fpm.d/www.conf
