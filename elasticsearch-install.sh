@@ -125,13 +125,13 @@ fi
 download_software https://artifacts.elastic.co/downloads/elasticsearch/$TAR_FILE_NAME
 # 复制安装包
 mkdir -p $INSTALL_PATH/$ELASTICSEARCH_VERSION
-mv ./* $INSTALL_PATH/$ELASTICSEARCH_VERSION
+cp -R ./* $INSTALL_PATH/$ELASTICSEARCH_VERSION
 cd $INSTALL_PATH/$ELASTICSEARCH_VERSION
 # 安装java
 tools_install java
 
 # 默认数据目录判断是否存在
-if [ ! -d "./data" ];
+if [ ! -d "./data" ]; then
     mkdir data
 fi
 
