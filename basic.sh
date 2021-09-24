@@ -229,7 +229,20 @@ in_options(){
         PREFIX='disable|without'
         OPTION_NAME=${1:1}
     fi
-    echo $*|sed -r "s/^$OPTION_NAME\s+//"|grep -qP "\--(($PREFIX)-)?($OPTION_NAME)(-dir(=\S+))?"
+    echo "${@:1}"|grep -qP "\--(($PREFIX)-)?($OPTION_NAME)(-dir(=\S+))?"
+    return $?
+}
+# 是否存在待添加解析选项
+# @command exist_options $item $options
+# @param $item              需要判断的选项，禁用选项加!
+# @param $options           有效选项集
+# return 1|0
+in_add_options(){
+    local OPTION_NAME="$1"
+    if [[ "$1" =~ ^'!' ]];then
+        OPTION_NAME=${1:1}
+    fi
+    echo "${@:1}"|grep -qP "\??$OPTION_NAME(\s+|$)"
     return $?
 }
 # make安装软件
@@ -583,7 +596,7 @@ if if_command yum;then
     #yum -y install epel-release
     # 创建元数据缓存
     #yum makecache 2>&1 &>/dev/null
-    yum -y update nss 2>&1 &>/dev/null
+    yum -y update nss 2>&1 &>/dev/null &
 elif if_command apt;then
     PACKGE_MANAGER_INDEX=1
 elif if_command dnf;then
