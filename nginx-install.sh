@@ -52,6 +52,8 @@ INSTALL_NAME='nginx'
 VERSION_URL="http://$NGINX_HOST/en/download.html"
 VERSION_MATCH='Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz'
 VERSION_RULE='\d+\.\d+\.\d+'
+# 安装最小版本
+NGINX_VERSION_MIN='1.0.0'
 # 初始化安装
 init_install NGINX_VERSION "$1"
 # ************** 相关配置 ******************
