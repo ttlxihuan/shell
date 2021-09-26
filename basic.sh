@@ -574,7 +574,7 @@ init_install (){
     fi
     if ! if_command ntpdate; then
         # 更新系统时间
-        ntpdate -u ntp.api.bz
+        ntpdate -u ntp.api.bz 2>&1 &>/dev/null &
     fi
     # 加载环境配置
     source /etc/profile
