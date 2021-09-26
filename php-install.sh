@@ -68,7 +68,14 @@ init_install PHP_VERSION "$1"
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 gmp'
+ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 gmp ?swoole'
+# 配置编译安装pecl扩展块信息，只有指定了才会认定为pecl扩展包，并且需要在上面的选项中添加上（需要指定为询问安装比如 ?swoole），否则不会进行安装或安装异常
+# 如果扩展包源文件已经放到PHP编译目录中则同PHP一起编译安装
+# 如果没有则在PHP编译安装完成后再通过phpize方式安装
+# 注意：有依赖的扩展包需要提前安装好依赖，需要通过phpize安装的扩展并在这里设置好相关编译配置
+# 配置格式：扩展名={版本 编译选项集...}
+# 版本默认为new是最新，其它为指定版本号
+PECL_OPTIONS='swoole={new --enable-openssl --enable-http2} yar gmagick'
 # ************** 编译安装 ******************
 # 下载PHP包
 download_software https://$PHP_HOST/distributions/php-$PHP_VERSION.tar.gz
@@ -343,13 +350,13 @@ cd $PHP_CONFIGURE_PATH
 configure_install $CONFIGURE_OPTIONS
 # 创建用户组
 add_user phpfpm
+
 # 配置文件处理
 echo 'set config file'
 cp -f php.ini-production $INSTALL_PATH$PHP_VERSION/lib/php.ini
 cd $INSTALL_PATH$PHP_VERSION
 cp -f etc/php-fpm.conf.default etc/php-fpm.conf
 cp -f etc/php-fpm.d/www.conf.default etc/php-fpm.d/www.conf
-
 
 # 修改配置参数
 math_compute MAX_CHILDREN "$HTREAD_NUM * 10"
@@ -381,6 +388,42 @@ sed -ir 's/;opcache.validate_timestamps=[0-9]+/opcache.validate_timestamps=0/' l
 # sed -ir 's/;opcache.revalidate_freq=[0-9]+/opcache.revalidate_freq=60/' lib/php.ini
 # 上传配置
 sed -ir 's/upload_max_filesize\s+=\s+[0-9]+M/upload_max_filesize = 8M/' lib/php.ini
+
+# 解析处理pecl扩展
+echo "$PECL_OPTIONS"|grep -oP '\w[\w\-]+(\s*=\s*\{[^\{\}]+\})?\s+'| while read EXT_CONFIG
+do
+    EXT_NAME="`echo $EXT_CONFIG|grep -oP '^\w[\w\-]+'`"  EXT_OPTIONS="`echo $EXT_CONFIG|grep -oP '\{[^\{\}]+\}'|grep -oP '[^\{\}]+'`" EXT_VERSION='new' EXT_ADD_OPTIONS=''
+    if [ -n "$EXT_OPTIONS" ];then
+        EXT_VERSION="`echo $EXT_OPTIONS|awk '{print $1}'`"
+        EXT_ADD_OPTIONS="`echo $EXT_OPTIONS|awk '{$1=""; print}'`"
+    fi
+    if in_add_options $EXT_NAME $ADD_OPTIONS && [ -z "`$INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "$EXT_NAME"`" ];then
+        echo "install $EXT_NAME"
+        # 最低PHP版本处理
+        get_version MIN_PHP_VERSION "https://pecl.php.net/package/$EXT_NAME" "PHP Version: PHP \d+\.\d+\.\d+ or newer" "\d+\.\d+\.\d+"
+        if if_version $MIN_PHP_VERSION '>' $PHP_VERSION;then
+            echo "$EXT_NAME must php > $MIN_PHP_VERSION"
+            return 1
+        fi
+        if [ -z $EXT_VERSION ] || [[ $EXT_VERSION == "new" ]]; then
+            echo "get new $EXT_NAME version"
+            get_version EXT_VERSION "https://pecl.php.net/package/$EXT_NAME" "$EXT_NAME-\d+\.\d+\.\d+.tgz" "\d+\.\d+\.\d+"
+        fi
+        echo "install $EXT_NAME-$EXT_VERSION"
+        # 下载
+        download_software https://pecl.php.net/get/$EXT_NAME-$EXT_VERSION.tgz
+        # 通过phpize安装
+        $INSTALL_PATH$PHP_VERSION/bin/phpize
+        # 编译安装phpize
+        configure_install $EXT_ADD_OPTIONS --with-php-config=$INSTALL_PATH$PHP_VERSION/bin/php-config
+        cd $INSTALL_PATH$PHP_VERSION
+        # 开启扩展
+        if [ -z "`cat lib/php.ini|grep extension=$EXT_NAME.so`" ]; then
+            echo "extension=$EXT_NAME.so" >> lib/php.ini
+        fi
+        echo "$EXT_NAME-$EXT_VERSION install success!"
+    fi
+done
 
 # 启动服务
 echo './sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid'
