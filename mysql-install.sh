@@ -3,18 +3,11 @@
 # mysql快速编译安装shell脚本
 #
 # 安装命令
-# bash mysql-install.sh new [password [type master_host master_password]]
-# bash mysql-install.sh $verions_num [password [type master_host master_password]]
+# bash mysql-install.sh new [--password=str] [--type=[main|slave]] [--master-host=str] [--master-password=str]
+# bash mysql-install.sh $verions_num [--password=str] [--type=[main|slave]] [--master-host=str] [--master-password=str]
 # 
 # 查看最新版命令
 # bash mysql-install.sh
-#
-#  命令参数说明
-#  $1 指定安装版本，如果不传则获取最新版本号，为 new 时安装最新版本
-#  $2 安装成功后修改的新密码，默认是随机生成
-#  $3 主从配置  main | slave  ，默认是无主从配置
-#  $4 主从配置地址  user@host  ，默认是无主从配置，配置主服务器时这里指定从服务器连接的账号和地址，配置从服务器时这里指定主服务器的连接账号和地址
-#  $5 主从配置密码  password  ，默认是无主从配置，配置主服务器时这里指定从服务器连接的密码，配置从服务器时这里指定连接主服务器的密码
 #
 # 可运行系统：
 # CentOS 5+
@@ -107,26 +100,35 @@ VERSION_MATCH='mysql-\d+\.\d+\.\d+'
 VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 MYSQL_VERSION_MIN='5.0.0'
+# 定义安装参数
+DEFINE_INSTALL_PARAMS="
+[-p, --password='']安装成功后修改的新密码，默认或为空时随机生成
+[-t, --type='']主从配置 main|slave  ，默认是无主从配置
+[-H, --master-host=]主从配置地址  user@host  ，配置主服务器时这里指定从服务器连接的账号和地址，配置从服务器时这里指定主服务器的连接账号和地址
+[-P, --master-password=]主从配置密码  password  ，配置主服务器时这里指定从服务器连接的密码，配置从服务器时这里指定连接主服务器的密码
+"
 # 初始化安装
-init_install MYSQL_VERSION "$1"
+init_install MYSQL_VERSION DEFINE_INSTALL_PARAMS
 # ************** 参数解析 ******************
 # 密码处理
-if [ -n "$2" ]; then
-    MYSQL_ROOT_PASSWORD=$2
-fi
-# 生成随机密码
-if [ -z "$MYSQL_ROOT_PASSWORD" ];then
+if [ -n "$ARGV_password" ]; then
+    MYSQL_ROOT_PASSWORD="$ARGV_password"
+else
+    # 生成随机密码
     random_password MYSQL_ROOT_PASSWORD 25
 fi
 # 配置主从
-if [ -n $3 ]; then
-    MYSQL_SYNC_BIN=$3
+if [ -n "$ARGV_type" ]; then
+    if ! [[ $ARGV_type =~ ^(main|slave)$ ]];then
+        error_exit "--type must be main|slave"
+    fi
+    MYSQL_SYNC_BIN=$ARGV_type
 	MYSQL_SYNC_BIN_PASSWORD=$MYSQL_ROOT_PASSWORD
     # 配置主从
-    if [ -n $4 ]; then
-        MYSQL_SYNC_BIN_HOST=$4
-        if [ -n $5 ]; then
-            MYSQL_SYNC_BIN_PASSWORD=$5
+    if [ -n "$ARGV_master_host" ]; then
+        MYSQL_SYNC_BIN_HOST=$ARGV_master_host
+        if [ -n "$ARGV_master_password" ]; then
+            MYSQL_SYNC_BIN_PASSWORD=$ARGV_master_password
         fi
     else
         MYSQL_SYNC_BIN_HOST=$MYSQL_ROOT_PASSWORD
@@ -213,7 +215,7 @@ else
     tools_install $INSTALL_CMAKE
 fi
 # 编译安装
-cmake_install $INSTALL_CMAKE ../ -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH$MYSQL_VERSION -DMYSQL_DATADIR=$INSTALL_PATH$MYSQL_VERSION/database -DSYSCONFDIR=$INSTALL_PATH$MYSQL_VERSION/etc -DSYSTEMD_PID_DIR=$INSTALL_PATH$MYSQL_VERSION/run -DMYSQLX_UNIX_ADDR=$INSTALL_PATH$MYSQL_VERSION/run/mysqlx.sock -DMYSQL_UNIX_ADDR=$INSTALL_PATH$MYSQL_VERSION/run/mysql.sock $CMAKE_CONFIG
+cmake_install $INSTALL_CMAKE ../ -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH$MYSQL_VERSION -DMYSQL_DATADIR=$INSTALL_PATH$MYSQL_VERSION/database -DSYSCONFDIR=$INSTALL_PATH$MYSQL_VERSION/etc -DSYSTEMD_PID_DIR=$INSTALL_PATH$MYSQL_VERSION/run -DMYSQLX_UNIX_ADDR=$INSTALL_PATH$MYSQL_VERSION/run/mysqlx.sock -DMYSQL_UNIX_ADDR=$INSTALL_PATH$MYSQL_VERSION/run/mysql.sock $CMAKE_CONFIG $ARGV_options
 
 # 创建用户
 add_user mysql

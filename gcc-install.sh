@@ -67,13 +67,17 @@ VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 GCC_VERSION_MIN='4.0.0'
 # 初始化安装
-init_install GCC_VERSION "$1"
+init_install GCC_VERSION
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
-GCC_CONFIGURE_WITH=''
+GCC_CONFIGURE_WITH=""
+# 编译增加项（这里的配置会随着编译版本自动生成编译项）
+ADD_OPTIONS=$ARGV_options
 # ************** 编译安装 ******************
 # 下载GCC包
 download_software $MIRRORS_URL/releases/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.gz
+# 解析选项
+parse_options GCC_CONFIGURE_WITH $ADD_OPTIONS
 # 暂存编译目录
 GCC_CONFIGURE_PATH=`pwd`
 # 安装依赖

@@ -31,12 +31,12 @@ VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 PYTHON_VERSION_MIN='2.6.0'
 # 初始化安装
-init_install PYTHON_VERSION "$1"
+init_install PYTHON_VERSION
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PYTHON_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='?ipv6'
+ADD_OPTIONS='?ipv6 '$ARGV_options
 # ************** 编译安装 ******************
 # 下载python包
 download_software https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz

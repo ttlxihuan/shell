@@ -30,7 +30,7 @@ VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 REDIS_VERSION_MIN='2.9.0'
 # 初始化安装
-init_install REDIS_VERSION "$1"
+init_install REDIS_VERSION
 # ************** 编译安装 ******************
 # 下载redis包
 download_software http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz

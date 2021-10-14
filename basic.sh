@@ -110,6 +110,15 @@ download_software(){
         error_exit "work dir empty"
     fi
     chdir $INSTALL_NAME
+    # 重新下载再安装
+    if [ -n "$ARGV_reset" -a "$ARGV_reset" = '2' ];then
+        if [ -e "$FILE_NAME" ];then
+            rm -f $FILE_NAME
+        fi
+        if [ -d "$DIR_NAME" ];then
+            rm -rf $DIR_NAME
+        fi
+    fi
     if [ ! -e "$FILE_NAME" ];then
         if ! wget --no-check-certificate -T 7200 $1; then
             curl -OLkN --connect-timeout 7200 $1
@@ -153,6 +162,193 @@ download_software(){
     fi
     cd $DIR_NAME
     if_error "dir not exists: $DIR_NAME"
+    return 0
+}
+# 解析安装命令参数
+# @command parse_install_param $define_name [$options_name]
+# @param $define_name       外加定义参数变量名
+#                           配置参数规则：
+#                           [name]              定义参数
+#                           [-n, --name]        定义无值选项
+#                           [-n, --name='']     带选项值的选项
+# @param $options_name      命令参数数组名
+# return 1|0
+parse_install_param(){
+    local _PARSE_DEFINE_PARAMS_STR_ _PARSE_DEFINE_PARAMS_="
+[version] 指定安装版本，不传则是获取最新稳定版本号，传new安装最新版，传指定版本号则安装指定版本应用
+[-h, --help]显示帮助信息
+[-r, --reset=0]重新安装：0 标准安装，1 重新安装 2重新下载再安装，默认0
+[-o, --options='']添加编译选项，使用前请查阅下面帮助说明
+"
+    if [ -n "$1" ];then
+        _PARSE_DEFINE_PARAMS_=$_PARSE_DEFINE_PARAMS_$(eval "echo -e \"\$$1\"")
+    fi
+    parse_command_param _PARSE_DEFINE_PARAMS_ _PARSE_DEFINE_PARAMS_STR_ $2
+    if [ -n "$ARGV_help" ];then
+        echo -e "
+Description:
+    安装${INSTALL_NAME}脚本
+
+Usage:
+    bash ${INSTALL_NAME}-install.sh [arguments] [options ...]
+
+${_PARSE_DEFINE_PARAMS_STR_}
+Help:
+    安装脚本一般使用方式:
+
+        获取最新稳定安装版本号:
+            bash ${INSTALL_NAME}-install.sh
+
+        安装最新稳定版本${INSTALL_NAME}:
+            bash ${INSTALL_NAME}-install.sh new
+
+        安装指定版本${INSTALL_NAME}:
+            bash ${INSTALL_NAME}-install.sh 1.1.1
+
+        安装最新稳定版本${INSTALL_NAME}且指定安装选项:
+            bash ${INSTALL_NAME}-install.sh new --options=\"?ext1 ext2\"
+
+    添加编译选项：编译选项只针对使用configure或cmake方式安装有效，指定时需要提前了解编译安装的选项作用和依赖。
+                    1、不解析选项直接使用 --xx 、-xx 或 ?--xx 、?-xx
+                    2、需要启用选项 xx 或 ?xx 解析后是 --enable-xx 或 --with-xx 
+                    3、需要禁用选项 !xx 或 ?!xx 解析后是 --disable-xx
+                  选项前面的?是在编译选项时会查找选项是否存在，如果不存在则跳过，存在则添加
+                  选项前面的!是在编译选项时查询禁用选项是否存在
+
+    注意：安装脚本会在脚本所有目录创建安装临时目录，此目录用于下载安装包，如果有已经下载好的包可以自行存放目录内可以节省下载时间。
+";
+        exit 0
+    fi
+}
+# 解析命令参数
+# 命令参数解析成功后，将写入参数名规则：ARGV_参数全名（横线转换为下划线，缩写选项使用标准选项代替，使用时注意参数名的大小写不变）
+# 注意：定义参数解析成功后会输出，如果不需要输出需要作提取处理
+# @command parse_command_param $define_name $output_name $options_name
+# @param $define_name       定义参数变量名
+#                           配置参数规则：
+#                           [name]              定义参数
+#                           [-n, --name]        定义无值选项
+#                           [-n, --name='']     带选项值的选项
+# @param $output_name       命令参数解析后导出变量名
+# @param $options_name      命令参数数组名
+# return 1|0
+parse_command_param() {
+    local PARAM NAME SHORT_NAME DEFAULT_VALUE DEFAULT_VALUE_STR PARAM_STR PARAM_INFO_STR PARAM_NAME_STR PARAM_SHOW_DEFINE PARAM_SHOW_INFO ARG_NAME INDEX ARGUMENTS=() OPTIONS=() OPTIONALS=() ARGVS=() COMMENT_SHOW_ARGUMENTS='' COMMENT_SHOW_OPTIONS='' PARAMS_SHOW_STR=''
+    # 解析定义的参数
+    while read -r PARAM; do
+        if echo "$PARAM"|grep -qP '^\s*$'; then
+            continue;
+        fi
+        PARAM_STR=$(echo "$PARAM"|grep -oiP "^\s*\[\s*((-[a-z0-9]\s*,\s*)?--[a-z0-9][\w\-]+|[a-z0-9][\w\-]+)(\s*=\s*(\w+|\"([^\"]|\\\\.)*\"|'([^']|\\\\.)*'))?\s*\]\s*")
+        if [ -z "$PARAM_STR" ];then
+            error_exit " $PARAM"
+        fi
+        PARAM_INFO_STR=`echo "$PARAM_STR"|sed -r "s/(^\s*\[\s*)|(\s*\]\s*$)//g"`
+        PARAM_NAME_STR=`echo "$PARAM_INFO_STR"|grep -oP '^[^=]+'`
+        DEFAULT_VALUE_STR=$(echo "$PARAM_INFO_STR"|grep -oP "=\s*(\w+|\"([^\"]|\\\\.)*\"|'([^']|\\\\.)*')$")
+        if echo "$PARAM_NAME_STR"|grep -qP '^-{1,2}';then
+            SHORT_NAME=`echo "$PARAM_NAME_STR"|grep -oiP '^-[a-z0-9]'`
+            NAME=`echo "$PARAM_NAME_STR"|grep -oiP '\-\-[a-z0-9][\w\-]+'`
+            PARAM_SHOW_DEFINE="$NAME"
+            if [ -n "$SHORT_NAME" ];then
+                PARAM_SHOW_DEFINE="$SHORT_NAME, $PARAM_SHOW_DEFINE"
+            fi
+            if [ -n "$DEFAULT_VALUE_STR" ];then
+                OPTIONS[${#OPTIONS[@]}]="$PARAM_SHOW_DEFINE"
+            else
+                OPTIONALS[${#OPTIONALS[@]}]="$PARAM_SHOW_DEFINE"
+            fi
+        else
+            SHORT_NAME=''
+            NAME=`echo $PARAM_NAME_STR|grep -oiP '^[a-z0-9][\w\-]+'`
+            PARAM_SHOW_DEFINE="$NAME"
+        fi
+        for ((INDEX=0; INDEX < ${#ARGVS[@]}; INDEX++)); do
+            if test ${ARGVS[$INDEX]} = $NAME || test ${ARGVS[$INDEX]} = "$SHORT_NAME";then
+                error_exit "Repeat parameter: ${ARGVS[$INDEX]} , $PARAM"
+            fi
+        done
+        ARGVS[${#ARGVS[@]}]="$NAME"
+        if [ -n "$SHORT_NAME" ];then
+            ARGVS[${#ARGVS[@]}]="$SHORT_NAME"
+        fi
+        ARG_NAME="ARGV_"`echo "$NAME"|sed -r "s/^-{1,2}//"|sed "s/-/_/g"`
+        if [ -n "$DEFAULT_VALUE_STR" ];then
+            DEFAULT_VALUE_STR=$(echo "$DEFAULT_VALUE_STR"|sed -r "s/(^=\s*)//")
+            PARAM_SHOW_DEFINE="$PARAM_SHOW_DEFINE [= $DEFAULT_VALUE_STR]"
+            DEFAULT_VALUE=$(echo "$DEFAULT_VALUE_STR"|sed -r "s/(^['\"])|(['\"]$)//g"|sed -r "s/\\\\(.)/\1/g")
+            eval "$ARG_NAME=\$DEFAULT_VALUE"
+        else
+            eval "$ARG_NAME=''"
+        fi
+        PARAM_SHOW_INFO="    $PARAM_SHOW_DEFINE"$(echo '                                       '|sed -r "s/^.{`echo "$PARAM_SHOW_DEFINE"|wc -m`}//")$(echo "$PARAM"|sed -r "s/^.{`echo "$PARAM_STR"|wc -m`}//")
+        if [[ "$NAME" =~ ^"-" ]];then
+            COMMENT_SHOW_OPTIONS="$COMMENT_SHOW_OPTIONS $PARAM_SHOW_INFO \n"
+        else
+            ARGUMENTS[${#ARGUMENTS[@]}]="$NAME"
+            COMMENT_SHOW_ARGUMENTS="$COMMENT_SHOW_ARGUMENTS $PARAM_SHOW_INFO \n"
+        fi
+    done <<EOF
+$(eval "echo -e \"\$$1\"")
+EOF
+    # 解析匹配传入参数
+    local ITEM ARG_NUM VALUE OPTIONS_TEMP NAME_TEMP VALUE_TEMP ARGUMENTS_INDEX=0 ARG_SIZE=$(eval "echo \${#$3[@]}")
+    for ((ARG_NUM=0; ARG_NUM < $ARG_SIZE; ARG_NUM++)); do
+        ITEM=$(eval "echo \${$3[$ARG_NUM]}")
+        NAME=''
+        if echo "$ITEM"|grep -qiP '^((--[a-z0-9][\w\-]+(=.*)?)|(-[a-z0-9]))$'; then
+            # 有参数的选项处理
+            if echo "$ITEM"|grep -qiP '^--[a-z0-9][\w\-]+=.*';then
+                NAME_TEMP=$(echo "$ITEM"|grep -oiP '^--[a-z0-9][\w\-]+')
+                VALUE=$(echo "$ITEM"|sed -r "s/^[^=]+=//")
+            else
+                NAME_TEMP="$ITEM"
+                VALUE=''
+                for ((INDEX=0; INDEX < ${#OPTIONALS[@]}; INDEX++)); do
+                    OPTIONS_TEMP=${OPTIONALS[$INDEX]}
+                    if [ "$OPTIONS_TEMP" != "`echo "$OPTIONS_TEMP"|sed -r "s/$NAME_TEMP($|,)//"`" ];then
+                        NAME=$(echo "$OPTIONS_TEMP"|sed -r "s/(-[A-Za-z0-9]\s*,\s*)?--//")
+                        VALUE='1'
+                        break
+                    fi
+                done
+            fi
+            if [ -z "$NAME" ];then
+                for ((INDEX=0; INDEX < ${#OPTIONS[@]}; INDEX++)); do
+                    OPTIONS_TEMP=${OPTIONS[$INDEX]}
+                    if [ "$OPTIONS_TEMP" != "`echo "$OPTIONS_TEMP"|sed -r "s/$NAME_TEMP($|,)//"`" ];then
+                        NAME=$(echo "$OPTIONS_TEMP"|sed -r "s/(-[A-Za-z0-9]\s*,\s*)?--//")
+                        if [ -z "$VALUE" ] && echo "$NAME_TEMP"|grep -qiP '^-[a-z0-9]$';then
+                            ((ARG_NUM++))
+                            VALUE=$(eval "echo \${$3[$ARG_NUM]}")
+                        fi
+                        if [ -z "$VALUE" ] && ! [[ $ITEM =~ = ]];then
+                            error_exit "$NAME must specify a value"
+                        fi
+                        break
+                    fi
+                done
+            fi
+            ARGUMENTS_INDEX=${#ARGUMENTS[@]}
+        elif ((${#ARGUMENTS[@]} > 0 && $ARGUMENTS_INDEX < ${#ARGUMENTS[@]})); then
+            NAME=${ARGUMENTS[$ARGUMENTS_INDEX]}
+            VALUE="$ITEM"
+            ((ARGUMENTS_INDEX+=1))
+        fi
+        if [ -z "$NAME" ];then
+            echo "Unknown parameter: "$ITEM
+        else
+            ARG_NAME="ARGV_"`echo "$NAME"|sed -r "s/^-{1,2}//"|sed "s/-/_/g"`
+            eval "$ARG_NAME=\$VALUE"
+        fi
+    done
+    if [ -n "$COMMENT_SHOW_ARGUMENTS" ];then
+        PARAMS_SHOW_STR="Arguments: \n$COMMENT_SHOW_ARGUMENTS\n";
+    fi
+    if [ -n "$COMMENT_SHOW_OPTIONS" ];then
+        PARAMS_SHOW_STR=$PARAMS_SHOW_STR"Options: \n$COMMENT_SHOW_OPTIONS";
+    fi
+    eval "$2=\$PARAMS_SHOW_STR"
     return 0
 }
 # 解析编译选项
@@ -219,7 +415,7 @@ parse_options(){
     eval "$1=\"\$$1\$OPTIONS_STR\""
 }
 # 是否存在选项
-# @command exist_options $item $options
+# @command exist_options $item [$options ...]
 # @param $item              需要判断的选项，禁用选项加!
 # @param $options           有效选项集
 # return 1|0
@@ -233,17 +429,18 @@ in_options(){
     return $?
 }
 # 是否存在待添加解析选项
-# @command exist_options $item $options
+# @command exist_options $item [$options ...]
 # @param $item              需要判断的选项，禁用选项加!
 # @param $options           有效选项集
 # return 1|0
 in_add_options(){
-    local OPTION_NAME="$1"
-    if [[ "$1" =~ ^'!' ]];then
-        OPTION_NAME=${1:1}
-    fi
-    echo "${@:1}"|grep -qP "\??$OPTION_NAME(\s+|$)"
-    return $?
+    local ITEM
+    for ITEM in ${@:2}; do
+        if [ $1 = $ITEM ] || [ $ITEM = "?$1" ];then
+            return 0
+        fi
+    done
+    return 1
 }
 # make安装软件
 # @command make_install [install_path]
@@ -536,31 +733,44 @@ run_install_shell (){
     source /etc/profile
 }
 # 初始化安装
-# @command start_install [$version_num]
-# @param $version_num       版本号，为空则打印版本号并退出
+# @command start_install [$version_name] [$define_name] [$options_name]
+# @param $version_name      版本号写入变量名
+# @param $define_name       安装脚本追加命令参数定义
+# @param $options_name      参数数组名
 # return 1|0
 init_install (){
+    local INSTALL_ARGVS=${3-CALL_INPUT_ARGVS}
+    parse_install_param ${2-''} $INSTALL_ARGVS
+    if (($# > 2)) && [ -z "$ARGV_version" ];then
+        error_exit "unknown installation version"
+    fi
     # 版本处理
-    if [ -z $2 ] || [[ $2 == "new" ]]; then
+    if [ -z "$ARGV_version" ] || [[ $ARGV_version == "new" ]]; then
         get_version $1 "$VERSION_URL" "$VERSION_MATCH" "$VERSION_RULE"
-        if [ -z $2 ];then
+        if [ -z "$ARGV_version" ];then
             eval "echo $""$1"
             exit 0;
         fi
-    elif echo "$2"|grep -qP "$VERSION_RULE";then
-        eval "$1=\"$2\""
+    elif echo "$ARGV_version"|grep -qP "$VERSION_RULE";then
+        eval "$1=\"$ARGV_version\""
     else
-        error_exit "unknown version $2"
+        error_exit "unknown version $ARGV_version"
     fi
     local INSTALL_VERSION=`eval "echo \$"$1` INSTALL_VERSION_MIN=`eval "echo \$"$1"_MIN"`
     if ps aux|grep -P "$INSTALL_NAME-install\.sh\s+(new|\d+\.\d+)"|grep -vqP "\s+$$\s+"; then
-        error_exit "$INSTALL_NAME already installing"
+        if [[ -n "$ARGV_reset" && "$ARGV_reset" =~ ^[1-2]$ ]];then
+            echo "$INSTALL_NAME already installing"
+        else
+            error_exit "$INSTALL_NAME already installing"
+        fi
     fi
     # 安装目录
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
     if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -type f -executable|grep -qP "$INSTALL_NAME|bin";then
-        echo "$INSTALL_NAME-$INSTALL_VERSION already installed, if not install must delete those path: $INSTALL_PATH$INSTALL_VERSION/"
-        exit 0
+        echo "$INSTALL_NAME-$INSTALL_VERSION Installation directory is not empty: $INSTALL_PATH$INSTALL_VERSION/"
+        if [[ -z "$ARGV_reset" || ! "$ARGV_reset" =~ ^[1-2]$ ]];then
+            exit 0
+        fi
     fi
     echo "install $INSTALL_NAME-$INSTALL_VERSION"
     echo "install path: $INSTALL_PATH"
@@ -579,7 +789,7 @@ init_install (){
     # 加载环境配置
     source /etc/profile
     # 内存空间不够
-    if ! free -h|grep -qi swap && if_version `free -tg|tail -1|grep -oP '\d+'|head -1` '<' '3';then
+    if ! free -tg|grep -qi swap && if_version `free -tg|tail -1|grep -oP '\d+'|head -1` '<' '3';then
         dd if=/dev/zero of=/swap bs=1024 count=2M
         mkswap /swap
         swapon /swap
@@ -587,6 +797,12 @@ init_install (){
     fi
     return 0
 }
+# 提取安装参数
+CALL_INPUT_ARGVS=()
+for ((INDEX=1;INDEX<=$#;INDEX++));do
+    CALL_INPUT_ARGVS[${#CALL_INPUT_ARGVS[@]}]=${@:$INDEX:1}
+done
+unset INDEX
 # 加载配置
 source config.sh
 # 判断系统适用哪个包管理器

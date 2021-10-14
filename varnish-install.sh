@@ -28,13 +28,17 @@ VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 VARNISH_VERSION_MIN='3.0.0'
 # 初始化安装
-init_install VARNISH_VERSION "$1"
+init_install VARNISH_VERSION
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$VARNISH_VERSION"
+# 编译增加项（这里的配置会随着编译版本自动生成编译项）
+ADD_OPTIONS=$ARGV_options
 # ************** 编译安装 ******************
 # 下载varnish包
 download_software http://varnish-cache.org/_downloads/varnish-$VARNISH_VERSION.tgz
+# 解析选项
+parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
 echo "install dependence"
 if if_command autoconf;then

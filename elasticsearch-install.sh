@@ -112,7 +112,7 @@ VERSION_URL="https://www.elastic.co/downloads/elasticsearch"
 VERSION_MATCH='elasticsearch-\d+\.\d+\.\d+'
 VERSION_RULE='\d+\.\d+\.\d+'
 # 初始化安装
-init_install ELASTICSEARCH_VERSION "$1"
+init_install ELASTICSEARCH_VERSION
 # ************** 安装 ******************
 # 下载elasticsearch包
 # 到7.0以上包名有变动

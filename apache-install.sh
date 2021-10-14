@@ -35,12 +35,12 @@ VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 APACHE_VERSION_MIN='2.0.50'
 # 初始化安装
-init_install APACHE_VERSION "$1"
+init_install APACHE_VERSION
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$APACHE_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='rewrite ?cgi ?asis ssl ?proxy-scgi proxy proxy-http so ?threads '"?--datadir=$INSTALL_PATH$APACHE_VERSION"
+ADD_OPTIONS='rewrite ?cgi ?asis ssl ?proxy-scgi proxy proxy-http so ?threads '"?--datadir=$INSTALL_PATH$APACHE_VERSION "$ARGV_options
 # ************** 编译安装 ******************
 # 下载apache包
 download_software http://archive.apache.org/dist/httpd/httpd-$APACHE_VERSION.tar.gz

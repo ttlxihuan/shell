@@ -29,7 +29,7 @@ VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本，目前没有找到更低版本的下载位置
 ZOOKEEPER_VERSION_MIN='3.5.9'
 # 初始化安装
-init_install ZOOKEEPER_VERSION "$1"
+init_install ZOOKEEPER_VERSION
 # ************** 编译安装 ******************
 chdir $INSTALL_NAME
 # 下载kzookeeper包

@@ -3,16 +3,11 @@
 # git快速编译安装shell脚本
 #
 # 安装命令
-# bash git-install.sh new [tool] [tool_path]
-# bash git-install.sh $verions_num [tool] [tool_path]
+# bash git-install.sh new [--tool=str] [--tool-path=str]
+# bash git-install.sh $verions_num [--tool=str] [--tool-path=str]
 # 
 # 查看最新版命令
 # bash git-install.sh
-#
-#  命令参数说明
-#  $1 指定安装版本，如果不传则获取最新版本号，为 new 时安装最新版本
-#  $2 安装管理工具，目前支持 gitolite 和 gitlab
-#  $3 管理工具工作目录，最好是绝对路径，默认安装在/home/git
 #
 # 可运行系统：
 # CentOS 5+
@@ -34,24 +29,30 @@ VERSION_MATCH='git-\d+\.\d+\.\d+\.tar\.gz'
 VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 GIT_VERSION_MIN='1.9.0'
+# 定义安装参数
+DEFINE_INSTALL_PARAMS="
+[-t, --tool='']安装管理工具，目前支持 gitolite 和 gitlab
+[-p, --tool-path='']管理工具工作目录，最好是绝对路径，默认安装在/home/git
+"
 # 初始化安装
-init_install GIT_VERSION "$1"
-if [ -n "$2" ];then
-    if [[ "$2" =~ ^git(olite|lab)$ ]]; then
-        if [ -n "$3" ]; then
-            TOOL_WORK_PATH="$3"
+init_install GIT_VERSION DEFINE_INSTALL_PARAMS
+# 安装参数处理
+if [ -n "$ARGV_tool" ];then
+    if [[ "$ARGV_tool" =~ ^git(olite|lab)$ ]]; then
+        if [ -n "$ARGV_tool_path" ]; then
+            TOOL_WORK_PATH="$ARGV_tool_path"
         else
             TOOL_WORK_PATH='/home/git'
         fi
     else
-        error_exit "$2 unknown tool"
+        error_exit "$ARGV_tool unknown tool"
     fi
 fi
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$GIT_VERSION"
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS=''
+ADD_OPTIONS=$ARGV_options
 # ************** 编译安装 ******************
 # 下载git包
 download_software https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_VERSION.tar.gz
@@ -67,13 +68,13 @@ configure_install $CONFIGURE_OPTIONS
 # 创建用户组
 add_user git
 
-if [ -n "$2" ];then
+if [ -n "$ARGV_tool" ];then
     mkdirs "$TOOL_WORK_PATH" git
 fi
 
 echo "install git-$GIT_VERSION success!"
 
-if [[ "$2" == "gitolite" ]]; then
+if [ "$ARGV_tool" = "gitolite" ]; then
     # 安装 gitolite
     echo 'install gitolite'
     # 下载gitolite包
@@ -106,7 +107,7 @@ if [[ "$2" == "gitolite" ]]; then
     fi
 fi
 
-if [[ "$2" == "gitlab" ]]; then
+if [ "$ARGV_tool" = "gitlab" ]; then
     # 安装 gitlab
     if [ ! -e 'gitlab.sh' ];then
         if [[ "$PACKGE_MANAGER_INDEX" == 0 ]];then

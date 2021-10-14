@@ -63,12 +63,12 @@ VERSION_MATCH='#v\d+\.\d+\.\d+'
 # 安装最小版本
 PHP_VERSION_MIN='5.0.0'
 # 初始化安装
-init_install PHP_VERSION "$1"
+init_install PHP_VERSION
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 gmp ?swoole'
+ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 gmp ?swoole '$ARGV_options
 # 配置编译安装pecl扩展块信息，只有指定了才会认定为pecl扩展包，并且需要在上面的选项中添加上（需要指定为询问安装比如 ?swoole），否则不会进行安装或安装异常
 # 如果扩展包源文件已经放到PHP编译目录中则同PHP一起编译安装
 # 如果没有则在PHP编译安装完成后再通过phpize方式安装
@@ -91,11 +91,6 @@ packge_manager_run install -CA_CERT_PACKGE_NAMES
 # fpm 附加选项增加
 if in_options fpm $CONFIGURE_OPTIONS;then
     parse_options CONFIGURE_OPTIONS fpm-user=phpfpm fpm-group=phpfpm
-fi
-# curl 扩展使用
-if in_options curl $CONFIGURE_OPTIONS && ! if_lib "libcurl";then
-    # 安装 curl-dev
-    packge_manager_run install -CURL_DEVEL_PACKGE_NAMES
 fi
 # mcrypt 扩展使用（PHP7已经不再使用）
 if in_options mcrypt $CONFIGURE_OPTIONS;then
@@ -236,6 +231,25 @@ if in_options openssl $CONFIGURE_OPTIONS;then
         fi
     fi
 fi
+# curl 扩展使用
+if in_options curl $CONFIGURE_OPTIONS;then
+    if if_version $PHP_VERSION '<' 8.0.0;then
+        if ! if_lib "libcurl";then
+            # 安装 curl-dev
+            packge_manager_run install -CURL_DEVEL_PACKGE_NAMES
+        fi
+    elif ! if_lib "libcurl" '>=' '7.29.0';then
+        # 安装较高版本
+        # 获取最新版
+        get_version LIBCURL_VERSION https://curl.se/download.html 'curl-\d+(\.\d+)+\.tar\.gz'
+        echo "install libcurl-$LIBCURL_VERSION"
+        # 下载
+        download_software https://curl.se/download/curl-$LIBCURL_VERSION.tar.gz
+        # 编译安装
+        configure_install --prefix=$INSTALL_BASE_PATH/curl/$LIBCURL_VERSION --enable-libcurl-option --with-openssl
+    fi
+    echo 'libcurl ok'
+fi
 # sqlite3 扩展使用
 if ! in_options !sqlite3 $CONFIGURE_OPTIONS || ! in_options !pdo-sqlite $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '>=' 7.4.0;then
@@ -280,9 +294,10 @@ if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;the
             # 下载
             download_software ftp://xmlsoft.org/libxml2/libxml2-sources-$LIBXML2_VERSION.tar.gz libxml2-$LIBXML2_VERSION
             # 安装 python-dev
-            packge_manager_run install -PYTHON_DEVEL_PACKGE_NAMES
+            # 部分低版系统环境不好，所以直接禁止编译到python中
+            # packge_manager_run install -PYTHON_DEVEL_PACKGE_NAMES
             # 编译安装
-            configure_install --prefix=$INSTALL_BASE_PATH/libxml2/$LIBXML2_VERSION
+            configure_install --prefix=$INSTALL_BASE_PATH/libxml2/$LIBXML2_VERSION --with-python=no
         fi
     fi
 fi
@@ -403,7 +418,7 @@ do
         get_version MIN_PHP_VERSION "https://pecl.php.net/package/$EXT_NAME" "PHP Version: PHP \d+\.\d+\.\d+ or newer" "\d+\.\d+\.\d+"
         if if_version $MIN_PHP_VERSION '>' $PHP_VERSION;then
             echo "$EXT_NAME must php > $MIN_PHP_VERSION"
-            return 1
+            continue
         fi
         if [ -z $EXT_VERSION ] || [[ $EXT_VERSION == "new" ]]; then
             echo "get new $EXT_NAME version"

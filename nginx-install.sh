@@ -55,12 +55,12 @@ VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 NGINX_VERSION_MIN='1.0.0'
 # 初始化安装
-init_install NGINX_VERSION "$1"
+init_install NGINX_VERSION
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NGINX_VERSION --user=nginx --group=nginx "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='threads ?ipv6 http_ssl_module http_stub_status_module'
+ADD_OPTIONS='threads ?ipv6 http_ssl_module http_stub_status_module '$ARGV_options
 # ************** 编译安装 ******************
 # 下载nginx包
 download_software http://$NGINX_HOST/download/nginx-$NGINX_VERSION.tar.gz

@@ -37,10 +37,10 @@ VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 MONGODB_VERSION_MIN='3.0.0'
 # 初始化安装
-init_install MONGODB_VERSION "$1"
+init_install MONGODB_VERSION
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
-CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MONGODB_VERSION "
+CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MONGODB_VERSION $ARGV_options"
 # ************** 编译安装 ******************
 # 下载mongodb包
 download_software https://fastdl.mongodb.org/src/mongodb-src-r$MONGODB_VERSION.tar.gz

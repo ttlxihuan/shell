@@ -29,7 +29,7 @@ VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 KUBERNETES_VERSION_MIN='1.19.1'
 # 初始化安装
-init_install KUBERNETES_VERSION "$1"
+init_install KUBERNETES_VERSION
 # ************** 编译安装 ******************
 chdir $INSTALL_NAME
 # 下载kubernetes包

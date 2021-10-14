@@ -34,14 +34,14 @@ VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 SVN_VERSION_MIN='1.0.0'
 # 初始化安装
-init_install SVN_VERSION "$1"
+init_install SVN_VERSION
 # 版本服务工作目录
 SERVER_WORK_PATH='/var/svn'
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$SVN_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='?utf8proc=internal ?lz4=internal'
+ADD_OPTIONS='?utf8proc=internal ?lz4=internal '$ARGV_options
 # ************** 编译安装 ******************
 if [ -n "$2" ];then
     SERVER_WORK_PATH="$2"
