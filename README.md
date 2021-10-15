@@ -5,15 +5,22 @@ linux 服务器常用工具安装包
 * CentOS 5+
 * Ubuntu 15+
 
+### 查看安装脚本信息
+-----------------
+```
+bash *_install.sh -h
+```
+
+
 ### 单一安装脚本命令
 -----------------
 ```
-bash *_install.sh [version] [other...]
+bash *_install.sh [version] [-o 'ext1 ?ext2 !ext3']
 ```
 
 参数说明：
 * [version]  指定安装版本，如果不指定则打印最新版本，如果要安装最新版本可以指定为 new
-* [other...]  安装脚本其它参数，主要用于密码，集群配置，具体以各安装脚本为准
+* [-o]  增加编译选项，部分安装脚本增加了编译选项增加处理，方便在安装时增加特殊编译选项。
 
 #### 示例
 ```
@@ -29,14 +36,14 @@ bash php_install.sh new
 -----------------
 #### 本机批量安装命令
 ```
-bash install.sh
+bash install-batch.sh
 ```
 #### 机群批量安装命令
 ```
-bash remote-install.sh
+bash install-remote.sh
 ```
 
-批量安装需要调整安装配置文件 install.conf
+批量安装需要调整安装配置文件 install-batch.conf
 ```
 # 安装的服务器【机群安装】
 默认账号为 root
@@ -46,7 +53,7 @@ bash remote-install.sh
 # 安装配置【本机或机群安装】
 [install]
 php 7.2.7
-mysql 8.0.11-1.el7.x86_64
+mysql 8.0.11
 nginx 1.15.0
 ```
 
@@ -88,7 +95,7 @@ exit 0
 
 执行安装，需要安装什么就增加对应的包名
 ```
-bash install.sh nginx php mysql git
+bash install-batch.sh nginx php mysql git
 ```
 
 ### 安装说明

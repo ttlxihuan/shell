@@ -1,13 +1,13 @@
 #!/bin/bash
 #
 # 批量安装服务
-# 受 install.conf 配置文件影响
+# 受 install-batch.conf 配置文件影响
 # 
 
 if [ -n "$1" ];then
     CONFIG_FILE=$1;
 else
-    CONFIG_FILE="install.conf";
+    CONFIG_FILE="install-batch.conf";
 fi
 if [[ "$0" =~ '/' ]]; then
     cd "`echo "$0" | grep -oP '(/?[^/]+/)+'`"
@@ -17,17 +17,26 @@ if [ ! -e "$CONFIG_FILE" ];then
     exit 1
 fi
 # 安装服务包
+# @command install_server $name [$options ...]
+# @param $name              指定安装服务名，比如：php
+# @param $options           指定安装版脚本定制参数集
+# return 1|0
 install_server(){
     if [ ! -e "./$1-install.sh" ];then
         echo "$1-install.sh is not exists"
         exit 1;
     fi
-    INSTALL_STATUS=`ps aux|grep 'install.sh'`
+    local INSTALL_STATUS=`ps aux|grep 'install.sh'`
     if [ -n "`echo $INSTALL_STATUS|grep "$1-install.sh"`" ];then
         echo "$1 already in the installation"
         return 1;
     fi
-	PARAMS_LIST=`echo $*|sed "/^/s/$1//"`
+    # 提取安装参数
+    local PARAMS_LIST=''
+    for ((INDEX=2;INDEX<=$#;INDEX++));do
+        PARAMS_LIST="$PARAMS_LIST \"${@:$INDEX:1}\""
+    done
+    unset INDEX
     echo "install $1"
     echo "bash ./$1-install.sh $PARAMS_LIST 2>&1"
     {
@@ -35,10 +44,14 @@ install_server(){
             echo "install $1 success"
         else
             echo "install $1 fail"
-        fi 
+        fi
     }&
 }
-# 读取配置
+# 读取配置文件
+# @command read_config $node_name $command_name
+# @param $node_name         指定配置节点，配置文件中的[node_name]块内容
+# @param $command_name      读取配置后调用的命令
+# return 1|0
 read_config(){
     cat $CONFIG_FILE | grep "\[$1\]" -A $CONFIG_FILE_LINE -m 1 | sed -n '2,$p' | while read LINE
     do
