@@ -93,10 +93,12 @@ done
 exit 0
 ```
 
-执行安装，需要安装什么就增加对应的包名
+执行安装，需要安装什么就增加对应的包名（安装最新稳定版本，如果想安装指定版本则需要使用上面的安装方式）
 ```
-bash install-batch.sh nginx php mysql git
+bash install.sh nginx php mysql git
 ```
+
+> 注意：以上脚本会下载所有安装脚本代码，保存在 ./shell-master 目录下。
 
 ### 安装说明
 * 1、安装脚本有两种类型，如果安装的包存在编译安装则使用的是编译安装，否则是使用其它安装方式，比如elasticsearch解压即可使用
