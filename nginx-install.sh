@@ -80,7 +80,9 @@ if in_options 'http_ssl_module' $CONFIGURE_OPTIONS;then
         # 暂存编译目录
         NGINX_CONFIGURE_PATH=`pwd`
         # 获取最新版
-        get_version OPENSSL_VERSION https://www.openssl.org/source/ 'openssl-\d+\.\d+\.\d+[a-z]*\.tar\.gz[^\.]' '\d+\.\d+\.\d+[a-z]*'
+        # get_version OPENSSL_VERSION https://www.openssl.org/source/ 'openssl-\d+\.\d+\.\d+[a-z]*\.tar\.gz[^\.]' '\d+\.\d+\.\d+[a-z]*'
+        # 版本过高编译不能通过
+        OPENSSL_VERSION='1.1.1'
         # 下载
         download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
         CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-openssl=`pwd`"
