@@ -64,6 +64,8 @@ packge_manager_run install -LIBXML2_DEVEL_PACKGE_NAMES -PERL_DEVEL_PACKGE_NAMES 
 
 # msgfmt命令在gettext包中
 if ! if_command msgfmt;then
+    # 暂存编译目录
+    GIT_CONFIGURE_PATH=`pwd`
     # 找不到就编译安装
     # 安装gettext
     # 获取最新版
@@ -73,6 +75,7 @@ if ! if_command msgfmt;then
     download_software https://ftp.gnu.org/pub/gnu/gettext/gettext-$GETTEXT_VERSION.tar.gz
     # 编译安装
     configure_install --prefix=$INSTALL_BASE_PATH/gettext/$GETTEXT_VERSION
+    cd $GIT_CONFIGURE_PATH
 fi
 
 # 编译安装
