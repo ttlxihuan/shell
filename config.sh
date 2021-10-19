@@ -95,3 +95,5 @@ PYTHON_SPHINX_PACKGE_NAMES=('python-sphinx')
 READLINE_DEVEL_PACKGE_NAMES=('readline-devel' 'readline-dev')
 # 安装libffi
 LIBFFI_DEVEL_PACKGE_NAMES=('libffi-devel' 'libffi-dev')
+# 安装gettext
+GETTEXT_DEVEL_PACKGE_NAMES=('gettext-devel' 'gettext-dev')
