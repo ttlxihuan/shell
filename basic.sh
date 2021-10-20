@@ -517,7 +517,9 @@ add_user(){
          echo "user($1) is exists";
     else
         useradd -M -U $1
-        sed -i "/^$1:*/s/\/bin\/bash/\/sbin\/nologin/" /etc/passwd
+        if [ -z "$2" ] || [ "$2" != 'bash' ];then
+            sed -i "/^$1:*/s/\/bin\/bash/\/sbin\/nologin/" /etc/passwd
+        fi
     fi
     return 0
 }

@@ -82,7 +82,7 @@ fi
 configure_install $CONFIGURE_OPTIONS
 
 # 创建用户组
-add_user git
+add_user git bash
 
 if [ -n "$ARGV_tool" ];then
     mkdirs "$TOOL_WORK_PATH" git
