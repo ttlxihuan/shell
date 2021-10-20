@@ -101,7 +101,11 @@ fi
 cp ./etc/example.vcl $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl
 cd $INSTALL_PATH$VARNISH_VERSION
 
+# 创建用户组
+add_user varnish
+
 # 启动服务
-./sbin/varnishd -f $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl
+echo "sudo -u varnish ./sbin/varnishd -f $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl"
+sudo -u varnish ./sbin/varnishd -f $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl
 
 echo "install varnish-$VARNISH_VERSION success!"

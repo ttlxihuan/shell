@@ -54,9 +54,12 @@ sed -i 's/daemonize no/daemonize yes/' redis.conf
 sed -i 's/dir .\//dir .\/data/' redis.conf
 mkdir data
 
-# start server
-echo './src/redis-server redis.conf'
-./src/redis-server redis.conf
+# 创建用户组
+add_user redis
+
+# 启动服务
+echo 'sudo -u redis ./src/redis-server redis.conf'
+sudo -u redis ./src/redis-server redis.conf
 
 echo "install redis-$REDIS_VERSION success!";
 
