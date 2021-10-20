@@ -33,8 +33,12 @@ VERSION_MATCH='subversion-\d+\.\d+\.\d+\.tar\.gz'
 VERSION_RULE='\d+\.\d+\.\d+'
 # 安装最小版本
 SVN_VERSION_MIN='1.0.0'
+# 定义安装参数
+DEFINE_INSTALL_PARAMS="
+[-d, --work-dir='']svn服务工作目录
+"
 # 初始化安装
-init_install SVN_VERSION
+init_install SVN_VERSION DEFINE_INSTALL_PARAMS
 # 版本服务工作目录
 SERVER_WORK_PATH='/var/svn'
 # ************** 相关配置 ******************
@@ -43,8 +47,8 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$SVN_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
 ADD_OPTIONS='?utf8proc=internal ?lz4=internal '$ARGV_options
 # ************** 编译安装 ******************
-if [ -n "$2" ];then
-    SERVER_WORK_PATH="$2"
+if [ -n "$ARGV_work_dir" ];then
+    SERVER_WORK_PATH="$ARGV_work_dir"
 fi
 # 下载svn包
 download_software https://downloads.apache.org/subversion/subversion-$SVN_VERSION.tar.gz
@@ -109,6 +113,6 @@ add_user svnserve
 chown -R svnserve:svnserve $SERVER_WORK_PATH
 
 # 启动服务
-sudo -u svnserve svnserve -d -r $SERVER_WORK_PATH
+sudo -u svnserve ./bin/svnserve -d -r $SERVER_WORK_PATH
 
 echo "install svn-$SVN_VERSION success!"

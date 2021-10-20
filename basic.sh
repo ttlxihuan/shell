@@ -76,8 +76,8 @@ if_version(){
     return 1;
 }
 # 获取版本
-# @command get_version $var_nam $url $version_path_rule [$version_rule]
-# @param $var_nam           获取版本号变量名
+# @command get_version $var_name $url $version_path_rule [$version_rule]
+# @param $var_name          获取版本号变量名
 # @param $url               获取版本号的HTML页面地址
 # @param $version_path_rule 匹配版本号的正则规则（粗级匹配，获取所有版本号再排序提取最大的）
 # @param $version_rule      提取版本号的正则规则（精准匹配，直接对应的版本号）
@@ -281,7 +281,7 @@ parse_command_param() {
         else
             eval "$ARG_NAME=''"
         fi
-        PARAM_SHOW_INFO="    $PARAM_SHOW_DEFINE"$(echo '                                       '|sed -r "s/^.{`echo "$PARAM_SHOW_DEFINE"|wc -m`}//")$(echo "$PARAM"|sed -r "s/^.{`echo "$PARAM_STR"|wc -m`}//")
+        PARAM_SHOW_INFO="    $PARAM_SHOW_DEFINE"$(echo '                                       '|sed -r "s/^.{`echo $[ $(echo "$PARAM_SHOW_DEFINE"|wc -m) - 1]`}//")$(echo "$PARAM"|sed -r "s/^.{`echo $[ $(echo "$PARAM_STR"|wc -m) -1]`}//")
         if [[ "$NAME" =~ ^"-" ]];then
             COMMENT_SHOW_OPTIONS="$COMMENT_SHOW_OPTIONS $PARAM_SHOW_INFO \n"
         else
@@ -757,6 +757,9 @@ init_install (){
         error_exit "unknown version $ARGV_version"
     fi
     local INSTALL_VERSION=`eval "echo \$"$1` INSTALL_VERSION_MIN=`eval "echo \$"$1"_MIN"`
+    if [ -n "$INSTALL_VERSION_MIN" ] && if_version "$INSTALL_VERSION" "<" "$INSTALL_VERSION_MIN"; then
+        error_exit "install min version: $INSTALL_VERSION_MIN"
+    fi
     if ps aux|grep -P "$INSTALL_NAME-install\.sh\s+(new|\d+\.\d+)"|grep -vqP "\s+$$\s+"; then
         if [[ -n "$ARGV_reset" && "$ARGV_reset" =~ ^[1-2]$ ]];then
             echo "$INSTALL_NAME already installing"
@@ -774,9 +777,6 @@ init_install (){
     fi
     echo "install $INSTALL_NAME-$INSTALL_VERSION"
     echo "install path: $INSTALL_PATH"
-    if [ -n "$INSTALL_VERSION_MIN" ] && if_version "$INSTALL_VERSION" "<" "$INSTALL_VERSION_MIN"; then
-        error_exit "install min version: $INSTALL_VERSION_MIN"
-    fi
     # 安装必需工具
     tools_install gcc make
     if ! if_command ntpdate; then
