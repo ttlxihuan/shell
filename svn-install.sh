@@ -102,6 +102,7 @@ cd $SVN_CONFIGURE_PATH
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 
+cd $INSTALL_PATH$SVN_VERSION
 # 基本项配置
 # 创建库存目录
 if [ ! -d "$SERVER_WORK_PATH" ];then
