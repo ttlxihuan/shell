@@ -444,7 +444,8 @@ done
 echo './sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid'
 ./sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid
 # 添加执行文件连接
-ln -svf $INSTALL_PATH$PHP_VERSION/bin/php /usr/local/bin/php
+add_local_run $INSTALL_PATH$PHP_VERSION/bin/ php
+
 # 证书处理 主要针对 https 类的请求处理
 # 更新证书命令会造成 fsockopen 使用ssl 出错等
 PHP_SSL_LOCA_CERT_FILE=`php -r "echo openssl_get_cert_locations()['default_cert_file'];"`

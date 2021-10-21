@@ -60,22 +60,25 @@ download_software https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
 echo "install dependence"
-packge_manager_run install -LIBXML2_DEVEL_PACKGE_NAMES -PERL_DEVEL_PACKGE_NAMES -GETTEXT_DEVEL_PACKGE_NAMES
+packge_manager_run install -LIBXML2_DEVEL_PACKGE_NAMES -PERL_DEVEL_PACKGE_NAMES
 
 # msgfmt命令在gettext包中
 if ! if_command msgfmt;then
-    # 暂存编译目录
-    GIT_CONFIGURE_PATH=`pwd`
-    # 找不到就编译安装
-    # 安装gettext
-    # 获取最新版
-    get_version GETTEXT_VERSION https://ftp.gnu.org/pub/gnu/gettext 'gettext-\d+(\.\d+){2}\.tar\.gz'
-    echo "install gettext-$GETTEXT_VERSION"
-    # 下载
-    download_software https://ftp.gnu.org/pub/gnu/gettext/gettext-$GETTEXT_VERSION.tar.gz
-    # 编译安装
-    configure_install --prefix=$INSTALL_BASE_PATH/gettext/$GETTEXT_VERSION
-    cd $GIT_CONFIGURE_PATH
+    packge_manager_run install -GETTEXT_DEVEL_PACKGE_NAMES
+    if ! if_command msgfmt;then
+        # 暂存编译目录
+        GIT_CONFIGURE_PATH=`pwd`
+        # 找不到就编译安装
+        # 安装gettext
+        # 获取最新版
+        get_version GETTEXT_VERSION https://ftp.gnu.org/pub/gnu/gettext 'gettext-\d+(\.\d+){2}\.tar\.gz'
+        echo "install gettext-$GETTEXT_VERSION"
+        # 下载
+        download_software https://ftp.gnu.org/pub/gnu/gettext/gettext-$GETTEXT_VERSION.tar.gz
+        # 编译安装
+        configure_install --prefix=$INSTALL_BASE_PATH/gettext/$GETTEXT_VERSION
+        cd $GIT_CONFIGURE_PATH
+    fi
 fi
 
 # 编译安装
@@ -83,6 +86,9 @@ configure_install $CONFIGURE_OPTIONS
 
 # 创建用户组
 add_user git bash
+
+# 添加执行文件连接
+add_local_run $INSTALL_PATH$GIT_VERSION/bin/ 'git' 'git-receive-*' 'git-upload-*'
 
 if [ -n "$ARGV_tool" ];then
     mkdirs "$TOOL_WORK_PATH" git

@@ -540,6 +540,32 @@ add_path(){
     fi
     return 0
 }
+# 添加可执行文件链接到/usr/local/bin/目录内
+# 注意：部分调用方式不会获取用户补充的环境变量PATH数据（比如：crontab定时器自动调用），所以必需添加到默认环境变量PATH的目录中，而/usr/local/bin/目录就是其中一个。
+# @command add_local_run $path [$run_name ...]
+# @param $path          要添加的可执行文件目录
+# @param $run_name      指定可执行文件名，可以是规则，不指定则全部添加
+# return 0
+add_local_run(){
+    # 添加执行文件连接
+    local RUN_FILE NUM SET_ALLOW
+    for RUN_FILE in `find $1 -executable`; do
+        if (($# > 1));then
+            SET_ALLOW=0
+            for((NUM=1;NUM<=$#;NUM++));do
+                if [[ ${RUN_FILE##*/} == ${@:$NUM:1} ]];then
+                    SET_ALLOW=1
+                    break
+                fi
+            done
+        else
+            SET_ALLOW=1
+        fi
+        if (($SET_ALLOW > 0));then
+            ln -svf $RUN_FILE /usr/local/bin/${RUN_FILE##*/}
+        fi
+    done
+}
 # 包管理系统运行
 # @command packge_manager_run $command $packge_name
 # @param $command       执行的命令
