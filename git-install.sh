@@ -16,6 +16,44 @@
 # 下载地址
 # https://mirrors.edge.kernel.org/pub/software/scm/git/
 #
+#
+# 协议使用说明：
+# git 支持多种访问协议，主要有：file、ssh、http[s]、git。
+#
+# file 是本地文件协议，即在同一个系统内可直接通过文件路径操作，且不支持跨系统（共享目录除外）。
+#   典型方式：
+#       git clone /home/git/test.git
+#   file方式访问版本版本不需要额外处理，创建好版本库后就可以访问。
+#
+
+# ssh 是git通过ssh登录后操作git相关命令进行处理，ssh登录必需授权登录（证书或密码）。
+#   典型方式：
+#       git clone ssh://username@ip:port/home/git/test.git
+#       版本库地址标准语法是： [ssh://][user@]ip[:port]path
+#   ssh方式访问需要配置访问账号密码或者在/home/git下配置ssh证书信息，否则无法访问
+
+# http[s]是通过http协议请求调用git相关命令进行处理，http[s]可开放或授权限制版本库。
+#   典型方式：
+#       git clone https://ip:port/home/git/test.git
+#       版本库地址标准语法是： http[s]://ip[:port]path
+#   http[s]方式访问一般需要三方实现，git以操作http版本库时会自动按http协议方式发送请求到远程版本库服务器，服务器通过http请求信息分析处理通过管道模式调用git相关工具完成操作。
+
+# git是git提供的一种监听服务，默认监听端口9418，git不需要授权就可以自由访问，但需要启动git服务。
+#   典型方式：
+#       git clone git://ip:port/home/git/test.git
+#       版本库地址标准语法是： git://ip[:port]path
+#   git服务启动命令 git daemon --reuseaddr --base-path=这里是监听目录
+#   git服务启动后还需要在每个版本库里创建git-daemon-export-ok文件，一般使用命令：touch git-daemon-export-ok
+#
+#
+#
+# 版本库勾子使用说明：
+#   git提供了很多操作前后调用特定脚本，通过修改这些脚本可以改变git功能，一般修改的是推送勾子：pre-receive、post-update、update
+#
+#   pre-receive、post-update是在接收推送前和后调用的，当pre-receive脚本以非0状态退出则拒绝推送（可用于代码审核过滤等操作）。pre-receive、post-update在一次推送中只调用一次。
+#
+#   update 是每个要更新的分支执行前调用，当以非0状态退出时则拒绝当前分支推送。update脚本有三个参数：分支名，更新前版本号（SHA-1），更新后版本号（SHA-1）
+#
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
@@ -32,7 +70,9 @@ GIT_VERSION_MIN='1.9.0'
 # 定义安装参数
 DEFINE_INSTALL_PARAMS="
 [-t, --tool='']安装管理工具，目前支持 gitolite 和 gitlab
-[-p, --tool-path='']管理工具工作目录，最好是绝对路径，默认安装在/home/git
+[-d, --tool-path='']管理工具工作目录，最好是绝对路径，默认安装在/home/git
+[-p, --ssh-password='']指定ssh账号密码，不指定则不生成。默认会创建git账号用于 ssh://git@ip/path 访问，但需要通过证书或密码访问。
+[-P, --random-ssh-password='']随机生成指定长度ssh账号密码，长度范围是1~99位。如果已经指定密码此参数无效。
 "
 # 初始化安装
 init_install GIT_VERSION DEFINE_INSTALL_PARAMS
@@ -47,6 +87,21 @@ if [ -n "$ARGV_tool" ];then
     else
         error_exit "$ARGV_tool unknown tool"
     fi
+fi
+# 密码处理
+if [ -n "$ARGV_ssh_password" ]; then
+    GIT_SSH_PASSWORD="$ARGV_ssh_password"
+elif [ -n "$ARGV_random_ssh_password" ]; then
+    if ! [[ "$ARGV_random_ssh_password" =~ ^[1-9][0-9]*$ ]];then
+        error_exit "--random-ssh-password must be an integer, $ARGV_random_ssh_password"
+    fi
+    if (($ARGV_random_ssh_password < 0 || $ARGV_random_ssh_password > 100));then
+        error_exit "--random-ssh-password range is 1~99, $ARGV_random_ssh_password"
+    fi
+    # 生成随机密码
+    random_password GIT_SSH_PASSWORD $ARGV_random_ssh_password
+else
+    GIT_SSH_PASSWORD=''
 fi
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
@@ -85,7 +140,7 @@ fi
 configure_install $CONFIGURE_OPTIONS
 
 # 创建用户组
-add_user git bash
+add_user git $INSTALL_PATH$GIT_VERSION/bin/git-shell $GIT_SSH_PASSWORD
 
 # 添加执行文件连接
 add_local_run $INSTALL_PATH$GIT_VERSION/bin/ 'git' 'git-receive-*' 'git-upload-*'

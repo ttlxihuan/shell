@@ -322,7 +322,7 @@ EOF
                             ((ARG_NUM++))
                             VALUE=$(eval "echo \${$3[$ARG_NUM]}")
                         fi
-                        if [ -z "$VALUE" ] && ! [[ $ITEM =~ = ]];then
+                        if [ -z "$VALUE" ] && ! [[ $ITEM =~ = ]] && (($ARG_NUM >= $ARG_SIZE));then
                             error_exit "$NAME must specify a value"
                         fi
                         break
@@ -508,17 +508,25 @@ error_exit(){
     echo "[ERROR] $1"
     exit 1;
 }
-# 创建用户及用户组
-# @command add_user $username
+# 创建用户（包含用户组、可执行shell、密码）
+# @command add_user $username [$shell_name] [$password]
 # @param $username      用户名
+# @param $shell_name    当前用户可调用的shell脚本名，默认是/sbin/nologin
+# @param $password      用户密码，不指定则不创建密码
 # return 0
 add_user(){
     if [ -n "`id $1 2>&1|grep "($1)"`" ]; then
          echo "user($1) is exists";
     else
-        useradd -M -U $1
-        if [ -z "$2" ] || [ "$2" != 'bash' ];then
-            sed -i "/^$1:*/s/\/bin\/bash/\/sbin\/nologin/" /etc/passwd
+        local RUN_FILE='/sbin/nologin'
+        if [ -n "$2" -a -e "$2" ];then
+            RUN_FILE=$2
+        fi
+        useradd -M -U -s $RUN_FILE $1
+        if [ -n "$3" ];then
+            if echo "$3"|passwd --stdin $1; then
+                echo "user($1) password: $3"
+            fi
         fi
     fi
     return 0
