@@ -27,21 +27,24 @@
 #
 
 # ssh 是git通过ssh登录后操作git相关命令进行处理，ssh登录必需授权登录（证书或密码）。
-#   典型方式：
-#       git clone ssh://username@ip:port/home/git/test.git
-#       版本库地址标准语法是： [ssh://][user@]ip[:port]path
+#   ssh典型方式：
+#       git clone ssh://username@host:port/home/git/test.git
+#       版本库地址标准语法是： ssh://[user@]host[:port]path  不支持相关路径
+#   scp典型方式：
+#       git clone username@host:test.git
+#       版本库地址标准语法是： [user@]host:path  支持相关路径（相对user的工作目录，比如/home/git目录），路径前面没有/即为相对路径
 #   ssh方式访问需要配置访问账号密码或者在/home/git下配置ssh证书信息，否则无法访问
 
 # http[s]是通过http协议请求调用git相关命令进行处理，http[s]可开放或授权限制版本库。
 #   典型方式：
-#       git clone https://ip:port/home/git/test.git
-#       版本库地址标准语法是： http[s]://ip[:port]path
+#       git clone https://host:port/home/git/test.git
+#       版本库地址标准语法是： http[s]://host[:port]path
 #   http[s]方式访问一般需要三方实现，git以操作http版本库时会自动按http协议方式发送请求到远程版本库服务器，服务器通过http请求信息分析处理通过管道模式调用git相关工具完成操作。
 
 # git是git提供的一种监听服务，默认监听端口9418，git不需要授权就可以自由访问，但需要启动git服务。
 #   典型方式：
-#       git clone git://ip:port/home/git/test.git
-#       版本库地址标准语法是： git://ip[:port]path
+#       git clone git://host:port/home/git/test.git
+#       版本库地址标准语法是： git://host[:port]path
 #   git服务启动命令 git daemon --reuseaddr --base-path=这里是监听目录
 #   git服务启动后还需要在每个版本库里创建git-daemon-export-ok文件，一般使用命令：touch git-daemon-export-ok
 #
@@ -195,7 +198,16 @@ if [ "$ARGV_tool" = "gitlab" ]; then
     fi
     if_error "gitlab.sh download fail!"
     bash gitlab.sh
-    packge_manager_run install gitlab-ee
-    if_error "install gitlab fail!"
+    # packge_manager_run install gitlab-ee
+    if ! if_command gitlab-ctl;then
+        if_error "install gitlab fail!"
+    fi
+    # 修改配置
+    sed -ir "s/^\(external_url \).*/\1'http:\/\/127.0.0.1'/" /etc/gitlab/gitlab.rb
+    echo 'gitlab host: http://127.0.0.1'
+    # 配置处理
+    gitlab-ctl configure
+    # 启动服务
+    gitlab-ctl start
     echo "install gitlab success!"
 fi
