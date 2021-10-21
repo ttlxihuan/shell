@@ -198,7 +198,7 @@ if [ "$ARGV_tool" = "gitlab" ]; then
     fi
     if_error "gitlab.sh download fail!"
     bash gitlab.sh
-    # packge_manager_run install gitlab-ee
+    packge_manager_run install gitlab-ee
     if ! if_command gitlab-ctl;then
         if_error "install gitlab fail!"
     fi
