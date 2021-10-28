@@ -19,18 +19,12 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
+# 定义安装类型
+DEFINE_INSTALL_TYPE='make'
 # 加载基本处理
 source basic.sh
-# 获取工作目录
-INSTALL_NAME='redis'
-# 获取版本配置
-VERSION_URL="http://download.redis.io/releases/"
-VERSION_MATCH='redis-\d+\.\d+\.\d+\.tar\.gz'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-REDIS_VERSION_MIN='2.9.0'
 # 初始化安装
-init_install REDIS_VERSION
+init_install '2.9.0' "http://download.redis.io/releases/" 'redis-\d+\.\d+\.\d+\.tar\.gz'
 # ************** 编译安装 ******************
 # 下载redis包
 download_software http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
@@ -42,24 +36,26 @@ if if_version "$REDIS_VERSION" ">=" "6.0.0" && if_version "`cc --version|grep -o
 fi
 
 # 编译
-make_install
+make_install $ARGV_options
+
+# 创建用户组
+add_user redis
 
 # 复制安装包
-mkdir -p $INSTALL_PATH/$REDIS_VERSION
+mkdirs $INSTALL_PATH/$REDIS_VERSION redis
+echo '复制所有文件到：'$INSTALL_PATH/$REDIS_VERSION
 cp -R ./* $INSTALL_PATH/$REDIS_VERSION
 cd $INSTALL_PATH/$REDIS_VERSION
 
 # redis conf set
-sed -i 's/daemonize no/daemonize yes/' redis.conf
-sed -i 's/dir .\//dir .\/data/' redis.conf
-mkdir data
-
-# 创建用户组
-add_user redis
+echo 'redis 配置文件修改'
+sed -i -r 's/^(daemonize )no/\1yes/' redis.conf
+sed -i -r 's/^(dir ).\//\1.\/data/' redis.conf
+mkdirs data redis
 
 # 启动服务
 echo 'sudo -u redis ./src/redis-server redis.conf'
 sudo -u redis ./src/redis-server redis.conf
 
-echo "install redis-$REDIS_VERSION success!";
+echo "安装成功：redis-$REDIS_VERSION";
 

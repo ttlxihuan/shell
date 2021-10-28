@@ -23,22 +23,16 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
-# 加载基本处理
-source basic.sh
-# 获取工作目录
-INSTALL_NAME='svn'
-# 获取版本配置
-VERSION_URL="https://downloads.apache.org/subversion/"
-VERSION_MATCH='subversion-\d+\.\d+\.\d+\.tar\.gz'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-SVN_VERSION_MIN='1.0.0'
 # 定义安装参数
 DEFINE_INSTALL_PARAMS="
 [-d, --work-dir='']svn服务工作目录
 "
+# 定义安装类型
+DEFINE_INSTALL_TYPE='configure'
+# 加载基本处理
+source basic.sh
 # 初始化安装
-init_install SVN_VERSION DEFINE_INSTALL_PARAMS
+init_install '1.0.0' "https://downloads.apache.org/subversion/" 'subversion-\d+\.\d+\.\d+\.tar\.gz'
 # 版本服务工作目录
 SERVER_WORK_PATH='/var/svn'
 # ************** 相关配置 ******************
@@ -57,7 +51,7 @@ parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 暂存编译目录
 SVN_CONFIGURE_PATH=`pwd`
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 # sqlite 处理
 SQLITE_MINIMUM_VER=`grep -oP 'SQLITE_MINIMUM_VER="\d+(\.\d+)+"' ./configure|grep -oP '\d+(\.\d+)+'`
 if [ -z "$SQLITE_MINIMUM_VER" ] || if_version "$SQLITE_MINIMUM_VER" "<" "3.0.0";then
@@ -66,7 +60,7 @@ elif ! if_command sqlite3 || if_version "$SQLITE_MINIMUM_VER" ">" "`sqlite3 --ve
     # 获取最新版
     get_version SPLITE3_PATH https://www.sqlite.org/download.html '(\w+/)+sqlite-autoconf-\d+\.tar\.gz' '.*'
     SPLITE3_VERSION=`echo $SPLITE3_PATH|grep -oP '\d+\.tar\.gz$'|grep -oP '\d+'`
-    echo "install sqlite3-$SPLITE3_VERSION"
+    echo "安装：sqlite3-$SPLITE3_VERSION"
     # 下载
     download_software https://www.sqlite.org/$SPLITE3_PATH
     # 编译安装
@@ -105,9 +99,7 @@ configure_install $CONFIGURE_OPTIONS
 cd $INSTALL_PATH$SVN_VERSION
 # 基本项配置
 # 创建库存目录
-if [ ! -d "$SERVER_WORK_PATH" ];then
-    mkdir $SERVER_WORK_PATH;
-fi
+mkdirs $SERVER_WORK_PATH;
 
 # 创建用户
 add_user svnserve
@@ -116,4 +108,4 @@ chown -R svnserve:svnserve $SERVER_WORK_PATH
 # 启动服务
 sudo -u svnserve ./bin/svnserve -d -r $SERVER_WORK_PATH
 
-echo "install svn-$SVN_VERSION success!"
+echo "安装成功：svn-$SVN_VERSION"

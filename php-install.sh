@@ -51,19 +51,14 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
-# 加载基本处理
-source basic.sh
 # 域名
 PHP_HOST='cn2.php.net'
-# 获取工作目录
-INSTALL_NAME='php'
-# 获取版本配置
-VERSION_URL="https://$PHP_HOST/supported-versions.php"
-VERSION_MATCH='#v\d+\.\d+\.\d+'
-# 安装最小版本
-PHP_VERSION_MIN='5.0.0'
+# 定义安装类型
+DEFINE_INSTALL_TYPE='configure'
+# 加载基本处理
+source basic.sh
 # 初始化安装
-init_install PHP_VERSION
+init_install '5.0.0' "https://$PHP_HOST/supported-versions.php" '#v\d+\.\d+\.\d+'
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
@@ -84,7 +79,7 @@ PHP_CONFIGURE_PATH=`pwd`
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 # ca-certificates 根证书更新
 packge_manager_run install -CA_CERT_PACKGE_NAMES
 # ***选项处理&选项依赖安装***
@@ -113,7 +108,7 @@ if ! in_options !iconv $CONFIGURE_OPTIONS;then
         # 安装iconv
         # 获取最新版
         get_version LIBICONV_VERSION http://ftp.gnu.org/pub/gnu/libiconv/ 'libiconv-\d+\.\d+\.tar\.gz' '\d+\.\d+'
-        echo "install libiconv-$LIBICONV_VERSION"
+        echo "安装：libiconv-$LIBICONV_VERSION"
         # 下载
         download_software http://ftp.gnu.org/pub/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz
         # 编译安装
@@ -158,7 +153,7 @@ if in_options gd $CONFIGURE_OPTIONS;then
                 # 获取最新版
                 get_version JPEG_PATH http://www.ijg.org/files/ 'jpegsrc\.v\d+c\.tar\.gz' '.*'
                 JPEG_VERSION=`echo $JPEG_PATH|grep -oP '\d+c\.tar\.gz$'|grep -oP '\d+'`
-                echo "install jpeg-$JPEG_VERSION"
+                echo "安装：jpeg-$JPEG_VERSION"
                 # 下载
                 download_software http://www.ijg.org/files/$JPEG_PATH "jpeg-"$JPEG_VERSION"c"
                 # 编译安装
@@ -185,7 +180,7 @@ if in_options zip $CONFIGURE_OPTIONS;then
         # libzip-1.3+ 编译不能通过会提示 错误:‘LIBZIP_VERSION’未声明(在此函数内第一次使用)
         # 目前安装 1.2 版本可以通过编译
         LIBZIP_VERSION="1.2.0"
-        echo "install libzip-$LIBZIP_VERSION"
+        echo "安装：libzip-$LIBZIP_VERSION"
         download_software https://libzip.org/download/libzip-$LIBZIP_VERSION.tar.gz
         # 删除旧包
         packge_manager_run remove -ZIP_DEVEL_PACKGE_NAMES
@@ -216,7 +211,7 @@ if in_options openssl $CONFIGURE_OPTIONS;then
             # get_version OPENSSL_VERSION https://www.openssl.org/source/ 'openssl-\d+\.\d+\.\d+[a-z]*\.tar\.gz[^\.]' '\d+\.\d+\.\d+[a-z]*'
             # 使用固定较新版本，版本过新有兼容问题
             OPENSSL_VERSION='1.1.1g'
-            echo "install openssl-$OPENSSL_VERSION"
+            echo "安装：openssl-$OPENSSL_VERSION"
             # 下载
             download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
             # 移除不要的组件
@@ -242,7 +237,7 @@ if in_options curl $CONFIGURE_OPTIONS;then
         # 安装较高版本
         # 获取最新版
         get_version LIBCURL_VERSION https://curl.se/download.html 'curl-\d+(\.\d+)+\.tar\.gz'
-        echo "install libcurl-$LIBCURL_VERSION"
+        echo "安装：libcurl-$LIBCURL_VERSION"
         # 下载
         download_software https://curl.se/download/curl-$LIBCURL_VERSION.tar.gz
         # 编译安装
@@ -261,7 +256,7 @@ if ! in_options !sqlite3 $CONFIGURE_OPTIONS || ! in_options !pdo-sqlite $CONFIGU
             # 获取最新版
             get_version SPLITE3_PATH https://www.sqlite.org/download.html '(\w+/)+sqlite-autoconf-\d+\.tar\.gz' '.*'
             SPLITE3_VERSION=`echo $SPLITE3_PATH|grep -oP '\d+\.tar\.gz$'|grep -oP '\d+'`
-            echo "install sqlite3-$SPLITE3_VERSION"
+            echo "安装：sqlite3-$SPLITE3_VERSION"
             # 下载
             download_software https://www.sqlite.org/$SPLITE3_PATH
             # 编译安装
@@ -290,7 +285,7 @@ if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;the
         else
             # 获取最新版
             get_version LIBXML2_VERSION "ftp://xmlsoft.org/libxml2/" 'libxml2-sources-\d+\.\d+\.\d+\.tar\.gz'
-            echo "install libxml2-$LIBXML2_VERSION"
+            echo "安装：libxml2-$LIBXML2_VERSION"
             # 下载
             download_software ftp://xmlsoft.org/libxml2/libxml2-sources-$LIBXML2_VERSION.tar.gz libxml2-$LIBXML2_VERSION
             # 安装 python-dev
@@ -318,7 +313,7 @@ if if_version $PHP_VERSION '>=' 7.4.0;then
 #            else
 #                # 获取最新版
 #                get_version BISON_VERSION http://ftp.gnu.org/gnu/bison/ 'bison-\d+\.\d+\.tar\.gz'
-#                echo "install bison-$BISON_VERSION"
+#                echo "安装：bison-$BISON_VERSION"
 #                # 下载
 #                download_software http://ftp.gnu.org/gnu/bison/bison-$BISON_VERSION.tar.gz
 #                # 编译安装
@@ -367,7 +362,7 @@ configure_install $CONFIGURE_OPTIONS
 add_user phpfpm
 
 # 配置文件处理
-echo 'set config file'
+echo 'php 配置文件修改'
 cp -f php.ini-production $INSTALL_PATH$PHP_VERSION/lib/php.ini
 cd $INSTALL_PATH$PHP_VERSION
 cp -f etc/php-fpm.conf.default etc/php-fpm.conf
@@ -378,31 +373,31 @@ math_compute MAX_CHILDREN "$HTREAD_NUM * 10"
 math_compute MIN_SPARE "$MAX_CHILDREN * 0.1"
 math_compute MAX_SPARE "$MAX_CHILDREN * 0.5"
 math_compute INIT_CHILDREN "$MAX_CHILDREN * 0.3"
-sed -ir "s/pm.max_children\s*=\s*[0-9]+/pm.max_children = $MAX_CHILDREN/" etc/php-fpm.d/www.conf
-sed -ir "s/pm.start_servers\s*=\s*[0-9]+/pm.start_servers = $INIT_CHILDREN/" etc/php-fpm.d/www.conf
-sed -ir "s/pm.min_spare_servers\s*=\s*[0-9]+/pm.min_spare_servers = $MIN_SPARE/" etc/php-fpm.d/www.conf
-sed -ir "s/pm.max_spare_servers\s*=\s*[0-9]+/pm.max_spare_servers = $MAX_SPARE/" etc/php-fpm.d/www.conf
-sed -ir "s/pm.max_requests\s*=\s*[0-9]+/pm.max_requests = $MAX_CHILDREN/" etc/php-fpm.d/www.conf
+sed -i -r "s/^;?(pm\.max_children\s*=\s*)[0-9]+/\1$MAX_CHILDREN/" etc/php-fpm.d/www.conf
+sed -i -r "s/^;?(pm\.start_servers\s*=\s*)[0-9]+/\1$INIT_CHILDREN/" etc/php-fpm.d/www.conf
+sed -i -r "s/^;?(pm\.min_spare_servers\s*=\s*)[0-9]+/\1$MIN_SPARE/" etc/php-fpm.d/www.conf
+sed -i -r "s/^;?(pm\.max_spare_servers\s*=\s*)[0-9]+/\1$MAX_SPARE/" etc/php-fpm.d/www.conf
+sed -i -r "s/^;?(pm\.max_requests\s*=\s*)[0-9]+/\1$MAX_CHILDREN/" etc/php-fpm.d/www.conf
 # 开启opcache
 if [ -z "`cat lib/php.ini|grep zend_extension=opcache.so`" ]; then
     echo "zend_extension=opcache.so" >> lib/php.ini
 fi
 # 修改配置
-sed -ir 's/;opcache.enable=[0-1]/opcache.enable=1/' lib/php.ini
+sed -i -r 's/^;?(opcache\.enable=)[0-1]/\11/' lib/php.ini
 # CLI环境下，PHP启用OPcache
-sed -ir 's/;opcache.enable_cli=[0-1]/opcache.enable_cli=1/' lib/php.ini
+sed -i -r 's/^;?(opcache\.enable_cli=)[0-1]/\11/' lib/php.ini
 # OPcache共享内存存储大小,单位MB
-sed -ir 's/;opcache.memory_consumption=[0-9]+/opcache.memory_consumption=512/' lib/php.ini
+sed -i -r 's/^;?(opcache.memory_consumption=)[0-9]+/\1512/' lib/php.ini
 # 缓存多少个PHP文件
-sed -ir 's/;opcache.max_accelerated_files=[0-9]+/opcache.max_accelerated_files=20000/' lib/php.ini
+sed -i -r 's/^;?(opcache.max_accelerated_files=)[0-9]+/\120000/' lib/php.ini
 # 打开快速关闭, 在PHP Request Shutdown的时候回收内存的速度会提高
-sed -ir 's/;opcache.fast_shutdown=[0-9]+/opcache.fast_shutdown=1/' lib/php.ini
+sed -i -r 's/^;?(opcache.fast_shutdown=)[0-9]+/\11/' lib/php.ini
 # 设置的间隔秒数去检测文件的时间戳（timestamp）检查脚本是否更新
-sed -ir 's/;opcache.validate_timestamps=[0-9]+/opcache.validate_timestamps=0/' lib/php.ini
+sed -i -r 's/^;?(opcache.validate_timestamps=)[0-9]+/\10/' lib/php.ini
 # 设置缓存的过期时间（单位是秒）,为0的话每次都要检查，当opcache.validate_timestamps=0此配置无效
-# sed -ir 's/;opcache.revalidate_freq=[0-9]+/opcache.revalidate_freq=60/' lib/php.ini
+# sed -i -r 's/^;?(opcache.revalidate_freq=)[0-9]+/\160/' lib/php.ini
 # 上传配置
-sed -ir 's/upload_max_filesize\s+=\s+[0-9]+M/upload_max_filesize = 8M/' lib/php.ini
+sed -i -r 's/^;?(upload_max_filesize\s+=\s+)[0-9]+M/\18M/' lib/php.ini
 
 # 解析处理pecl扩展
 echo "$PECL_OPTIONS"|grep -oP '\w[\w\-]+(\s*=\s*\{[^\{\}]+\})?\s+'| while read EXT_CONFIG
@@ -412,19 +407,19 @@ do
         EXT_VERSION="`echo $EXT_OPTIONS|awk '{print $1}'`"
         EXT_ADD_OPTIONS="`echo $EXT_OPTIONS|awk '{$1=""; print}'`"
     fi
-    if in_add_options $EXT_NAME $ADD_OPTIONS && [ -z "`$INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "$EXT_NAME"`" ];then
-        echo "install $EXT_NAME"
+    if in_add_options $EXT_NAME $ADD_OPTIONS && $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "$EXT_NAME";then
+        echo "安装pecl扩展：$EXT_NAME"
         # 最低PHP版本处理
         get_version MIN_PHP_VERSION "https://pecl.php.net/package/$EXT_NAME" "PHP Version: PHP \d+\.\d+\.\d+ or newer" "\d+\.\d+\.\d+"
         if if_version $MIN_PHP_VERSION '>' $PHP_VERSION;then
-            echo "$EXT_NAME must php > $MIN_PHP_VERSION"
+            echo "$EXT_NAME 需要 php 版本大于：$MIN_PHP_VERSION"
             continue
         fi
         if [ -z $EXT_VERSION ] || [[ $EXT_VERSION == "new" ]]; then
-            echo "get new $EXT_NAME version"
+            echo "获取 $EXT_NAME 最新版本号"
             get_version EXT_VERSION "https://pecl.php.net/package/$EXT_NAME" "$EXT_NAME-\d+\.\d+\.\d+.tgz" "\d+\.\d+\.\d+"
         fi
-        echo "install $EXT_NAME-$EXT_VERSION"
+        echo "安装：$EXT_NAME-$EXT_VERSION"
         # 下载
         download_software https://pecl.php.net/get/$EXT_NAME-$EXT_VERSION.tgz
         # 通过phpize安装
@@ -436,7 +431,7 @@ do
         if [ -z "`cat lib/php.ini|grep extension=$EXT_NAME.so`" ]; then
             echo "extension=$EXT_NAME.so" >> lib/php.ini
         fi
-        echo "$EXT_NAME-$EXT_VERSION install success!"
+        echo "安装成功：$EXT_NAME-$EXT_VERSION"
     fi
 done
 
@@ -455,4 +450,4 @@ if [ -n "$PHP_SSL_LOCA_CERT_FILE" ] && [ ! -e "$PHP_SSL_LOCA_CERT_FILE" ];then
         mv cacert.pem $PHP_SSL_LOCA_CERT_FILE
     fi
 fi
-echo "install php-$PHP_VERSION success!";
+echo "安装成功：php-$PHP_VERSION";
