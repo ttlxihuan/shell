@@ -60,16 +60,6 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
-# 加载基本处理
-source basic.sh
-# 获取工作目录
-INSTALL_NAME='git'
-# 获取版本配置
-VERSION_URL="https://mirrors.edge.kernel.org/pub/software/scm/git/"
-VERSION_MATCH='git-\d+\.\d+\.\d+\.tar\.gz'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-GIT_VERSION_MIN='1.9.0'
 # 定义安装参数
 DEFINE_INSTALL_PARAMS="
 [-t, --tool='']安装管理工具，目前支持 gitolite 和 gitlab
@@ -77,8 +67,12 @@ DEFINE_INSTALL_PARAMS="
 [-p, --ssh-password='']指定ssh账号密码，不指定则不生成。默认会创建git账号用于 ssh://git@ip/path 访问，但需要通过证书或密码访问。
 [-P, --random-ssh-password='']随机生成指定长度ssh账号密码，长度范围是1~99位。如果已经指定密码此参数无效。
 "
+# 定义安装类型
+DEFINE_INSTALL_TYPE='configure'
+# 加载基本处理
+source basic.sh
 # 初始化安装
-init_install GIT_VERSION DEFINE_INSTALL_PARAMS
+init_install '1.9.0' "https://mirrors.edge.kernel.org/pub/software/scm/git/" 'git-\d+\.\d+\.\d+\.tar\.gz'
 # 安装参数处理
 if [ -n "$ARGV_tool" ];then
     if [[ "$ARGV_tool" =~ ^git(olite|lab)$ ]]; then
@@ -88,19 +82,13 @@ if [ -n "$ARGV_tool" ];then
             TOOL_WORK_PATH='/home/git'
         fi
     else
-        error_exit "$ARGV_tool unknown tool"
+        error_exit "--tool 只支持gitolite、gitlab，现在是：$ARGV_tool"
     fi
 fi
 # 密码处理
 if [ -n "$ARGV_ssh_password" ]; then
     GIT_SSH_PASSWORD="$ARGV_ssh_password"
 elif [ -n "$ARGV_random_ssh_password" ]; then
-    if ! [[ "$ARGV_random_ssh_password" =~ ^[1-9][0-9]*$ ]];then
-        error_exit "--random-ssh-password must be an integer, $ARGV_random_ssh_password"
-    fi
-    if (($ARGV_random_ssh_password < 0 || $ARGV_random_ssh_password > 100));then
-        error_exit "--random-ssh-password range is 1~99, $ARGV_random_ssh_password"
-    fi
     # 生成随机密码
     random_password GIT_SSH_PASSWORD $ARGV_random_ssh_password
 else
@@ -117,7 +105,7 @@ download_software https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 packge_manager_run install -LIBXML2_DEVEL_PACKGE_NAMES -PERL_DEVEL_PACKGE_NAMES
 
 # msgfmt命令在gettext包中
@@ -130,7 +118,7 @@ if ! if_command msgfmt;then
         # 安装gettext
         # 获取最新版
         get_version GETTEXT_VERSION https://ftp.gnu.org/pub/gnu/gettext 'gettext-\d+(\.\d+){2}\.tar\.gz'
-        echo "install gettext-$GETTEXT_VERSION"
+        echo "安装：gettext-$GETTEXT_VERSION"
         # 下载
         download_software https://ftp.gnu.org/pub/gnu/gettext/gettext-$GETTEXT_VERSION.tar.gz
         # 编译安装
@@ -152,14 +140,13 @@ if [ -n "$ARGV_tool" ];then
     mkdirs "$TOOL_WORK_PATH" git
 fi
 
-echo "install git-$GIT_VERSION success!"
+echo "安装成功：git-$GIT_VERSION"
 
 if [ "$ARGV_tool" = "gitolite" ]; then
     # 安装 gitolite
-    echo 'install gitolite'
+    echo '安装git管理工具：gitolite'
     # 下载gitolite包
     download_software https://github.com/sitaramc/gitolite/archive/master.zip gitolite-master
-    # yum install -y 'perl(Data::Dumper)'
     if [ ! -e "$TOOL_WORK_PATH/gitolite-admin.pub" ]; then
         if [ ! -e "~/.ssh/id_rsa" ];then
             ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ''
@@ -178,36 +165,40 @@ if [ "$ARGV_tool" = "gitolite" ]; then
     echo "./gitolite setup -pk gitolite-admin.pub"
     sudo -u git ./gitolite setup -pk $TOOL_WORK_PATH/gitolite-admin.pub
     if [ -d "$TOOL_WORK_PATH/repositories" ]; then
-        echo 'admin repository'
-        SERVER_IP=`ifconfig|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o -m 1|head -n 1`
-        echo "git clone git@\$SERVER_IP:gitolite-admin"
-        echo "install gitolite success!"
+        get_ip
+        echo '管理仓库地址：'
+        echo "git clone git@$SERVER_IP:gitolite-admin"
+        echo "安装成功：gitolite"
     else
-        echo 'gitolite install fail!'
+        echo '安装失败：gitolite'
     fi
 fi
 
 if [ "$ARGV_tool" = "gitlab" ]; then
     # 安装 gitlab
+    echo '安装git管理工具：gitlab'
     if [ ! -e 'gitlab.sh' ];then
         if [[ "$PACKGE_MANAGER_INDEX" == 0 ]];then
             wget --no-check-certificate -T 7200 -O gitlab.sh https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.rpm.sh
         else
             wget --no-check-certificate -T 7200 -O gitlab.sh https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.deb.sh
         fi
+        if_error "下载gitlab安装脚本失败"
+        bash gitlab.sh
     fi
-    if_error "gitlab.sh download fail!"
-    bash gitlab.sh
     packge_manager_run install gitlab-ee
     if ! if_command gitlab-ctl;then
-        if_error "install gitlab fail!"
+        if_error "安装失败：gitlab"
     fi
     # 修改配置
-    sed -ir "s/^\(external_url \).*/\1'http:\/\/127.0.0.1'/" /etc/gitlab/gitlab.rb
-    echo 'gitlab host: http://127.0.0.1'
+    echo "gitlab 配置文件修改"
+    sed -i -r "s/^(external_url\s+).*/\1'http:\/\/127.0.0.1'/" /etc/gitlab/gitlab.rb
     # 配置处理
-    gitlab-ctl configure
+    gitlab-ctl reconfigure
     # 启动服务
     gitlab-ctl start
-    echo "install gitlab success!"
+    echo 'gitlab 工作目录：/opt/gitlab/'
+    echo 'gitlab 配置文件：/etc/gitlab/gitlab.rb'
+    echo 'gitlab 地址: http://127.0.0.1'
+    echo "安装成功：gitlab"
 fi
