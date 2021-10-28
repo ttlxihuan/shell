@@ -28,6 +28,8 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
+# 定义安装类型
+DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
 source basic.sh
 # 镜像地址，如果地址不可用可去 https://gcc.gnu.org/mirrors.html 找合适的地址
@@ -54,20 +56,11 @@ if [ -z "`curl --connect-timeout 20 -I -X HEAD $MIRRORS_URL/releases/ 2>&1| grep
         MIRRORS_URL=`echo -e "$MIRRORS_HOST_PING_TIME"|grep -P '^\d+'|sort -n -t ',' -k 1|head -n 1|grep -P 'http.*$' -o`
     fi
     if [ -z "$MIRRORS_URL" ];then
-        echo '没有找到可用的镜像下载地址'
-        exit 1
+        error_exit '没有找到可用的镜像下载地址'
     fi
 fi
-# 获取工作目录
-INSTALL_NAME='gcc'
-# 获取版本配置
-VERSION_URL="$MIRRORS_URL/releases/"
-VERSION_MATCH='gcc-\d+\.\d+\.\d+'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-GCC_VERSION_MIN='4.0.0'
 # 初始化安装
-init_install GCC_VERSION
+init_install '4.0.0' "$MIRRORS_URL/releases/" 'gcc-\d+\.\d+\.\d+'
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 GCC_CONFIGURE_WITH=""
@@ -81,12 +74,12 @@ parse_options GCC_CONFIGURE_WITH $ADD_OPTIONS
 # 暂存编译目录
 GCC_CONFIGURE_PATH=`pwd`
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 packge_manager_run install -GCC_C_PACKGE_NAMES -BZIP2_PACKGE_NAMES -M4_PACKGE_NAMES
 # 部分版需要下载配置文件
 if [ ! -e "./configure" ] && [ -e "./contrib/download_prerequisites" ];then
     ./contrib/download_prerequisites
-    if_error "install gcc fail"
+    if_error "gcc-$GCC_VERSION 安装失败，找不到依赖配置文件"
 else
     # 下载必需依赖
     PACKAGE_LISTS=`cat contrib/download_prerequisites| grep -oP '\w+\-\d+\.\d+(\.\d+)?'`
@@ -95,7 +88,7 @@ else
     do
         PACKAGE=`echo $LINE|grep -P '^\w+' -o`
         if [ -d "$GCC_CONFIGURE_PATH/$PACKAGE" ];then
-            echo "$LINE already download, if download fail when you must delete $LINE";
+            echo "$LINE 已经下载了，如果下载是失败文件必需删除后再安装";
             continue;
         fi
         DOWNLOAD_FILENAME=`echo $LINE|sed 's/\./\\\./'`
@@ -110,7 +103,7 @@ else
     # 如果不能获取依赖的包，则使用安装包提供的下载脚本
     if [ -z "$PACKAGE_LISTS" ];then
         bash contrib/download_prerequisites
-        if_error "install gcc fail"
+        if_error "gcc-$GCC_VERSION 安装失败，获取不到依赖包"
     fi
     # 进入编译目录
     cd $GCC_CONFIGURE_PATH
@@ -123,7 +116,7 @@ fi
 configure_install --prefix=$INSTALL_PATH$GCC_VERSION$GCC_CONFIGURE_WITH
 # 动态库处理
 echo "$INSTALL_PATH$GCC_VERSION/lib64" >> /etc/ld.so.conf
-echo "mv lib64/*.py file"
+echo "移动文件 lib64/*.py"
 # 清除py文件，这些文件会影响共享的动态链接库ldconfig命令执行失败
 for PY_FILE in `find $INSTALL_PATH$GCC_VERSION/lib64/ -name "*.py"`
 do
@@ -133,12 +126,11 @@ do
     fi
 done
 ldconfig
-# echo 'export PATH=$PATH:'"$INSTALL_PATH$GCC_VERSION/bin" >> /etc/profile
-# source /etc/profile
+
 packge_manager_run remove -GCC_C_PACKGE_NAMES
 
 # 添加启动连接，下载连接不加容易在其它工具使用时出现 C++ compiler None does not work 类似的错误
 add_local_run $INSTALL_PATH$GCC_VERSION/bin/ gcc c++ g++ cpp
 ln -svf /usr/local/bin/gcc /usr/bin/cc
 
-echo "install gcc-$GCC_VERSION success!";
+echo "安装成功：gcc-$GCC_VERSION";
