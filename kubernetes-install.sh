@@ -20,30 +20,25 @@
 ####################################################################################
 # 加载基本处理
 source basic.sh
-# 获取工作目录
-INSTALL_NAME='kubernetes'
-# 获取版本配置
-VERSION_URL="https://kubernetes.io/releases/"
-VERSION_MATCH='>\d+\.\d+\.\d+'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-KUBERNETES_VERSION_MIN='1.19.1'
 # 初始化安装
-init_install KUBERNETES_VERSION
+init_install '1.19.1' "https://kubernetes.io/releases/" '>\d+\.\d+\.\d+'
 # ************** 编译安装 ******************
 chdir $INSTALL_NAME
 # 下载kubernetes包
 
 curl -LO "https://dl.k8s.io/release/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl"
-if_error 'download fail: kubectl'
+if_error '下载失败: kubectl'
 curl -LO "https://dl.k8s.io/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl.sha256"
-if_error 'download fail: kubectl.sha256'
+if_error '下载失败: kubectl.sha256'
 echo "$(<kubectl.sha256) kubectl" | sha256sum --check
-if_error 'sha256sum fail'
+if_error 'sha256sum 验证失败'
 # 复制安装包
-mkdir -p $INSTALL_PATH/$KUBERNETES_VERSION
-cp -R ./kubectl $INSTALL_PATH/$KUBERNETES_VERSION
-# 添加到环境变量中
-add_path $INSTALL_PATH/$KUBERNETES_VERSION
+mkdirs $INSTALL_PATH$KUBERNETES_VERSION
+echo '复制所有文件到：'$INSTALL_PATH$KUBERNETES_VERSION
+cp -R ./kubectl $INSTALL_PATH$KUBERNETES_VERSION
+chmod +x $INSTALL_PATH$KUBERNETES_VERSION/kubectl
 
-echo "install kubernetes-$KUBERNETES_VERSION success!";
+# 添加到环境变量中
+add_path $INSTALL_PATH$KUBERNETES_VERSION
+
+echo "安装成功：kubernetes-$KUBERNETES_VERSION";
