@@ -190,7 +190,7 @@ parse_install_param(){
 "
     if [ -n "$DEFINE_INSTALL_TYPE" ];then
         _PARSE_DEFINE_PARAMS_=$_PARSE_DEFINE_PARAMS_"
-[-j, --make-jobs=avg]编译同时允许N个任务，可选值有 max|avg|number ，max当前CPU数，avg当前CPU半数，number是指定的数值。
+[-j, --make-jobs=avg]编译同时允许N个任务，可选值有 max|avg|number ，max当前CPU数，avg当前CPU半数+1，number是指定的数值。
 # 任务多编译快且资源消耗也大（不建议超过CPU核数），当编译因进程被系统杀掉时可减少此值重试。
 [-o, --options='']添加${DEFINE_INSTALL_TYPE}选项，使用前请核对选项信息。
 "
@@ -942,7 +942,7 @@ tools_install curl wget
 # 获编译任务数
 if [ -n "$DEFINE_INSTALL_TYPE" ];then
     case "$ARGV_make_jobs" in
-        auto)
+        avg)
             HTREAD_NUM=$((`lscpu |grep '^CPU(s)'|grep -oP '\d+$'`/2+1))
         ;;
         max)
@@ -952,7 +952,7 @@ if [ -n "$DEFINE_INSTALL_TYPE" ];then
             if printf '%s' "$ARGV_make_jobs"|grep -qP '^[1-9]\d*$';then
                 HTREAD_NUM=$ARGV_make_jobs
             else
-                error_exit '--make-jobs 必需是 >= 0 的正整数或者auto|max，现在是：'$ARGV_make_jobs
+                error_exit '--make-jobs 必需是 >= 0 的正整数或者avg|max，现在是：'$ARGV_make_jobs
             fi
         ;;
     esac
