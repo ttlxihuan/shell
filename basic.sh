@@ -275,11 +275,11 @@ parse_command_param() {
             continue;
         fi
         if printf '%s' "$PARAM"|grep -qP '^\s*#';then
-            PARAM=$(printf '%s' "$PARAM"|sed -r 's/^\s*#\s*//')
+            PARAM='                                '$(printf '%s' "$PARAM"|sed -r 's/^\s*#\s*//')" \n"
             if [[ "$NAME" == -* ]];then
-                COMMENT_SHOW_OPTIONS="$COMMENT_SHOW_OPTIONS                                $PARAM \n"
+                COMMENT_SHOW_OPTIONS="$COMMENT_SHOW_OPTIONS$PARAM"
             elif [ -n "$NAME" ];then
-                COMMENT_SHOW_ARGUMENTS="$COMMENT_SHOW_ARGUMENTS                                $PARAM \n"
+                COMMENT_SHOW_ARGUMENTS="$COMMENT_SHOW_ARGUMENTS$PARAM"
             else
                 error_exit "备注无匹配参数信息：$PARAM"
             fi
