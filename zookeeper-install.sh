@@ -20,36 +20,44 @@
 ####################################################################################
 # 加载基本处理
 source basic.sh
-# 获取工作目录
-INSTALL_NAME='zookeeper'
-# 获取版本配置
-VERSION_URL="https://dlcdn.apache.org/zookeeper/"
-VERSION_MATCH='zookeeper-\d+\.\d+\.\d+'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本，目前没有找到更低版本的下载位置
-ZOOKEEPER_VERSION_MIN='3.5.9'
 # 初始化安装
-init_install ZOOKEEPER_VERSION
+init_install '3.5.9' "https://dlcdn.apache.org/zookeeper/" 'zookeeper-\d+\.\d+\.\d+'
 # ************** 编译安装 ******************
 chdir $INSTALL_NAME
 # 下载kzookeeper包
-download_software "https://mirrors.bfsu.edu.cn/apache/zookeeper/zookeeper-$ZOOKEEPER_VERSION/apache-zookeeper-$ZOOKEEPER_VERSION.tar.gz"
-# 复制安装包
-mkdir -p $INSTALL_PATH/$ZOOKEEPER_VERSION
-cp -R ./* $INSTALL_PATH/$ZOOKEEPER_VERSION
-cd $INSTALL_PATH/$ZOOKEEPER_VERSION
-# 安装java
-tools_install java
+if if_version $ZOOKEEPER_VERSION '>=' '3.5.5';then
+    DOWNLOAD_FILE_TYPE="-bin"
+else
+    DOWNLOAD_FILE_TYPE=""
+fi
+download_software "https://mirrors.bfsu.edu.cn/apache/zookeeper/zookeeper-$ZOOKEEPER_VERSION/apache-zookeeper-$ZOOKEEPER_VERSION$DOWNLOAD_FILE_TYPE.tar.gz" apache-zookeeper-$ZOOKEEPER_VERSION$DOWNLOAD_FILE_TYPE
 # 创建用户
 add_user zookeeper
-# 开放权限，需要开发上级目录，否则启动易容异常
-chown -R zookeeper:zookeeper ../
+# 复制安装包
+mkdirs $INSTALL_PATH$ZOOKEEPER_VERSION zookeeper
+echo '复制所有文件到：'$INSTALL_PATH$ZOOKEEPER_VERSION
+cp -R ./* $INSTALL_PATH$ZOOKEEPER_VERSION
+cd $INSTALL_PATH$ZOOKEEPER_VERSION
+# 安装java
+tools_install java
+echo 'zookeeper 配置文件修改'
 # 复制默认配置文件
 if [ ! -e "./conf/zoo.cfg" ];then
     cp ./conf/zoo_sample.cfg ./conf/zoo.cfg
 fi
+mkdirs run
+# 开放权限，需要开发上级目录，否则启动易容异常
+chown -R zookeeper:zookeeper ./
+# 修改配置
+sed -i -r "s/^(dataDir=).*$/\1$(echo "$INSTALL_PATH$ZOOKEEPER_VERSION/"|sed 's/\//\\\//g')run/" ./conf/zoo.cfg
 
 # 启动服务端服务
-sudo -u zookeeper ./bin/zkServer.sh start
+echo "sudo -u zookeeper ./bin/zkServer.sh --config ./conf start"
+sudo -u zookeeper ./bin/zkServer.sh --config ./conf start
 
-echo "install zookeeper-$ZOOKEEPER_VERSION success!";
+RUN_STATUS_OUT=`find $INSTALL_PATH$ZOOKEEPER_VERSION/logs/ -name 'zookeeper*.out'|tail -n 1`
+if [ -e "$RUN_STATUS_OUT" ];then
+    cat $RUN_STATUS_OUT
+fi
+
+echo "安装成功：zookeeper-$ZOOKEEPER_VERSION";
