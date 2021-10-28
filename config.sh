@@ -1,5 +1,7 @@
 #!/bin/bash
-
+if [ '$0' = 'config.sh' ];then
+    error_exit "config.sh 脚本是共用文件必需使用source调用"
+fi
 #基本安装目录
 INSTALL_BASE_PATH="/usr/local"
 
