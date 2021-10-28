@@ -36,7 +36,7 @@ if if_version "$REDIS_VERSION" ">=" "6.0.0" && if_version "`cc --version|grep -o
 fi
 
 # 编译
-make_install $ARGV_options
+make_install '' $ARGV_options
 
 # 创建用户组
 add_user redis
