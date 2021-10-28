@@ -19,18 +19,12 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
+# 定义安装类型
+DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
 source basic.sh
-# 获取工作目录
-INSTALL_NAME='postgresql'
-# 获取版本配置
-VERSION_URL="https://www.postgresql.org/ftp/source/"
-VERSION_MATCH='v\d+\.\d+(\.\d+)?'
-VERSION_RULE='\d+\.\d+(\.\d+)?'
-# 安装最小版本
-POSTGRESQL_VERSION_MIN='6.1'
 # 初始化安装
-init_install POSTGRESQL_VERSION
+init_install '6.1' "https://www.postgresql.org/ftp/source/" 'v\d+\.\d+(\.\d+)?' '\d+\.\d+(\.\d+)?'
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$POSTGRESQL_VERSION "
@@ -42,7 +36,7 @@ download_software https://ftp.postgresql.org/pub/source/v$POSTGRESQL_VERSION/pos
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 
 packge_manager_run install -READLINE_DEVEL_PACKGE_NAMES -BZIP2_PACKGE_NAMES -ZLIB_DEVEL_PACKGE_NAMES
 
@@ -57,16 +51,15 @@ configure_install $CONFIGURE_OPTIONS
 add_user postgresql
 cd $INSTALL_PATH$POSTGRESQL_VERSION
 
-echo "postgresql config set"
-if [ ! -d './database' ];then
-    mkdir ./database
-fi
-chown postgresql:postgresql ./database
+echo "postgresql 基本配置处理"
+mkdirs ./database postgresql
+
 # 初始化数据
 sudo -u postgresql ./bin/initdb -D $INSTALL_PATH$POSTGRESQL_VERSION/database
 
 # 启动服务
+echo 'sudo -u postgresql ./bin/pg_ctl -D ./database start'
 sudo -u postgresql ./bin/pg_ctl -D ./database start
 
-echo "install $INSTALL_NAME-$POSTGRESQL_VERSION success!"
+echo "安装成功：$INSTALL_NAME-$POSTGRESQL_VERSION"
 
