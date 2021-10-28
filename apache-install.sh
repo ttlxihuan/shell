@@ -24,18 +24,12 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
+# 定义安装类型
+DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
 source basic.sh
-# 获取工作目录
-INSTALL_NAME='apache'
-# 获取版本配置
-VERSION_URL="http://archive.apache.org/dist/httpd/"
-VERSION_MATCH='(apache|httpd)-\d+\.\d+\.\d+\.tar\.gz'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-APACHE_VERSION_MIN='2.0.50'
 # 初始化安装
-init_install APACHE_VERSION
+init_install '2.0.50' "http://archive.apache.org/dist/httpd/" '(apache|httpd)-\d+\.\d+\.\d+\.tar\.gz'
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$APACHE_VERSION "
@@ -47,7 +41,7 @@ download_software http://archive.apache.org/dist/httpd/httpd-$APACHE_VERSION.tar
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 APACHE_CURRENT_PATH=`pwd`
 # 开启ssl
 if in_options ssl $CONFIGURE_OPTIONS;then
@@ -61,19 +55,22 @@ if in_options ssl $CONFIGURE_OPTIONS;then
     else
         OPENSSL_VERSION='0.9.8c'
     fi
-    OPENSSL_PATH="$INSTALL_BASE_PATH/openssl/$OPENSSL_VERSION"
-    if [ ! -d "$OPENSSL_PATH" ];then
+    if if_lib "openssl" ">=" $OPENSSL_VERSION;then
+        echo 'openssl ok'
+    else
+        OPENSSL_VERSION='1.1.1'
         download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
-        # 添加编译文件连接
-        if [ ! -e './configure' ];then
-            cp ./config ./configure
-            if_error 'open make configure fail'
-        fi
-        # 编译安装
-        configure_install no-asm -fPIC --prefix=$OPENSSL_PATH
+        OPENSSL_PATH=`pwd`
+        # # 添加编译文件连接
+        # if [ ! -e './configure' ];then
+        #     cp ./config ./configure
+        #     if_error '创建编译文件失败'
+        # fi
+        # # 编译安装
+        # configure_install no-asm -fPIC --prefix=$OPENSSL_PATH
         cd $APACHE_CURRENT_PATH
+        parse_options CONFIGURE_OPTIONS "?--with-ssl=$OPENSSL_PATH ?--with-openssl=$OPENSSL_PATH"
     fi
-    parse_options CONFIGURE_OPTIONS "?--with-ssl=$OPENSSL_PATH ?--with-openssl=$OPENSSL_PATH"
 fi
 if if_lib 'libpcre';then
     echo 'pcre ok'
@@ -92,7 +89,7 @@ if [ -n "$APR_MIN_VERSION" ];then
     if [ ! -d "$APACHE_CURRENT_PATH/srclib/apr" ];then
         # 获取最新版
         get_version APR_VERSION https://archive.apache.org/dist/apr/ "apr-$VERSION_MATCH\.tar\.gz"
-        echo "download apr-$APR_VERSION"
+        echo "下载：apr-$APR_VERSION"
         # 下载
         download_software https://archive.apache.org/dist/apr/apr-$APR_VERSION.tar.gz
         # 复制到编译目录
@@ -102,7 +99,7 @@ if [ -n "$APR_MIN_VERSION" ];then
     if [ ! -d "$APACHE_CURRENT_PATH/srclib/apr-util" ]; then
         # 获取最新版
         get_version APR_UTIL_VERSION https://archive.apache.org/dist/apr/ "apr-util-$VERSION_MATCH\.tar\.gz"
-        echo "download apr-util-$APR_UTIL_VERSION"
+        echo "下载：apr-util-$APR_UTIL_VERSION"
         # 下载
         download_software https://archive.apache.org/dist/apr/apr-util-$APR_UTIL_VERSION.tar.gz
         # 复制到编译目录
@@ -119,4 +116,4 @@ configure_install $CONFIGURE_OPTIONS
 apachectl -k start
 # 添加执行文件连接
 ln -svf $INSTALL_PATH$APACHE_VERSION/bin/apachectl /usr/local/bin/httpd
-echo "install apache-$APACHE_VERSION success!"
+echo "安装成功：apache-$APACHE_VERSION"
