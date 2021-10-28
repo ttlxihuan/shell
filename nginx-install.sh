@@ -42,20 +42,14 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
-# 加载基本处理
-source basic.sh
 #域名
 NGINX_HOST='nginx.org'
-# 获取工作目录
-INSTALL_NAME='nginx'
-# 获取版本配置
-VERSION_URL="http://$NGINX_HOST/en/download.html"
-VERSION_MATCH='Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-NGINX_VERSION_MIN='1.0.0'
+# 定义安装类型
+DEFINE_INSTALL_TYPE='configure'
+# 加载基本处理
+source basic.sh
 # 初始化安装
-init_install NGINX_VERSION
+init_install '1.0.0' "http://$NGINX_HOST/en/download.html" 'Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz'
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NGINX_VERSION --user=nginx --group=nginx "
@@ -67,7 +61,7 @@ download_software http://$NGINX_HOST/download/nginx-$NGINX_VERSION.tar.gz
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 if ! if_command pcre-config;then
     # 安装pcre
     packge_manager_run install -PCRE_DEVEL_PACKGE_NAMES
@@ -110,11 +104,11 @@ configure_install $CONFIGURE_OPTIONS
 # 创建用户组
 add_user nginx
 # 配置文件处理
-echo "nginx config set"
+echo "nginx 配置文件修改"
 cd $INSTALL_PATH$NGINX_VERSION/conf
 if [ ! -d "vhosts" ]; then
-    mkdir vhosts
-    mkdir certs
+    mkdirs vhosts
+    mkdirs certs
     cd vhosts
     cat > ssl <<conf
 #常规https配置
@@ -215,18 +209,18 @@ if [ ! -e "nginx.conf" ]; then
     cp nginx.conf.default nginx.conf
 fi
 # 修改工作用户
-sed -ir 's/^#user\s+nobody/user nginx/' nginx.conf
+sed -i -r 's/^#(user\s+)nobody/\1nginx/' nginx.conf
 # 开户gzip
-sed -ir 's/^#gzip\s+on/gzip  on/' nginx.conf
+sed -i -r 's/^#(gzip\s+)on/\1 on/' nginx.conf
 # 修改工作子进程数，最优化，子进程数 = CPU数 * 3 / 2
 math_compute PROCESSES_NUM "$HTREAD_NUM * 3 / 2"
-sed -ir "s/worker_processes\s+[0-9]+;/worker_processes  $PROCESSES_NUM;/" nginx.conf
+sed -i -r "s/^(worker_processes\s+)[0-9]+;/\1 $PROCESSES_NUM;/" nginx.conf
 # 修改每个工作进程最大连接数
 math_compute MAX_CONNECTIONS "$HTREAD_NUM * 1024"
-sed -ir "s/worker_connections\s+[0-9]+;/worker_connections  $MAX_CONNECTIONS;/" nginx.conf
+sed -i -r "s/^(worker_connections\s+)[0-9]+;/\1 $MAX_CONNECTIONS;/" nginx.conf
 # 添加引入虚拟配置目录
 if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then
-    LAST_NUM=`cat nginx.conf|grep -n }|tail -n 1|grep -oP '\d+'`
+    LAST_NUM=`cat nginx.conf|grep -n '}'|tail -n 1|grep -oP '\d+'`
     LAST_NUM=`expr $LAST_NUM - 1`
     echo "`cat nginx.conf|head -n $LAST_NUM`" > nginx.conf
     echo "    # 如果服务器需要上传大文件时需要设置，否则报413 Request Entity Too Large 错误" >> nginx.conf
@@ -243,7 +237,7 @@ fi
 #fi
 cd $INSTALL_PATH$NGINX_VERSION/sbin
 if [ -n "`./nginx -t|grep error`" ]; then
-    echo "nginx config error"
+    echo "nginx 配置文件错误，请注意修改"
 else
     if [ -n "ps aux|grep nginx" ]; then
         ./nginx
@@ -251,6 +245,6 @@ else
         ./nginx -s reload
     fi
 fi
-echo "install nginx-$NGINX_VERSION success!";
+
 # 安装成功
-exit 0
+echo "安装成功：nginx-$NGINX_VERSION";
