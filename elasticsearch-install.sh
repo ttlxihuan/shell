@@ -103,43 +103,179 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
+# 定义安装参数
+DEFINE_INSTALL_PARAMS="
+[-n, --cluster-name='']指定集群名，注意在主或数据节点中必需包含当前地址
+[-t, --node-type='auto']指定当前节点类型：master 主节点、data 数据节点、all 主和数据节点、auto 自动提取节点集配置
+[-N, --node-name='']指定当前节点在集群中的唯一名，不指定则是集群名+ip
+[-m, --master-hosts='']指定主节点集用逗号分开，没有指定集群名此参数无效，仅支持IP地址，如果包含当前节点则自动过滤
+[-d, --data-hosts='']指定数据节点集用逗号分开，没有指定集群名此参数无效，仅支持IP地址，如果包含当前节点则自动过滤
+[-T, --tool='kibana']安装管理工具，目前支持 kibana
+"
 # 加载基本处理
 source basic.sh
-# 获取工作目录
-INSTALL_NAME='elasticsearch'
-# 获取版本配置
-VERSION_URL="https://www.elastic.co/downloads/elasticsearch"
-VERSION_MATCH='elasticsearch-\d+\.\d+\.\d+'
-VERSION_RULE='\d+\.\d+\.\d+'
 # 初始化安装
-init_install ELASTICSEARCH_VERSION
+init_install 5.0.0 "https://www.elastic.co/downloads/elasticsearch" 'elasticsearch-\d+\.\d+\.\d+'
+if [ -n "$ARGV_tool" ] && ! [[ "$ARGV_tool" =~ ^kibana$ ]]; then
+    error_exit "--tool 只支持kibana，现在是：$ARGV_tool"
+fi
+get_ip
+if [ -n "$ARGV_cluster_name" ];then
+    if [ -z "$ARGV_master_hosts" ];then
+        error_exit "--master-hosts 在集群中不能为空，最少指定一个主节点"
+    fi
+    if [ -z "$ARGV_node_name" ];then
+        ARGV_node_name=$ARGV_cluster_name-$SERVER_IP
+    fi
+    if ! [[ "$ARGV_node_type" =~ ^(master|data|all|auto)$ ]];then
+        error_exit "--node-type 参数值错误，只允许指定为：master、data、all、auto"
+    fi
+    NODE_DATA_VALUE='false'
+    NODE_MASTER_VALUE='false'
+    if [ "$ARGV_node_type" = 'all' ];then
+        NODE_DATA_VALUE='true'
+        NODE_MASTER_VALUE='true'
+    elif [ "$ARGV_node_type" = 'data' ];then
+        NODE_DATA_VALUE='true'
+    elif [ "$ARGV_node_type" = 'master' ];then
+        NODE_MASTER_VALUE='true'
+    elif [ "$ARGV_node_type" = 'auto' ];then
+        if [[ "$ARGV_master_hosts" =~ (^|[^0-9])`echo $SERVER_IP`([^0-9]|$) ]];then
+            NODE_MASTER_VALUE='true'
+        fi
+        if [[ "$ARGV_data_hosts" =~ (^|[^0-9])`echo $SERVER_IP`([^0-9]|$) ]];then
+            NODE_DATA_VALUE='true'
+        fi
+        if [ "$NODE_MASTER_VALUE" = 'false' -a "$NODE_DATA_VALUE" = 'false' ];then
+            error_exit "--node-type 节点集中无法匹配当前节点，请核对IP地址是否正确"
+        fi
+    fi
+elif [ -n "$ARGV_master_hosts$ARGV_data_hosts" ];then
+    error_exit "--cluster-name 未指定，无法配置集群，请核对安装参数"
+fi
 # ************** 安装 ******************
 # 下载elasticsearch包
-# 到7.0以上包名有变动
-if if_version $ELASTICSEARCH_VERSION '>' '7.0.0'; then
+LINUX_BIT=`uname -a|grep -P 'el\d+\.x\d+_\d+' -o|grep -P 'x\d+_\d+' -o`
+# 不同版本文件名有区别
+if if_version $ELASTICSEARCH_VERSION '>=' '8.0.0'; then
+    # 8.0以上的版本
+    TAR_FILE_NAME="-alpha2-linux-$LINUX_BIT"
+elif if_version $ELASTICSEARCH_VERSION '>=' '7.0.0'; then
     # 7.0以上的版本
-    TAR_FILE_NAME="elasticsearch-$ELASTICSEARCH_VERSION-linux-`uname -a|grep -P 'el\d+\.x\d+_\d+' -o|grep -P 'x\d+_\d+' -o`.tar.gz"
+    TAR_FILE_NAME="-linux-$LINUX_BIT"
 else
-    TAR_FILE_NAME="elasticsearch-$ELASTICSEARCH_VERSION.tar.gz"
+    TAR_FILE_NAME=""
 fi
-download_software https://artifacts.elastic.co/downloads/elasticsearch/$TAR_FILE_NAME
+download_software https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-$ELASTICSEARCH_VERSION$TAR_FILE_NAME.tar.gz elasticsearch-$ELASTICSEARCH_VERSION$(echo "$TAR_FILE_NAME"|sed -r 's/-linux-.*$//')
+# 创建用户
+add_user elasticsearch
 # 复制安装包
-mkdir -p $INSTALL_PATH/$ELASTICSEARCH_VERSION
-cp -R ./* $INSTALL_PATH/$ELASTICSEARCH_VERSION
-cd $INSTALL_PATH/$ELASTICSEARCH_VERSION
+mkdirs $INSTALL_PATH$ELASTICSEARCH_VERSION
+echo '复制所有文件到：'$INSTALL_PATH$ELASTICSEARCH_VERSION
+cp -R ./* $INSTALL_PATH$ELASTICSEARCH_VERSION
+cd $INSTALL_PATH$ELASTICSEARCH_VERSION
 # 安装java
 tools_install java
 
-# 默认数据目录判断是否存在
-if [ ! -d "./data" ]; then
-    mkdir data
-fi
+mkdirs data
 
-# 创建用户
-add_user elasticsearch
 chown -R elasticsearch:elasticsearch ./*
 
-# 启动服务
-sudo -u elasticsearch ./bin/elasticsearch -d
+#echo "系统限制相关配置文件修改"
+# 修改系统限制配置文件
+#if [ -e '/etc/security/limits.conf' ] && ! grep -qP '^elasticsearch soft nofile' /etc/security/limits.conf;then
+#    echo 'elasticsearch soft nofile 65536' > /etc/security/limits.conf
+#    echo 'elasticsearch hard nofile 65536' > /etc/security/limits.conf
+#fi
+#if [ -e '/etc/sysctl.conf' ] && ! grep -qP '^vm\.max_map_count=' /etc/sysctl.conf;then
+#    echo 'vm.max_map_count=262144' > /etc/sysctl.conf
+#    sysctl -p
+#fi
+#if [ -d '/etc/security/limits.d/' ];then
+#    LIMITS_CONFIG=`find /etc/security/limits.d/ -name '*nproc.conf'|tail -n 1`
+#    if [ -n "$LIMITS_CONFIG" ] && ! grep -qP '^(\*|elasticsearch)\s+soft\s+nproc\s+4096' $LIMITS_CONFIG;then
+#        echo 'elasticsearch     soft    nproc     4096' > $LIMITS_CONFIG
+#    fi
+#fi
 
-echo "install elasticsearch-$ELASTICSEARCH_VERSION success!"
+echo "elasticsearch 配置文件修改"
+if [ -e "/proc/$$/status" ] && ! cat /proc/$$/status|grep -qP '^Seccomp:';then
+    echo "当前系统不支持SecComp，即将配置 bootstrap.system_call_filter: false"
+    sed -i -r "s/^#?(bootstrap\.memory_lock:).*$/\1 false/" ./config/elasticsearch.yml
+    SET_LINEON=`grep -noP '^#?bootstrap.memory_lock:' ./config/elasticsearch.yml|grep -oP '^\d+'`
+    if [ -n "$SET_LINEON" ];then
+        ((SET_LINEON++))
+        sed -i "${SET_LINEON}i bootstrap.system_call_filter: false" ./config/elasticsearch.yml
+    fi
+fi
+# 集群配置
+if [ -n "$ARGV_cluster_name" ];then
+    echo "集群配置处理"
+    CLUSTER_NAME=$(printf '%s' "$ARGV_cluster_name"|sed 's/\//\\\//g')
+    NODE_NAME=$(printf '%s' "$ARGV_node_name"|sed 's/\//\\\//g')
+    NODES_HOST=`printf '%s' "$ARGV_master_hosts"|sed -r 's/[^0-9|\.]+/ /g'|sed -r 's/([0-9|\.]+)/"\1", /g'`
+    NODES_HOST=$NODES_HOST`printf '%s' "$ARGV_data_hosts"|sed -r 's/[^0-9|\.]+/ /g'|sed -r 's/([0-9|\.]+)/"\1", /g'`
+    NODES_HOST=`printf '%s' "$NODES_HOST"|sed -r "s/\"$SERVER_IP\"(, )?//"|sed -r 's/(,|\s)+$//'`
+    NODES_NUM=$(( (`printf '%s' "$NODES_HOST"|grep -o ','|wc -m`+1)/2+1 ))
+    # 写集群标识
+    echo '写集群标识'
+    echo '所有集群节点：'$NODES_HOST
+    echo '集群节点数：'$NODES_NUM
+    sed -i -r "s/^#?(cluster\.name:).*$/\1 $CLUSTER_NAME/" ./config/elasticsearch.yml
+    sed -i -r "s/^#?(node\.name:).*$/\1 $NODE_NAME/" ./config/elasticsearch.yml
+    # 写节点类型
+    echo '写节点类型'
+    SET_LINEON=`grep -noP '^node.name:' ./config/elasticsearch.yml|grep -oP '^\d+'`
+    if [ -n "$SET_LINEON" ];then
+        ((SET_LINEON++))
+        sed -i "${SET_LINEON}i node.data: $NODE_DATA_VALUE" ./config/elasticsearch.yml
+        sed -i "${SET_LINEON}i node.master: $NODE_MASTER_VALUE" ./config/elasticsearch.yml
+    fi
+    echo '写集群连接及限制'
+    # 各版本差异
+    if if_version $ELASTICSEARCH_VERSION '>=' '7.0.0'; then
+        # 配置集群所有节点
+        sed -i -r "s/^#?(discovery\.seed_hosts:).*$/\1 [$NODES_HOST]/" ./config/elasticsearch.yml
+        # 配置初始化必需连接主节点，初始化完成后此参数无效
+        sed -i -r "s/^#?(cluster\.initial_master_nodes:).*$/\1 [$NODES_HOST]/" ./config/elasticsearch.yml
+    else
+        # 配置集群所有节点
+        sed -i -r "s/^#?(discovery\.zen\.ping.unicast.hosts:).*$/\1 [$NODES_HOST]/" ./config/elasticsearch.yml
+        # 配置最少连接主节点数才能工作
+        sed -i -r "s/^#?(discovery\.zen\.minimum_master_nodes:).*$/\1 $NODES_NUM/" ./config/elasticsearch.yml
+    fi
+    if if_version $ELASTICSEARCH_VERSION '<' '8.0.0'; then
+        # 配置最少连接节点数才能进行选举操作并工作
+        sed -i -r "s/^#?(gateway\.recover_after_nodes:).*$/\1 $NODES_NUM/" ./config/elasticsearch.yml
+    fi
+fi
+
+# 启动服务
+echo 'sudo -u elasticsearch ./bin/elasticsearch -d'
+ sudo -u elasticsearch ./bin/elasticsearch -d
+
+# 安装 kibana
+if [ "$ARGV_tool" = 'kibana' ];then
+    # 获取对应版本
+    if if_version $ELASTICSEARCH_VERSION '>=' '8.0.0'; then
+        # 8.0以上的版本
+        TAR_FILE_NAME="-alpha2"
+    else
+        # 8.0以下的版本
+        TAR_FILE_NAME="-linux-$LINUX_BIT"
+    fi
+    download_software https://artifacts.elastic.co/downloads/kibana/kibana-$ELASTICSEARCH_VERSION$TAR_FILE_NAME.tar.gz kibana-$ELASTICSEARCH_VERSION$TAR_FILE_NAME
+    mkdirs $INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
+    echo '复制所有文件到：'$INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
+    cp -R ./* $INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
+    cd $INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
+    # 创建用户
+    add_user kibana
+    chown -R kibana:kibana ./*
+    # 启动kibana
+    echo 'nohup sudo -u kibana bin/kibana & 2>&1 >/dev/null'
+    nohup sudo -u kibana bin/kibana & 2>&1 >/dev/null
+    echo "kibana 管理地址：http://$SERVER_IP:5601"
+fi
+
+echo "安装成功：elasticsearch-$ELASTICSEARCH_VERSION"
