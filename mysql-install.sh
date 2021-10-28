@@ -90,25 +90,23 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
-# 加载基本处理
-source basic.sh
-# 获取工作目录
-INSTALL_NAME='mysql'
-# 获取版本配置
-VERSION_URL="https://dev.mysql.com/downloads/mysql/"
-VERSION_MATCH='mysql-\d+\.\d+\.\d+'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-MYSQL_VERSION_MIN='5.0.0'
 # 定义安装参数
 DEFINE_INSTALL_PARAMS="
-[-p, --password='']安装成功后修改的新密码，默认或为空时随机生成
+[-p, --password='']安装成功后修改的新密码，默认或为空时随机生成25位密码
 [-t, --type='']主从配置 main|slave  ，默认是无主从配置
-[-H, --master-host=]主从配置地址  user@host  ，配置主服务器时这里指定从服务器连接的账号和地址，配置从服务器时这里指定主服务器的连接账号和地址
-[-P, --master-password=]主从配置密码  password  ，配置主服务器时这里指定从服务器连接的密码，配置从服务器时这里指定连接主服务器的密码
+[-H, --master-host='']主从配置地址  user@host 
+# 配置主服务器时这里指定从服务器连接的账号和地址
+# 配置从服务器时这里指定主服务器的连接账号和地址
+[-P, --master-password='']主从配置密码  password 
+# 配置主服务器时这里指定从服务器连接的密码
+# 配置从服务器时这里指定连接主服务器的密码
 "
+# 定义安装类型
+DEFINE_INSTALL_TYPE='cmake'
+# 加载基本处理
+source basic.sh
 # 初始化安装
-init_install MYSQL_VERSION DEFINE_INSTALL_PARAMS
+init_install '5.0.0' "https://dev.mysql.com/downloads/mysql/" 'mysql-\d+\.\d+\.\d+'
 # ************** 参数解析 ******************
 # 密码处理
 if [ -n "$ARGV_password" ]; then
@@ -120,7 +118,7 @@ fi
 # 配置主从
 if [ -n "$ARGV_type" ]; then
     if ! [[ $ARGV_type =~ ^(main|slave)$ ]];then
-        error_exit "--type must be main|slave"
+        error_exit "--type 只支持main、slave，现在是：$ARGV_type"
     fi
     MYSQL_SYNC_BIN=$ARGV_type
 	MYSQL_SYNC_BIN_PASSWORD=$MYSQL_ROOT_PASSWORD
@@ -150,7 +148,7 @@ else
     CMAKE_CONFIG='-DDOWNLOAD_BOOST=1 -DWITH_BOOST=../boost/ -DDOWNLOAD_BOOST_TIMEOUT=10000'
 fi
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 # 新版需要cmake3来安装
 INSTALL_CMAKE=`cat CMakeLists.txt 2>&1|grep -P 'yum\s+install\s+cmake\d?' -o|grep -P 'cmake\d?' -o`
 if [ -z "$INSTALL_CMAKE" ];then
@@ -168,14 +166,17 @@ else
     packge_manager_run install -NCURSES_DEVEL_PACKGE_NAMES
 fi
 # 新增加的压缩功能，指定使用系统zstd库
-if if_version "$MYSQL_VERSION" ">=" "8.0.18" && [ -d 'extra/zstd' ];then
-    if ! if_command zstd; then
-        download_software https://github.com/facebook/zstd/archive/master.zip zstd-master
-        make_install
-        cd $MYSQL_CONFIGURE_PATH
-    fi
-    CMAKE_CONFIG=$CMAKE_CONFIG" -DWITH_ZSTD=system"
-fi
+# if if_version "$MYSQL_VERSION" ">=" "8.0.18" && [ -d 'extra/zstd' ];then
+#     if ! if_command zstd; then
+#         download_software https://github.com/facebook/zstd/archive/master.zip zstd-master
+#         make_install '' -j 1
+#         if_error "make 安装失败"
+#         cd $MYSQL_CONFIGURE_PATH
+#         CMAKE_CONFIG=$CMAKE_CONFIG" -DWITH_ZSTD=bundled"
+#     else
+#         CMAKE_CONFIG=$CMAKE_CONFIG" -DWITH_ZSTD=system"
+#     fi
+# fi
 packge_manager_run remove mariadb*
 # 获取当前安装要求最低gcc版本
 GCC_MIN_VERSION=`grep -P 'GCC \d+(\.\d+)+' cmake/os/Linux.cmake -o|grep -P '\d+(\.\d+)+' -o|tail -n 1`
@@ -195,7 +196,7 @@ for ITEM in `which -a gcc`; do
 done
 if ! if_command gcc || if_version $GCC_MIN_VERSION '>' $GCC_CURRENT_VERSION;then
     run_install_shell gcc-install.sh $GCC_MIN_VERSION
-    if_error 'install gcc fail'
+    if_error '安装失败：gcc-$GCC_MIN_VERSION'
     CMAKE_CONFIG="-DCMAKE_C_COMPILER=/usr/local/gcc/$GCC_MIN_VERSION/bin/gcc -DCMAKE_CXX_COMPILER=/usr/local/gcc/$GCC_MIN_VERSION/bin/g++ $CMAKE_CONFIG"
 fi
 # 编译缓存文件删除
@@ -204,8 +205,11 @@ if [ -e "CMakeCache.txt" ];then
 fi
 # 安装编译器
 if ! if_command $INSTALL_CMAKE && [[ "$INSTALL_CMAKE" == "cmake3" ]];then
-    get_version CMAKE_MAX_VERSION "https://cmake.org/files/" "v3\.\d+"
-    get_version CMAKE_VERSION "https://cmake.org/files/v$CMAKE_MAX_VERSION" "cmake-\d+\.\d+\.\d+"
+    # get_version CMAKE_MAX_VERSION "https://cmake.org/files/" "v3\.\d+"
+    # get_version CMAKE_VERSION "https://cmake.org/files/v$CMAKE_MAX_VERSION" "cmake-\d+\.\d+\.\d+"
+    # 3.22.0以上版本文件路径不一样，暂时不安装太高版本
+    CMAKE_MAX_VERSION='3.21'
+    CMAKE_VERSION='3.21.3'
     download_software "https://cmake.org/files/v$CMAKE_MAX_VERSION/cmake-$CMAKE_VERSION.tar.gz"
     # 编译安装
     configure_install --prefix=$INSTALL_BASE_PATH/cmake3/$CMAKE_VERSION
@@ -223,12 +227,10 @@ add_user mysql
 cd $INSTALL_PATH$MYSQL_VERSION
 MY_CNF="etc/my.cnf"
 # 部分目录创建
-if [ ! -d "./run" ];then
-    mkdir ./run
-fi
-if [ ! -d "./database" ];then
-    mkdir ./database
-fi
+mkdirs ./run mysql
+
+mkdirs ./database mysql
+
 if [ ! -d "./etc" ];then
     mkdir ./etc
     # 配置文件处理
@@ -270,10 +272,9 @@ MY_CONF
         fi
     fi
 fi
-chown -R root:mysql ./*
 touch ./run/mysqld.pid ./run/mysqld.log
-chown -R mysql:mysql ./run ./database
-echo "mysql config set"
+chown -R mysql:mysql ./*
+echo "mysql 配置文件修改"
 MYSQL_RUN_PATH="$INSTALL_PATH$MYSQL_VERSION/run"
 sed -i "s/^datadir.*=.*data.*/datadir=database/" $MY_CNF
 sed -i "s#^socket.*=.*#socket=$MYSQL_RUN_PATH/mysql.sock#" $MY_CNF
@@ -314,7 +315,8 @@ fi
 
 # 主从配置
 if [ -n "$MYSQL_SYNC_BIN" ]; then
-    SERVER_ID=`ifconfig|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o -m 1|head -n 1|sed 's/\.//g'|grep -P '\d{6}$' -o`
+    get_ip
+    SERVER_ID=`echo "$SERVER_IP"|sed 's/\.//g'|grep -P '\d{6}$' -o`
     cat >> $MY_CNF <<MY_CONF
 # 开启二进制日志
 log-bin=mysql-bin-sync
@@ -365,7 +367,7 @@ MY_CONF
 fi
 
 # 初始化处理
-echo 'mysql initialize data'
+echo 'mysql 初始化处理'
 if [ -e "./scripts/mysql_install_db" ];then
     ./scripts/mysql_install_db --user=mysql
 else
@@ -403,9 +405,9 @@ echo $OPEN_SERVICE
 # 重复多次尝试启动服务
 for((LOOP_NUM=1;LOOP_NUM<5;LOOP_NUM++))
 do
+   echo "第${LOOP_NUM}次尝试启动mysql";
    eval "$OPEN_SERVICE"
    if [ -z "`netstat -ntlp|grep mysql`" ]; then
-       echo "sleep 5s attempt start server";
        sleep 5;
    else
        break;
@@ -414,33 +416,32 @@ done
 
 # 修改密码，建立主从复制
 if [ -n "`netstat -ntlp|grep mysql`" ]; then
-    echo 'edit init mysql password';
-    echo "init password: $TEMP_PASSWORD"
+    echo '修改初始mysql密码';
+    echo "初始密码: $TEMP_PASSWORD"
     if [ -n "$TEMP_PASSWORD" ]; then
         echo "mysql -uroot --password=\"$TEMP_PASSWORD\" --connect-expired-password -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'\" 2>&1"
         for((LOOP_NUM=1;LOOP_NUM<10;LOOP_NUM++))
         do
+            echo "第${LOOP_NUM}次尝试修改密码";
             UPDATE_PASSWORD=`mysql -uroot --password="$TEMP_PASSWORD" --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'" 2>&1`
             if [[ "$UPDATE_PASSWORD" =~ "ERROR" ]]; then
                 echo $UPDATE_PASSWORD
-                echo "update init password fail"
-                echo "sleep 5s attempt edit password";
+                echo "修改mysql初始密码失败"
                 sleep 5;
             else
-                echo "new password: $MYSQL_ROOT_PASSWORD"
-                echo "#  root password: $MYSQL_ROOT_PASSWORD" >> $MY_CNF
+                echo "新mysql密码: $MYSQL_ROOT_PASSWORD"
+                echo "新mysql密码已经写入配置文件中备注"
+                echo "#  root 密码: $MYSQL_ROOT_PASSWORD" >> $MY_CNF
                 break
             fi
         done
     else
-        echo "init password edit fail"
-        echo "# init root password: $TEMP_PASSWORD" >> $MY_CNF
+        echo "没有指定有效新密码，修改mysql初始密码失败，初始密码已经写入配置文件中备注，生产环境注意删除掉"
+        echo "# 初始 root 密码: $TEMP_PASSWORD" >> $MY_CNF
     fi
-    
     # 配置主从
-    echo 'slave config';
     if [[ "$MYSQL_SYNC_BIN" == 'main' ]]; then
-        echo 'config main';
+        echo '主从配置，当前服务为：main';
         #
         # 数据库指派权限时，如果库名有下划线需要加反斜杠转义否则指派异常
         # 如 GRANT ALL PRIVILEGES ON `tt\_logs`.* TO `dev`@`localhost`
@@ -456,7 +457,7 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
         echo "mysql -uroot --password=\"$MYSQL_ROOT_PASSWORD\" -e \"create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;\""
         mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -e "create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;"
     elif [[ "$MYSQL_SYNC_BIN" == 'slave' ]]; then
-        echo 'config slave';
+        echo '主从配置，当前服务为：slave';
         MASTER_USER=`echo $MYSQL_SYNC_BIN_HOST|grep -P '^[^@]+' -o`
         MASTER_HOST=`echo $MYSQL_SYNC_BIN_HOST|grep -P '[^@]+$' -o`
         # 读取主服务器上的同步起始值
@@ -469,14 +470,13 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
             mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -e "stop slave;change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS;start slave;show slave status \G "
         else
             echo $SQL_RESULT;
-            echo 'config fail';
+            echo '主从配置失败';
         fi
     else
-        echo 'slave config is empty';
+        echo '没有指定主从配置';
     fi
 else
-    echo 'mysql start fail!';
+    echo 'mysql服务未能启动，无法进行配置';
 fi
 
-echo "install mysql-$MYSQL_VERSION success!";
-
+echo "安装成功：mysql-$MYSQL_VERSION";
