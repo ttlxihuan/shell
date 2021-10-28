@@ -13,7 +13,7 @@ if [[ "$0" =~ '/' ]]; then
     cd "`echo "$0" | grep -oP '(/?[^/]+/)+'`"
 fi
 if [ ! -e "$CONFIG_FILE" ];then
-    echo "$CONFIG_FILE config file is not exists"
+    echo "$CONFIG_FILE 配置文件不存在"
     exit 1
 fi
 # 安装服务包
@@ -23,12 +23,12 @@ fi
 # return 1|0
 install_server(){
     if [ ! -e "./$1-install.sh" ];then
-        echo "$1-install.sh is not exists"
+        echo "$1-install.sh 脚本不存在"
         exit 1;
     fi
     local INSTALL_STATUS=`ps aux|grep 'install.sh'`
     if [ -n "`echo $INSTALL_STATUS|grep "$1-install.sh"`" ];then
-        echo "$1 already in the installation"
+        echo "$1 脚本已经在安装中"
         return 1;
     fi
     # 提取安装参数
@@ -37,13 +37,13 @@ install_server(){
         PARAMS_LIST="$PARAMS_LIST \"${@:$INDEX:1}\""
     done
     unset INDEX
-    echo "install $1"
+    echo "安装：$1"
     echo "bash ./$1-install.sh $PARAMS_LIST 2>&1"
     {
         if bash ./$1-install.sh $PARAMS_LIST 2>&1 > $1-install.log >/dev/null; then
-            echo "install $1 success"
+            echo "安装成功：$1"
         else
-            echo "install $1 fail"
+            echo "安装失败：$1"
         fi
     }&
 }

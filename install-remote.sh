@@ -27,7 +27,7 @@ ssh_install_server(){
     else
         local SSH_USER=${3-root}
         if [ -n "$2" ] && ! ssh -o ConnectTimeout=30 -o PasswordAuthentication=no -o StrictHostKeyChecking=no -n $SSH_USER@$1 2>&1 &>/dev/null; then
-            echo "copy ssh-key to $SSH_USER@$1"
+            echo "复制 ssh-key 证书到 $SSH_USER@$1"
             expect <<CMD
     set timeout 30
     spawn ssh-copy-id -i $SSH_KEY_PATH $SSH_USER@$1
@@ -35,13 +35,13 @@ ssh_install_server(){
 CMD
         fi
         if ! ssh -o ConnectTimeout=30 -o PasswordAuthentication=no -n $SSH_USER@$1 2>&1 &>/dev/null; then
-            echo "ssh login fail"
+            echo "ssh登录失败，请核对信息：$SSH_USER@$1"
             return 1
         fi
-        echo "copy file ..."
+        echo "复制安装脚本到远程服务器中"
         ssh $SSH_USER@$1 -C 'mkdir -p ~/install-shell'
         scp -r $COPY_FILES $SSH_USER@$1:./install-shell/
-        echo "ssh install ..."
+        echo "ssh 安装"
         ssh $SSH_USER@$1 -C 'cd ~/install-shell; nohup bash ./install.sh &' &
     fi
     return 0
