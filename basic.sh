@@ -1,4 +1,7 @@
 #!/bin/bash
+if [ '$0' = 'basic.sh' ];then
+    error_exit "basic.sh 脚本是共用文件必需使用source调用"
+fi
 # 切换工作目录
 # @command chdir $path
 # @param $path      切换的子目录
@@ -15,7 +18,7 @@ chdir(){
 mkdirs(){
     if [ ! -d "$1" ];then
         mkdir -p "$1"
-        if_error "mkdir fail: $1"
+        if_error "创建目录失败: $1"
     fi
     if [ -n "$2" ];then
         chown -R $2:$2 "$1"
@@ -67,7 +70,7 @@ if_version(){
             RESULT=`echo -e "$VERSIONS"|uniq|tail -n 1|grep "$1"`
         ;;
         *)
-            error_exit "if_version unknown $2"
+            error_exit "未知版本判断条件：$2"
         ;;
     esac
     if [ -n "$RESULT" ]; then
@@ -85,11 +88,11 @@ if_version(){
 get_version(){
     local VERSION_RULE="$4" VERSION
     if [ -z "$4" ];then
-        VERSION_RULE='\d+\.\d+(\.\d+)?'
+        VERSION_RULE='\d+(\.\d+){1,2}'
     fi
     VERSION=`curl $2 -LkN 2>/dev/null| grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
     if [ -z "$VERSION" ];then
-        error_exit "get_version fail: $2"
+        error_exit "获取版本数据失败: $2"
     fi
     eval "$1=\"$VERSION\""
     return 0
@@ -106,12 +109,14 @@ download_software(){
     else
         DIR_NAME="$2"
     fi
+    echo "下载并解压：$1"
     if [ -z "$DIR_NAME" ];then
-        error_exit "work dir empty"
+        error_exit "下载目录找不到"
     fi
     chdir $INSTALL_NAME
     # 重新下载再安装
     if [ -n "$ARGV_reset" -a "$ARGV_reset" = '2' ];then
+        echo "删除相关文件或目录，重新下载安装"
         if [ -e "$FILE_NAME" ];then
             rm -f $FILE_NAME
         fi
@@ -125,10 +130,13 @@ download_software(){
         fi
         if [ $? -ne 0 ];then
             mv $FILE_NAME "`date +'%Y_%m_%d_%H_%M_%S'`_error_$FILE_NAME"
-            error_exit "download fail: $1"
+            error_exit "下载失败: $1"
         fi
+    else
+        echo '已经存在下载文件：'$FILE_NAME
     fi
     if [ ! -d "$DIR_NAME" ];then
+        echo '解压下载文件：'$FILE_NAME
         case "$FILE_NAME" in
             *.gz|*.tar.gz|*.tgz)
                 tar -zxf $FILE_NAME
@@ -154,39 +162,61 @@ download_software(){
                 return 0
             ;;
             *)
-                error_exit "unknown decompression file: $FILE_NAME"
+                error_exit "未知解压文件: $FILE_NAME"
             ;;
         esac
-        if_error "decompression fail: $FILE_NAME"
-        echo "sha256: "`sha256sum $FILE_NAME`
+        if_error "解压文件失败: $FILE_NAME"
+        echo "下载文件的sha256: "`sha256sum $FILE_NAME`
     fi
     cd $DIR_NAME
-    if_error "dir not exists: $DIR_NAME"
+    if_error "解压目录找不到: $DIR_NAME"
     return 0
 }
 # 解析安装命令参数
-# @command parse_install_param $define_name [$options_name]
-# @param $define_name       外加定义参数变量名
-#                           配置参数规则：
-#                           [name]              定义参数
-#                           [-n, --name]        定义无值选项
-#                           [-n, --name='']     带选项值的选项
+# 注意：此命令会提取全局变量 DEFINE_INSTALL_PARAMS 和 DEFINE_INSTALL_TYPE
+# DEFINE_INSTALL_PARAMS 是安装额外定义的参数选项，配置参数规则：
+#      [name]              定义参数
+#      [-n, --name]        定义无值选项
+#      [-n, --name='']     带选项值的选项
+# DEFINE_INSTALL_TYPE 是指定安装类型，configure、make、cmake，安装类型决定是否开放--options参数
+# @command parse_install_param $options_name
 # @param $options_name      命令参数数组名
 # return 1|0
 parse_install_param(){
     local _PARSE_DEFINE_PARAMS_STR_ _PARSE_DEFINE_PARAMS_="
-[version] 指定安装版本，不传则是获取最新稳定版本号，传new安装最新版，传指定版本号则安装指定版本应用
-[-h, --help]显示帮助信息
+[version]指定安装版本，不传则是获取最新稳定版本号，传new安装最新版，传指定版本号则安装指定版本
+[-h, --help]显示安装脚本帮助信息
 [-r, --reset=0]重新安装：0 标准安装，1 重新安装 2重新下载再安装，默认0
-[-o, --options='']添加编译选项，使用前请查阅下面帮助说明
 "
-    if [ -n "$1" ];then
-        _PARSE_DEFINE_PARAMS_=$_PARSE_DEFINE_PARAMS_$(eval "echo -e \"\$$1\"")
+    if [ -n "$DEFINE_INSTALL_TYPE" ];then
+        _PARSE_DEFINE_PARAMS_=$_PARSE_DEFINE_PARAMS_"
+[-j, --make-jobs=avg]编译同时允许N个任务，可选值有 max|avg|number ，max当前CPU数，avg当前CPU半数，number是指定的数值。
+# 任务多编译快且资源消耗也大（不建议超过CPU核数），当编译因进程被系统杀掉时可减少此值重试。
+[-o, --options='']添加${DEFINE_INSTALL_TYPE}选项，使用前请核对选项信息。
+"
+        if [ "$DEFINE_INSTALL_TYPE" = 'configure' ];then
+            _PARSE_DEFINE_PARAMS_=$_PARSE_DEFINE_PARAMS_"
+# 增加${DEFINE_INSTALL_TYPE}选项，支持以下三种方式传参：
+# 1、原样选项 --xx 、-xx 或 ?--xx 、?-xx
+# 2、启用选项 xx 或 ?xx 解析后是 --enable-xx 或 --with-xx 
+# 3、禁用选项 !xx 或 ?!xx 解析后是 --disable-xx
+# 选项前面的?是在编译选项时会查找选项是否存在，如果不存在则丢弃，存在则附加
+# 选项前面的!是禁用某个选项，解析后会存在该选项则附加
+# 选项多数是有依赖要求，在增选项前需要确认依赖是否满足，否则容易造成安装失败。
+"
+        elif [ -n "$DEFINE_INSTALL_TYPE" ];then
+            _PARSE_DEFINE_PARAMS_=$_PARSE_DEFINE_PARAMS_"
+# 增加${DEFINE_INSTALL_TYPE}原样选项，选项按${DEFINE_INSTALL_TYPE}标准即可。
+# 选项部分是有依赖要求，在增选项前需要确认依赖是否满足，否则容易造成安装失败。
+"
+        fi
     fi
-    parse_command_param _PARSE_DEFINE_PARAMS_ _PARSE_DEFINE_PARAMS_STR_ $2
+    if [ -n "$DEFINE_INSTALL_PARAMS" ];then
+        _PARSE_DEFINE_PARAMS_=$_PARSE_DEFINE_PARAMS_$DEFINE_INSTALL_PARAMS
+    fi
+    parse_command_param _PARSE_DEFINE_PARAMS_ _PARSE_DEFINE_PARAMS_STR_ $1
     if [ -n "$ARGV_help" ];then
-        echo -e "
-Description:
+        echo -e "Description:
     安装${INSTALL_NAME}脚本
 
 Usage:
@@ -195,7 +225,6 @@ Usage:
 ${_PARSE_DEFINE_PARAMS_STR_}
 Help:
     安装脚本一般使用方式:
-
         获取最新稳定安装版本号:
             bash ${INSTALL_NAME}-install.sh
 
@@ -203,20 +232,23 @@ Help:
             bash ${INSTALL_NAME}-install.sh new
 
         安装指定版本${INSTALL_NAME}:
-            bash ${INSTALL_NAME}-install.sh 1.1.1
-
+            bash ${INSTALL_NAME}-install.sh 1.1.1";
+    if [ "$DEFINE_INSTALL_TYPE" = 'configure' ];then
+        echo -e "
         安装最新稳定版本${INSTALL_NAME}且指定安装选项:
             bash ${INSTALL_NAME}-install.sh new --options=\"?ext1 ext2\"
-
-    添加编译选项：编译选项只针对使用configure或cmake方式安装有效，指定时需要提前了解编译安装的选项作用和依赖。
-                    1、不解析选项直接使用 --xx 、-xx 或 ?--xx 、?-xx
-                    2、需要启用选项 xx 或 ?xx 解析后是 --enable-xx 或 --with-xx 
-                    3、需要禁用选项 !xx 或 ?!xx 解析后是 --disable-xx
-                  选项前面的?是在编译选项时会查找选项是否存在，如果不存在则跳过，存在则添加
-                  选项前面的!是在编译选项时查询禁用选项是否存在
-
-    注意：安装脚本会在脚本所有目录创建安装临时目录，此目录用于下载安装包，如果有已经下载好的包可以自行存放目录内可以节省下载时间。
-";
+"
+    elif [ -n "$DEFINE_INSTALL_TYPE" ];then
+        echo -e "
+        安装最新稳定版本${INSTALL_NAME}且指定安装选项:
+            bash ${INSTALL_NAME}-install.sh new --options=\"opt1 opt2\"
+"
+    fi
+        echo -e "
+    安装脚本会在脚本所有目录创建安装目录，此目录用于下载和编译安装包。
+    当后续再次安装相同版本时，已经存在的安装包将不再下载而是直接使用。
+    如果安装多台服务器可直接复制安装目录及安装包，这样就不会再下载而是直接安装处理。
+"
         exit 0
     fi
 }
@@ -236,19 +268,30 @@ parse_command_param() {
     local PARAM NAME SHORT_NAME DEFAULT_VALUE DEFAULT_VALUE_STR PARAM_STR PARAM_INFO_STR PARAM_NAME_STR PARAM_SHOW_DEFINE PARAM_SHOW_INFO ARG_NAME INDEX ARGUMENTS=() OPTIONS=() OPTIONALS=() ARGVS=() COMMENT_SHOW_ARGUMENTS='' COMMENT_SHOW_OPTIONS='' PARAMS_SHOW_STR=''
     # 解析定义的参数
     while read -r PARAM; do
-        if echo "$PARAM"|grep -qP '^\s*$'; then
+        if [ -z "$PARAM" ] || printf '%s' "$PARAM"|grep -qP '^\s*$'; then
             continue;
         fi
-        PARAM_STR=$(echo "$PARAM"|grep -oiP "^\s*\[\s*((-[a-z0-9]\s*,\s*)?--[a-z0-9][\w\-]+|[a-z0-9][\w\-]+)(\s*=\s*(\w+|\"([^\"]|\\\\.)*\"|'([^']|\\\\.)*'))?\s*\]\s*")
-        if [ -z "$PARAM_STR" ];then
-            error_exit " $PARAM"
+        if printf '%s' "$PARAM"|grep -qP '^\s*#';then
+            PARAM=$(printf '%s' "$PARAM"|sed -r 's/^\s*#\s*//')
+            if [[ "$NAME" == -* ]];then
+                COMMENT_SHOW_OPTIONS="$COMMENT_SHOW_OPTIONS                                $PARAM \n"
+            elif [ -n "$NAME" ];then
+                COMMENT_SHOW_ARGUMENTS="$COMMENT_SHOW_ARGUMENTS                                $PARAM \n"
+            else
+                error_exit "备注无匹配参数信息：$PARAM"
+            fi
+            continue;
         fi
-        PARAM_INFO_STR=`echo "$PARAM_STR"|sed -r "s/(^\s*\[\s*)|(\s*\]\s*$)//g"`
-        PARAM_NAME_STR=`echo "$PARAM_INFO_STR"|grep -oP '^[^=]+'`
-        DEFAULT_VALUE_STR=$(echo "$PARAM_INFO_STR"|grep -oP "=\s*(\w+|\"([^\"]|\\\\.)*\"|'([^']|\\\\.)*')$")
-        if echo "$PARAM_NAME_STR"|grep -qP '^-{1,2}';then
-            SHORT_NAME=`echo "$PARAM_NAME_STR"|grep -oiP '^-[a-z0-9]'`
-            NAME=`echo "$PARAM_NAME_STR"|grep -oiP '\-\-[a-z0-9][\w\-]+'`
+        PARAM_STR=$(printf '%s' "$PARAM"|grep -oiP "^\s*\[\s*((-[a-z0-9]\s*,\s*)?--[a-z0-9][\w\-]+|[a-z0-9][\w\-]+)(\s*=\s*(\w+|\"([^\"]|\\\\.)*\"|'([^']|\\\\.)*'))?\s*\]\s*")
+        if [ -z "$PARAM_STR" ];then
+            error_exit "定义参数解析失败：$PARAM"
+        fi
+        PARAM_INFO_STR=`printf '%s' "$PARAM_STR"|sed -r "s/(^\s*\[\s*)|(\s*\]\s*$)//g"`
+        PARAM_NAME_STR=`printf '%s' "$PARAM_INFO_STR"|grep -oP '^[^=]+'`
+        DEFAULT_VALUE_STR=$(printf '%s' "$PARAM_INFO_STR"|grep -oP "=\s*(\w+|\"([^\"]|\\\\.)*\"|'([^']|\\\\.)*')$")
+        if printf '%s' "$PARAM_NAME_STR"|grep -qP '^-{1,2}';then
+            SHORT_NAME=`printf '%s' "$PARAM_NAME_STR"|grep -oiP '^-[a-z0-9]'`
+            NAME=`printf '%s' "$PARAM_NAME_STR"|grep -oiP '\-\-[a-z0-9][\w\-]+'`
             PARAM_SHOW_DEFINE="$NAME"
             if [ -n "$SHORT_NAME" ];then
                 PARAM_SHOW_DEFINE="$SHORT_NAME, $PARAM_SHOW_DEFINE"
@@ -260,33 +303,39 @@ parse_command_param() {
             fi
         else
             SHORT_NAME=''
-            NAME=`echo $PARAM_NAME_STR|grep -oiP '^[a-z0-9][\w\-]+'`
+            NAME=`printf '%s' $PARAM_NAME_STR|grep -oiP '^[a-z0-9][\w\-]+'`
             PARAM_SHOW_DEFINE="$NAME"
         fi
         for ((INDEX=0; INDEX < ${#ARGVS[@]}; INDEX++)); do
             if test ${ARGVS[$INDEX]} = $NAME || test ${ARGVS[$INDEX]} = "$SHORT_NAME";then
-                error_exit "Repeat parameter: ${ARGVS[$INDEX]} , $PARAM"
+                error_exit "不能定义重名参数: ${ARGVS[$INDEX]} , $PARAM"
             fi
         done
         ARGVS[${#ARGVS[@]}]="$NAME"
         if [ -n "$SHORT_NAME" ];then
             ARGVS[${#ARGVS[@]}]="$SHORT_NAME"
         fi
-        ARG_NAME="ARGV_"`echo "$NAME"|sed -r "s/^-{1,2}//"|sed "s/-/_/g"`
+        ARG_NAME="ARGV_"`printf '%s' "$NAME"|sed -r "s/^-{1,2}//"|sed "s/-/_/g"`
         if [ -n "$DEFAULT_VALUE_STR" ];then
-            DEFAULT_VALUE_STR=$(echo "$DEFAULT_VALUE_STR"|sed -r "s/(^=\s*)//")
+            DEFAULT_VALUE_STR=$(printf '%s' "$DEFAULT_VALUE_STR"|sed -r "s/(^=\s*)//")
             PARAM_SHOW_DEFINE="$PARAM_SHOW_DEFINE [= $DEFAULT_VALUE_STR]"
-            DEFAULT_VALUE=$(echo "$DEFAULT_VALUE_STR"|sed -r "s/(^['\"])|(['\"]$)//g"|sed -r "s/\\\\(.)/\1/g")
+            DEFAULT_VALUE=$(printf '%s' "$DEFAULT_VALUE_STR"|sed -r "s/(^['\"])|(['\"]$)//g"|sed -r "s/\\\\(.)/\1/g")
             eval "$ARG_NAME=\$DEFAULT_VALUE"
         else
             eval "$ARG_NAME=''"
         fi
-        PARAM_SHOW_INFO="    $PARAM_SHOW_DEFINE"$(echo '                                       '|sed -r "s/^.{`echo $[ $(echo "$PARAM_SHOW_DEFINE"|wc -m) - 1]`}//")$(echo "$PARAM"|sed -r "s/^.{`echo $[ $(echo "$PARAM_STR"|wc -m) -1]`}//")
-        if [[ "$NAME" =~ ^"-" ]];then
-            COMMENT_SHOW_OPTIONS="$COMMENT_SHOW_OPTIONS $PARAM_SHOW_INFO \n"
+        INDEX=`echo $[ $(printf '%s' "$PARAM_SHOW_DEFINE"|wc -m) + 4 ]`
+        if (($INDEX >= 32));then
+            PARAM_SHOW_INFO="\n                                "
+        else
+            PARAM_SHOW_INFO=$(echo '                                '|sed -r "s/^.{$INDEX}//")
+        fi
+        PARAM_SHOW_INFO="    $PARAM_SHOW_DEFINE$PARAM_SHOW_INFO"$(printf '%s' "$PARAM"|sed -r "s/^.{1,`echo $(printf '%s' "$PARAM_STR"|wc -m)`}//")
+        if [[ "$NAME" == -* ]];then
+            COMMENT_SHOW_OPTIONS="$COMMENT_SHOW_OPTIONS$PARAM_SHOW_INFO \n"
         else
             ARGUMENTS[${#ARGUMENTS[@]}]="$NAME"
-            COMMENT_SHOW_ARGUMENTS="$COMMENT_SHOW_ARGUMENTS $PARAM_SHOW_INFO \n"
+            COMMENT_SHOW_ARGUMENTS="$COMMENT_SHOW_ARGUMENTS$PARAM_SHOW_INFO \n"
         fi
     done <<EOF
 $(eval "echo -e \"\$$1\"")
@@ -294,20 +343,23 @@ EOF
     # 解析匹配传入参数
     local ITEM ARG_NUM VALUE OPTIONS_TEMP NAME_TEMP VALUE_TEMP ARGUMENTS_INDEX=0 ARG_SIZE=$(eval "echo \${#$3[@]}")
     for ((ARG_NUM=0; ARG_NUM < $ARG_SIZE; ARG_NUM++)); do
-        ITEM=$(eval "echo \${$3[$ARG_NUM]}")
+        eval "ITEM=\${$3[$ARG_NUM]}"
+        if [ -z "$ITEM" ];then
+            continue
+        fi
         NAME=''
-        if echo "$ITEM"|grep -qiP '^((--[a-z0-9][\w\-]+(=.*)?)|(-[a-z0-9]))$'; then
+        if printf '%s' "$ITEM"|grep -qiP '^((--[a-z0-9][\w\-]+(=.*)?)|(-[a-z0-9]))$'; then
             # 有参数的选项处理
-            if echo "$ITEM"|grep -qiP '^--[a-z0-9][\w\-]+=.*';then
-                NAME_TEMP=$(echo "$ITEM"|grep -oiP '^--[a-z0-9][\w\-]+')
-                VALUE=$(echo "$ITEM"|sed -r "s/^[^=]+=//")
+            if printf '%s' "$ITEM"|grep -qiP '^--[a-z0-9][\w\-]+=.*';then
+                NAME_TEMP=$(printf '%s' "$ITEM"|grep -oiP '^--[a-z0-9][\w\-]+')
+                VALUE=$(printf '%s' "$ITEM"|sed -r "s/^[^=]+=//")
             else
                 NAME_TEMP="$ITEM"
                 VALUE=''
                 for ((INDEX=0; INDEX < ${#OPTIONALS[@]}; INDEX++)); do
                     OPTIONS_TEMP=${OPTIONALS[$INDEX]}
-                    if [ "$OPTIONS_TEMP" != "`echo "$OPTIONS_TEMP"|sed -r "s/$NAME_TEMP($|,)//"`" ];then
-                        NAME=$(echo "$OPTIONS_TEMP"|sed -r "s/(-[A-Za-z0-9]\s*,\s*)?--//")
+                    if [ "$OPTIONS_TEMP" != "`printf '%s' "$OPTIONS_TEMP"|sed -r "s/$NAME_TEMP($|,)//"`" ];then
+                        NAME=$(printf '%s' "$OPTIONS_TEMP"|sed -r "s/(-[A-Za-z0-9]\s*,\s*)?--//")
                         VALUE='1'
                         break
                     fi
@@ -316,14 +368,14 @@ EOF
             if [ -z "$NAME" ];then
                 for ((INDEX=0; INDEX < ${#OPTIONS[@]}; INDEX++)); do
                     OPTIONS_TEMP=${OPTIONS[$INDEX]}
-                    if [ "$OPTIONS_TEMP" != "`echo "$OPTIONS_TEMP"|sed -r "s/$NAME_TEMP($|,)//"`" ];then
-                        NAME=$(echo "$OPTIONS_TEMP"|sed -r "s/(-[A-Za-z0-9]\s*,\s*)?--//")
-                        if [ -z "$VALUE" ] && echo "$NAME_TEMP"|grep -qiP '^-[a-z0-9]$';then
+                    if [ "$OPTIONS_TEMP" != "`printf '%s' "$OPTIONS_TEMP"|sed -r "s/$NAME_TEMP($|,)//"`" ];then
+                        NAME=$(printf '%s' "$OPTIONS_TEMP"|sed -r "s/(-[A-Za-z0-9]\s*,\s*)?--//")
+                        if [ -z "$VALUE" ] && printf '%s' "$NAME_TEMP"|grep -qiP '^-[a-z0-9]$';then
                             ((ARG_NUM++))
-                            VALUE=$(eval "echo \${$3[$ARG_NUM]}")
+                            eval "VALUE=\${$3[$ARG_NUM]}"
                         fi
                         if [ -z "$VALUE" ] && ! [[ $ITEM =~ = ]] && (($ARG_NUM >= $ARG_SIZE));then
-                            error_exit "$NAME must specify a value"
+                            error_exit "$NAME 必需指定一个值"
                         fi
                         break
                     fi
@@ -336,9 +388,9 @@ EOF
             ((ARGUMENTS_INDEX+=1))
         fi
         if [ -z "$NAME" ];then
-            echo "Unknown parameter: "$ITEM
+            echo "未知参数: "$ITEM
         else
-            ARG_NAME="ARGV_"`echo "$NAME"|sed -r "s/^-{1,2}//"|sed "s/-/_/g"`
+            ARG_NAME="ARGV_"`printf '%s' "$NAME"|sed -r "s/^-{1,2}//"|sed "s/-/_/g"`
             eval "$ARG_NAME=\$VALUE"
         fi
     done
@@ -403,11 +455,11 @@ parse_options(){
                 fi
             ;;
             *)
-                error_exit "fail options: $OPTION"
+                error_exit "解析选项语法错误: $OPTION"
             ;;
         esac
         if test $OPTION == $ITEM && [ -z "$OPTION_STR" ];then
-            error_exit "unknown options: $ITEM"
+            error_exit "未知编译选项: $ITEM"
         else
             OPTIONS_STR="$OPTIONS_STR$OPTION_STR "
         fi
@@ -443,21 +495,22 @@ in_add_options(){
     return 1
 }
 # make安装软件
-# @command make_install [install_path]
-# @param $install_path  安装目录
+# @command make_install [install_path] [$make_options ...]
+# @param $install_path      安装目录
+# @param $make_options      编译选项
 # return 1|0
 make_install(){
-    echo "make install"
-    make -j $HTREAD_NUM 2>&1
-    if_error "make fail!"
+    echo "make 编译安装"
+    make -j $HTREAD_NUM ${@:2} 2>&1
+    if_error "make 编译失败"
     make install 2>&1
-    if_error "make install fail!"
+    if_error "make 安装失败"
     if [ -n "$1" ];then
         local PREFIX_PATH=$1
         if [[ "$1" =~ "=" ]];then
             PREFIX_PATH=${1#*=}
         fi
-        echo "add env path: $PREFIX_PATH"
+        echo "添加环境变量PATH: $PREFIX_PATH"
         # 添加动态库地址
         add_pkg_config $PREFIX_PATH
         # 添加环境目录
@@ -474,7 +527,7 @@ configure_install(){
     make clean 2>&1
     echo "./configure $*"
     ./configure $* 2>&1
-    if_error "configure fail!"
+    if_error "configure 编译配置失败"
     make_install "`echo "$*"|grep -oP "\--prefix=\S+"`"
 }
 # cmake安装软件
@@ -487,7 +540,7 @@ cmake_install(){
     make clean 2>&1
     echo "$*"
     $* 2>&1
-    if_error "cmake fail!"
+    if_error "cmake 编译安装失败"
     make_install "`echo "$*"|grep -oP "\-DCMAKE_INSTALL_PREFIX=\S+"`"
 }
 # 判断上一个命令的成功与否输出错误并退出
@@ -516,7 +569,7 @@ error_exit(){
 # return 0
 add_user(){
     if [ -n "`id $1 2>&1|grep "($1)"`" ]; then
-         echo "user($1) is exists";
+         echo "用户：$1 已经存在无需再创建";
     else
         local RUN_FILE='/sbin/nologin'
         if [ -n "$2" -a -e "$2" ];then
@@ -525,7 +578,7 @@ add_user(){
         useradd -M -U -s $RUN_FILE $1
         if [ -n "$3" ];then
             if echo "$3"|passwd --stdin $1; then
-                echo "user($1) password: $3"
+                echo "创建用户：$1 密码: $3"
             fi
         fi
     fi
@@ -592,11 +645,11 @@ packge_manager_run(){
             COMMAND_STR=${PACKGE_MANAGER_SEARCH_COMMAND[$PACKGE_MANAGER_INDEX]}
         ;;
         *)
-            error_exit "unknown packge manager command: $1"
+            error_exit "未知包管理命令: $1"
         ;;
     esac
     if [ -z "$2" ];then
-        error_exit "not set packge name"
+        error_exit "最少指定一个要安装的包名"
     fi
     local NAME COMMAND_ARRAY_VAL PACKGE_NAME COMMAND_ARRAY
     for NAME in ${@:2}; do
@@ -607,7 +660,7 @@ packge_manager_run(){
             elif [ `eval "echo $COMMAND_ARRAY"` -gt 0 ];then
                 COMMAND_ARRAY_VAL='${'${NAME:1}'[0]}'
             else
-                error_exit "not find packge name: $NAME"
+                error_exit "找不到配置的安装包名: $NAME"
             fi
             PACKGE_NAME=`eval "echo $COMMAND_ARRAY_VAL"`
             if [ "$PACKGE_NAME" = '-' ];then
@@ -617,7 +670,7 @@ packge_manager_run(){
             PACKGE_NAME=$NAME
         fi
         if [ -z "$PACKGE_NAME" ];then
-            error_exit "empty packge name: $NAME"
+            error_exit "安装包名解析为空: $NAME"
         fi
         $COMMAND_STR $PACKGE_NAME 2> /dev/null
     done
@@ -632,7 +685,7 @@ tools_install(){
         if ! if_command $TOOL;then
             packge_manager_run install $TOOL 2> /dev/null
             if ! if_command $TOOL;then
-                error_exit "install tool: $TOOL fail!"
+                error_exit "安装工具失败: $TOOL"
             fi
         fi
     done
@@ -693,7 +746,7 @@ if_lib(){
         configure_install --with-internal-glib --prefix=$INSTALL_BASE_PATH/pkg-config/$PKG_CONFIG_VERSION
     fi
     if pkg-config --exists "$1";then
-        if [ -n "$2" ] && [ -n "$3" ] && ! pkg-config --cflags --libs "$1 $2 $3" > /dev/null;then
+        if [ -n "$2" -a -n "$3" ] && ! pkg-config --cflags --libs "$1 $2 $3" > /dev/null;then
             return 1
         fi
         return 0
@@ -712,15 +765,17 @@ random_password(){
     local PASSWORD_CHARS_STR='qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM~!@#$%^&*()_-=+,.;:?/\|'
     if [ -n "$3" ];then
         PASSWORD_CHARS_STR=`echo "$PASSWORD_CHARS_STR"|grep -oP "$3+"`
-        if_error "password group error: $3"
+        if_error "密码包含的字符无效: $3"
     fi
     local PASSWORD_CHATS_LENGTH=`echo $PASSWORD_CHARS_STR|wc -m` PASSWORD_STR='' PASSWORD_INDEX_START='' PASSWORD_SIZE=25
     if [ -n "$2" ]; then
-        PASSWORD_SIZE=`expr $2 + 0`
-        if_error "password size error: $2"
-        if test $PASSWORD_SIZE -lt 1 || test $PASSWORD_SIZE -gt 1000; then
-            error_exit "password size range error: $2"
+        if ! [[ "$2" =~ ^[1-9][0-9]*$ ]];then
+            error_exit "生成密码位数必需是整数，现在是：$2"
         fi
+        if (($2 < 0 || $2 > 100));then
+            error_exit "生成密码位数范围是：1~99，现在是：$2"
+        fi
+        PASSWORD_SIZE=$2
     fi
     for ((I=0; I<$PASSWORD_SIZE; I++)); do
          PASSWORD_INDEX_START=`expr $RANDOM % $PASSWORD_CHATS_LENGTH`
@@ -756,63 +811,84 @@ math_compute(){
 # return 1|0
 run_install_shell (){
     if [ -z "$1" ] || [ ! -e "$CURRENT_PATH/$1" ]; then
-        error_exit "install shell error: $1"
+        error_exit "安装的shell脚本不存在: $1"
     fi
     if [ -z "$2" ]; then
-        error_exit "must install version num"
+        error_exit "安装shell脚本必需指定的安装的版本号参数"
     fi
     local CURRENT_PWD=`pwd`
     cd $CURRENT_PATH
     bash ${@:1}
-    if_error "run $1 fail"
+    if_error "安装shell脚本失败：$1"
     cd $CURRENT_PWD
     source /etc/profile
 }
+# 获取系统名及版本号
+# @command get_os
+# return 1|0
+get_os(){
+    if [ -e '/etc/os-release' ];then
+        echo $(source /etc/os-release; echo $ID $VERSION_ID)|tr '[:upper:]' '[:lower:]'
+    fi
+}
+# 获取当前IP地址，内网是局域IP，写入全局变量SERVER_IP
+# @command get_ip
+# return 1|0
+get_ip(){
+    SERVER_IP='127.0.0.1'
+    if ! if_command ifconfig;then
+        packge_manager_run install net-tools
+    fi
+    if if_command ifconfig;then
+        SERVER_IP=`ifconfig|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o -m 1|head -n 1`
+    else
+        echo '没有ifconfig命令，无法获取当前IP，将使用默认地址：'$SERVER_IP >&2
+    fi
+}
 # 初始化安装
-# @command start_install [$version_name] [$define_name] [$options_name]
-# @param $version_name      版本号写入变量名
-# @param $define_name       安装脚本追加命令参数定义
-# @param $options_name      参数数组名
+# @command init_install $min_version $get_version_url $get_version_match [$get_version_rule]
+# @param $min_version       安装脚本最低可安装版本号
+# @param $get_version_url   安装脚本获取版本信息地址
+# @param $get_version_match 安装脚本匹配版本信息正则
+# @param $get_version_rule  安装脚本提取版本号正则
 # return 1|0
 init_install (){
-    local INSTALL_ARGVS=${3-CALL_INPUT_ARGVS}
-    parse_install_param ${2-''} $INSTALL_ARGVS
-    if (($# > 2)) && [ -z "$ARGV_version" ];then
-        error_exit "unknown installation version"
+    if (($# < 3));then
+        error_exit "安装初始化参数错误"
     fi
+    local INSTALL_VERSION_NAME=`echo "${INSTALL_NAME}_VERSION"|tr '[:lower:]' '[:upper:]'|sed -r 's/-/_/g'` VERSION_RULE=${4-'\d+(\.\d+){2}'}
     # 版本处理
     if [ -z "$ARGV_version" ] || [[ $ARGV_version == "new" ]]; then
-        get_version $1 "$VERSION_URL" "$VERSION_MATCH" "$VERSION_RULE"
+        get_version $INSTALL_VERSION_NAME "$2" "$3" "$VERSION_RULE"
         if [ -z "$ARGV_version" ];then
-            eval "echo $""$1"
+            eval "echo $""$INSTALL_VERSION_NAME"
             exit 0;
         fi
-    elif echo "$ARGV_version"|grep -qP "$VERSION_RULE";then
-        eval "$1=\"$ARGV_version\""
+    elif echo "$ARGV_version"|grep -qP "^${VERSION_RULE}$";then
+        eval "$INSTALL_VERSION_NAME=\"$ARGV_version\""
     else
-        error_exit "unknown version $ARGV_version"
+        error_exit "安装版本号参数格式错误：$ARGV_version"
     fi
-    local INSTALL_VERSION=`eval "echo \$"$1` INSTALL_VERSION_MIN=`eval "echo \$"$1"_MIN"`
+    local INSTALL_VERSION=`eval "echo \$"$INSTALL_VERSION_NAME` INSTALL_VERSION_MIN=$1
     if [ -n "$INSTALL_VERSION_MIN" ] && if_version "$INSTALL_VERSION" "<" "$INSTALL_VERSION_MIN"; then
-        error_exit "install min version: $INSTALL_VERSION_MIN"
+        error_exit "最小安装版本号: $INSTALL_VERSION_MIN ，当前是：$INSTALL_VERSION"
     fi
     if ps aux|grep -P "$INSTALL_NAME-install\.sh\s+(new|\d+\.\d+)"|grep -vqP "\s+$$\s+"; then
-        if [[ -n "$ARGV_reset" && "$ARGV_reset" =~ ^[1-2]$ ]];then
-            echo "$INSTALL_NAME already installing"
-        else
-            error_exit "$INSTALL_NAME already installing"
-        fi
+        error_exit "$INSTALL_NAME 已经在安装运行中"
     fi
     # 安装目录
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
     if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -type f -executable|grep -qP "$INSTALL_NAME|bin";then
-        echo "$INSTALL_NAME-$INSTALL_VERSION Installation directory is not empty: $INSTALL_PATH$INSTALL_VERSION/"
+        echo "$INSTALL_NAME-$INSTALL_VERSION 安装目录不是空的: $INSTALL_PATH$INSTALL_VERSION/"
         if [[ -z "$ARGV_reset" || ! "$ARGV_reset" =~ ^[1-2]$ ]];then
             exit 0
+        else
+            echo "强制重新安装：$INSTALL_NAME-$INSTALL_VERSION"
         fi
     fi
-    echo "install $INSTALL_NAME-$INSTALL_VERSION"
-    echo "install path: $INSTALL_PATH"
+    echo "即将安装：$INSTALL_NAME-$INSTALL_VERSION"
+    echo "工作目录: "`pwd`
+    echo "安装目录: $INSTALL_PATH"
     # 安装必需工具
     tools_install gcc make
     if ! if_command ntpdate; then
@@ -825,20 +901,23 @@ init_install (){
     # 加载环境配置
     source /etc/profile
     # 内存空间不够
-    if ! free -tg|grep -qi swap && if_version `free -tg|tail -1|grep -oP '\d+'|head -1` '<' '3';then
-        dd if=/dev/zero of=/swap bs=1024 count=2M
+    if ! free -tg|grep -qi swap && if_version `free -tg|tail -1|grep -oP '\d+'|head -1` '<' '4';then
+        dd if=/dev/zero of=/swap bs=1024 count=4M
         mkswap /swap
+        chmod 0600 /swap
         swapon /swap
         echo "/swap swap swap sw 0 0" >> /etc/fstab
     fi
     return 0
 }
+INSTALL_NAME=${0%-*}
 # 提取安装参数
 CALL_INPUT_ARGVS=()
 for ((INDEX=1;INDEX<=$#;INDEX++));do
     CALL_INPUT_ARGVS[${#CALL_INPUT_ARGVS[@]}]=${@:$INDEX:1}
 done
 unset INDEX
+parse_install_param CALL_INPUT_ARGVS
 # 加载配置
 source config.sh
 # 判断系统适用哪个包管理器
@@ -856,15 +935,29 @@ elif if_command dnf;then
 elif if_command pkg;then
     PACKGE_MANAGER_INDEX=3
 else
-    error_exit 'not packge manager'
+    error_exit '暂无支持包管理，请确认系统信息，目前只支持：yum、apt'
 fi
 # 网络基本工具安装
 tools_install curl wget
-# 获取内核数
-if [ -n "$INSTALL_HTREAD_NUM" ];then
-    HTREAD_NUM=$INSTALL_HTREAD_NUM
+# 获编译任务数
+if [ -n "$DEFINE_INSTALL_TYPE" ];then
+    case "$ARGV_make_jobs" in
+        auto)
+            HTREAD_NUM=$((`lscpu |grep '^CPU(s)'|grep -oP '\d+$'`/2+1))
+        ;;
+        max)
+            HTREAD_NUM=`lscpu |grep '^CPU(s)'|grep -oP '\d+$'`
+        ;;
+        *)
+            if printf '%s' "$ARGV_make_jobs"|grep -qP '^[1-9]\d*$';then
+                HTREAD_NUM=$ARGV_make_jobs
+            else
+                error_exit '--make-jobs 必需是 >= 0 的正整数或者auto|max，现在是：'$ARGV_make_jobs
+            fi
+        ;;
+    esac
 else
-    HTREAD_NUM=`lscpu |grep '^CPU(s)'|grep -oP '\d+$'`
+    HTREAD_NUM=1
 fi
 # 提取工作目录
 OLD_PATH=`pwd`
@@ -875,4 +968,3 @@ if [[ "$0" =~ '/' ]]; then
 else
     CURRENT_PATH=$OLD_PATH
 fi
-
