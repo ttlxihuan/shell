@@ -190,7 +190,10 @@ parse_install_param(){
 "
     if [ -n "$DEFINE_INSTALL_TYPE" ];then
         _PARSE_DEFINE_PARAMS_=$_PARSE_DEFINE_PARAMS_"
-[-j, --make-jobs=avg]编译同时允许N个任务，可选值有 max|avg|number ，max当前CPU数，avg当前CPU半数+1，number是指定的数值。
+[-j, --make-jobs=avg]编译同时允许N个任务，可选值有 max|avg|number 
+# max 当前CPU数
+# avg 当前CPU半数+1
+# number 是指定的数值。
 # 任务多编译快且资源消耗也大（不建议超过CPU核数），当编译因进程被系统杀掉时可减少此值重试。
 [-o, --options='']添加${DEFINE_INSTALL_TYPE}选项，使用前请核对选项信息。
 "
