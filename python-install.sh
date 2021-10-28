@@ -20,18 +20,12 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
+# 定义安装类型
+DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
 source basic.sh
-# 获取工作目录
-INSTALL_NAME='python'
-# 获取版本配置
-VERSION_URL="https://www.python.org/downloads/source/"
-VERSION_MATCH='Python-\d+\.\d+\.\d+\.tgz'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-PYTHON_VERSION_MIN='2.6.0'
 # 初始化安装
-init_install PYTHON_VERSION
+init_install '2.6.0' "https://www.python.org/downloads/source/" 'Python-\d+\.\d+\.\d+\.tgz'
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PYTHON_VERSION "
@@ -44,7 +38,7 @@ PYTHON_CURRENT_PATH=`pwd`
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 if ! if_command 'gcc';then
     packge_manager_run install -GCC_C_PACKGE_NAMES
 fi
@@ -95,5 +89,5 @@ if [ -n "$PYTHON_NAME" ]; then
     fi
 fi
 
-echo "install python-$PYTHON_VERSION success!"
+echo "安装成功：python-$PYTHON_VERSION"
 

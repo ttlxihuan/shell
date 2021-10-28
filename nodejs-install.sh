@@ -16,18 +16,12 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
+# 定义安装类型
+DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
 source basic.sh
-# 获取工作目录
-INSTALL_NAME='nodejs'
-# 获取版本配置
-VERSION_URL="https://nodejs.org/zh-cn/download/"
-VERSION_MATCH='v\d+\.\d+\.\d+/'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-NODEJS_VERSION_MIN='8.0.0'
 # 初始化安装
-init_install NODEJS_VERSION
+init_install '8.0.0' "https://nodejs.org/zh-cn/download/" 'v\d+\.\d+\.\d+/'
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NODEJS_VERSION"
@@ -39,7 +33,7 @@ download_software https://nodejs.org/dist/v$NODEJS_VERSION/node-v$NODEJS_VERSION
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 # 在编译目录里BUILDING.md文件有说明依赖版本要求，GCC在不同的大版本中有差异
 GCC_MIN_VERSION="`cat BUILDING.md|grep -oP '\`gcc\` and \`g\+\+\` (>= )?\d+(\.\d+)+ or newer'|grep -oP '\d+(\.\d+)+'`"
 if [ -n "$GCC_MIN_VERSION" ];then
@@ -55,11 +49,11 @@ if [ -n "$GCC_MIN_VERSION" ];then
     done
     if ! if_command gcc || if_version $GCC_MIN_VERSION '>' $GCC_CURRENT_VERSION;then
         run_install_shell gcc-install.sh $GCC_MIN_VERSION
-        if_error 'install gcc fail'
+        if_error '安装失败：gcc-$GCC_MIN_VERSION'
     fi
     echo "gcc-$GCC_MIN_VERSION ok"
 else
-    echo 'get gcc min version fail!'
+    echo '获取 gcc 最低版本号失败'
 fi
 # 安装python3
 PYTHON_MIN_VERSION=`cat BUILDING.md|grep -oP 'Python\s+3(\.\d+)+'|grep -oP '\d+(\.\d+)+'|head -n 1`
@@ -84,10 +78,10 @@ if [ -n "$PYTHON_MIN_VERSION" ];then
     fi
     echo "python-$PYTHON_MIN_VERSION ok"
 else
-    echo 'get python min version fail!'
+    echo '获取 python 最低版本号失败'
 fi
 
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 
-echo "install nodejs-$NODEJS_VERSION success!";
+echo "安装成功：nodejs-$NODEJS_VERSION";
