@@ -26,18 +26,15 @@
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
+# 定义安装类型
+DEFINE_INSTALL_TYPE='scons'
 # 加载基本处理
 source basic.sh
-# 获取工作目录
-INSTALL_NAME='mongodb'
-# 获取版本配置
-VERSION_URL="http://downloads.mongodb.org.s3.amazonaws.com/current.json"
-VERSION_MATCH='mongodb-src-r\d+\.\d+\.\d+\.tar\.gz'
-VERSION_RULE='\d+\.\d+\.\d+'
-# 安装最小版本
-MONGODB_VERSION_MIN='3.0.0'
 # 初始化安装
-init_install MONGODB_VERSION
+init_install '3.0.0' "http://downloads.mongodb.org.s3.amazonaws.com/current.json" 'mongodb-src-r\d+\.\d+\.\d+\.tar\.gz'
+memory_require 16 # 内存最少G
+work_path_require 30 # 安装编译目录最少G
+install_path_require 4 # 安装目录最少G
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MONGODB_VERSION $ARGV_options"
@@ -45,7 +42,7 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MONGODB_VERSION $ARGV_options"
 # 下载mongodb包
 download_software https://fastdl.mongodb.org/src/mongodb-src-r$MONGODB_VERSION.tar.gz
 # 安装依赖
-echo "install dependence"
+echo "安装相关已知依赖"
 # 获取编辑安装的依赖要求
 GCC_VERSION=`grep -iP 'gcc\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
 PYTHON_VERSION=`grep -iP 'Python\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
@@ -72,7 +69,7 @@ fi
 # 注意GCC不建议安装过高的版本，否则容易造成编译异常
 if if_version "$GCC_VERSION" '>' "$GCC_CURRENT_VERSION"; then
     run_install_shell gcc-install.sh $GCC_VERSION
-    if_error 'install gcc fail'
+    if_error '安装失败：gcc'
 else
     echo 'GCC OK'
 fi
@@ -94,7 +91,7 @@ fi
 if if_version $PYTHON_VERSION '>' "$PYTHON_CURRENT_VERSION"; then
     # 安装对应的新版本
     run_install_shell python-install.sh $PYTHON_VERSION
-    if_error 'install python fail'
+    if_error '安装失败：python'
 else
     echo 'python OK'
 fi
@@ -104,15 +101,28 @@ else
     # 安装openssl-dev
     packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
 fi
+if if_lib "libcurl";then
+    echo 'libcurl ok'
+else
+    # 安装 curl-dev
+    packge_manager_run install -CURL_DEVEL_PACKGE_NAMES
+fi
 # 编译安装
 if [ -e "etc/pip/compile-requirements.txt" ];then
+    echo "$PYTHON_NAME pip 自动安装依赖"
     $PIP_NAME install -r etc/pip/compile-requirements.txt
+    if (($? != 0));then
+        $PYTHON_NAME -m pip install -r etc/pip/compile-requirements.txt
+    fi
+    echo '$PYTHON_NAME 编译安装 mongobd'
     if grep -q '\-\-prefix' docs/building.md;then
+        echo "$PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install"
         $PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install
     else
-        $PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION
+        echo "$PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options"
+        $PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options
     fi
-    if_error 'install mongodb fail'
+    if_error '安装失败：mongodb'
 else
     SCONS_VERSION=`grep -iP 'scons\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
     SCONS_CURRENT_VERSION=`scons -v 2>&1|grep -oP '\d+(\.\d+)+'|tail -n 1`
@@ -126,24 +136,26 @@ else
         # 编译安装
         $PYTHON_NAME setup.py install
         # 编译安装
-        if_error 'install scons fail'
+        if_error '安装失败：scons'
         cd $MONGODB_INSTALL_PATH
     else
         echo 'Scons OK'
     fi
+    echo 'scons 编译安装 mongobd'
+    echo "scons all -j $HTREAD_NUM"
     scons all -j $HTREAD_NUM
+    echo "scons $CONFIGURE_OPTIONS install"
     scons $CONFIGURE_OPTIONS install
-    if_error 'install mongodb fail'
+    if_error '安装失败：mongodb'
 fi
 # 创建用户组
 add_user mongodb
 cd $INSTALL_PATH$MONGODB_VERSION
 
-echo "mongodb config set"
+echo "mongodb 配置文件修改"
 # 配置文件处理
-if [ ! -d 'etc/' ];
-    mkdir etc
-fi
+mkdirs etc
+
 cat > etc/mongod.conf <<conf
 # mongodb 有两种配置文件格式，分别是 yaml 与 ini 现在使用的是 ini
 
@@ -215,6 +227,6 @@ conf
 cd $INSTALL_PATH$MONGODB_VERSION/bin
 # 启动服务器
 sudo -u mongodb ./mongod -f etc/mongod.conf
-echo "install mongodb-$MONGODB_VERSION success!";
+
 # 安装成功
-exit 0
+echo "安装成功：mongodb-$MONGODB_VERSION";

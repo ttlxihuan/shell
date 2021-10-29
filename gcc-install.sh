@@ -61,6 +61,9 @@ if [ -z "`curl --connect-timeout 20 -I -X HEAD $MIRRORS_URL/releases/ 2>&1| grep
 fi
 # 初始化安装
 init_install '4.0.0' "$MIRRORS_URL/releases/" 'gcc-\d+\.\d+\.\d+'
+memory_require 8 # 内存最少G
+work_path_require 4 # 安装编译目录最少G
+install_path_require 3 # 安装目录最少G
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 GCC_CONFIGURE_WITH=""

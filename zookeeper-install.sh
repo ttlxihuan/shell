@@ -22,6 +22,9 @@
 source basic.sh
 # 初始化安装
 init_install '3.5.9' "https://dlcdn.apache.org/zookeeper/" 'zookeeper-\d+\.\d+\.\d+'
+memory_require 4 # 内存最少G
+work_path_require 1 # 安装编译目录最少G
+install_path_require 1 # 安装目录最少G
 # ************** 编译安装 ******************
 chdir $INSTALL_NAME
 # 下载kzookeeper包

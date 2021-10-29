@@ -121,8 +121,14 @@ if [ -n "$ARGV_tool" ] && ! [[ "$ARGV_tool" =~ ^kibana$ ]]; then
 fi
 get_ip
 if [ -n "$ARGV_cluster_name" ];then
-    if [ -z "$ARGV_master_hosts" ];then
+    if ! parse_lists CLUSTER_MASTER_HOSTS "$ARGV_master_hosts" ',' '\d{1,3}(\.\d{1,3}){3}';then
+        error_exit '--master-hosts 集群地址格式错误：'${ARGV_master_hosts:$?}
+    fi
+    if ((${#CLUSTER_MASTER_HOSTS[@]} < 1)) && ! [[ "$ARGV_node_type" =~ ^(master|all)$ ]];then
         error_exit "--master-hosts 在集群中不能为空，最少指定一个主节点"
+    fi
+    if ! parse_lists CLUSTER_DATA_HOSTS "$ARGV_data_hosts" ',' '\d{1,3}(\.\d{1,3}){3}';then
+        error_exit '--data-hosts 集群地址格式错误：'${ARGV_data_hosts:$?}
     fi
     if [ -z "$ARGV_node_name" ];then
         ARGV_node_name=$ARGV_cluster_name-$SERVER_IP
@@ -153,6 +159,9 @@ if [ -n "$ARGV_cluster_name" ];then
 elif [ -n "$ARGV_master_hosts$ARGV_data_hosts" ];then
     error_exit "--cluster-name 未指定，无法配置集群，请核对安装参数"
 fi
+memory_require 4 # 内存最少G
+work_path_require 3 # 安装编译目录最少G
+install_path_require 4 # 安装目录最少G
 # ************** 安装 ******************
 # 下载elasticsearch包
 LINUX_BIT=`uname -a|grep -P 'el\d+\.x\d+_\d+' -o|grep -P 'x\d+_\d+' -o`

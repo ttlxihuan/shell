@@ -94,6 +94,12 @@ elif [ -n "$ARGV_random_ssh_password" ]; then
 else
     GIT_SSH_PASSWORD=''
 fi
+memory_require 8 # 内存最少G
+work_path_require 4 # 安装编译目录最少G
+install_path_require 1 # 安装目录最少G
+if [ "$ARGV_tool" = "gitlab" ]; then
+    install_path_require 3 /opt # gitlab安装目录最少G
+fi
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$GIT_VERSION"
@@ -200,5 +206,6 @@ if [ "$ARGV_tool" = "gitlab" ]; then
     echo 'gitlab 工作目录：/opt/gitlab/'
     echo 'gitlab 配置文件：/etc/gitlab/gitlab.rb'
     echo 'gitlab 地址: http://127.0.0.1'
+    # echo 'gitlab 自动启动中，如果需要关闭：systemctl disable gitlab-runsvdir.service'
     echo "安装成功：gitlab"
 fi

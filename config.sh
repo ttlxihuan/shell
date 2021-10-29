@@ -1,10 +1,4 @@
 #!/bin/bash
-if [ '$0' = 'config.sh' ];then
-    error_exit "config.sh 脚本是共用文件必需使用source调用"
-fi
-#基本安装目录
-INSTALL_BASE_PATH="/usr/local"
-
 # ************** 包管理器安装命令 ************** #
 # 此配置设置支持的系统包管理器，用于不同的系统来运行
 # 安装命令

@@ -33,17 +33,17 @@ DEFINE_INSTALL_TYPE='configure'
 source basic.sh
 # 初始化安装
 init_install '1.0.0' "https://downloads.apache.org/subversion/" 'subversion-\d+\.\d+\.\d+\.tar\.gz'
-# 版本服务工作目录
-SERVER_WORK_PATH='/var/svn'
+memory_require 4 # 内存最少G
+work_path_require 1 # 安装编译目录最少G
+install_path_require 1 # 安装目录最少G
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$SVN_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
 ADD_OPTIONS='?utf8proc=internal ?lz4=internal '$ARGV_options
 # ************** 编译安装 ******************
-if [ -n "$ARGV_work_dir" ];then
-    SERVER_WORK_PATH="$ARGV_work_dir"
-fi
+# 版本服务工作目录
+SERVER_WORK_PATH=${ARGV_work_dir-'/var/svn'}
 # 下载svn包
 download_software https://downloads.apache.org/subversion/subversion-$SVN_VERSION.tar.gz
 # 解析选项

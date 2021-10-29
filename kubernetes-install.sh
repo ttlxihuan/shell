@@ -22,10 +22,12 @@
 source basic.sh
 # 初始化安装
 init_install '1.19.1' "https://kubernetes.io/releases/" '>\d+\.\d+\.\d+'
+memory_require 4 # 内存最少G
+work_path_require 1 # 安装编译目录最少G
+install_path_require 1 # 安装目录最少G
 # ************** 编译安装 ******************
 chdir $INSTALL_NAME
 # 下载kubernetes包
-
 curl -LO "https://dl.k8s.io/release/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl"
 if_error '下载失败: kubectl'
 curl -LO "https://dl.k8s.io/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl.sha256"

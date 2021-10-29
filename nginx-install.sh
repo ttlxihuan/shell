@@ -50,6 +50,9 @@ DEFINE_INSTALL_TYPE='configure'
 source basic.sh
 # 初始化安装
 init_install '1.0.0' "http://$NGINX_HOST/en/download.html" 'Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz'
+memory_require 4 # 内存最少G
+work_path_require 1 # 安装编译目录最少G
+install_path_require 1 # 安装目录最少G
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NGINX_VERSION --user=nginx --group=nginx "

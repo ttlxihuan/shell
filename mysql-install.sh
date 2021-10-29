@@ -107,6 +107,9 @@ DEFINE_INSTALL_TYPE='cmake'
 source basic.sh
 # 初始化安装
 init_install '5.0.0' "https://dev.mysql.com/downloads/mysql/" 'mysql-\d+\.\d+\.\d+'
+memory_require 16 # 内存最少G
+work_path_require 30 # 安装编译目录最少G
+install_path_require 4 # 安装目录最少G
 # ************** 参数解析 ******************
 # 密码处理
 if [ -n "$ARGV_password" ]; then

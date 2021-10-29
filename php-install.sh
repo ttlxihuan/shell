@@ -59,6 +59,9 @@ DEFINE_INSTALL_TYPE='configure'
 source basic.sh
 # 初始化安装
 init_install '5.0.0' "https://$PHP_HOST/supported-versions.php" '#v\d+\.\d+\.\d+'
+memory_require 6 # 内存最少G
+work_path_require 1 # 安装编译目录最少G
+install_path_require 1 # 安装目录最少G
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "

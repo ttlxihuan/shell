@@ -1,5 +1,5 @@
 #!/bin/bash
-if [ '$0' = 'basic.sh' ];then
+if [ "$0" = 'basic.sh' ] || [[ "$0" == */basic.sh ]];then
     error_exit "basic.sh 脚本是共用文件必需使用source调用"
 fi
 # 切换工作目录
@@ -115,14 +115,13 @@ download_software(){
     fi
     chdir $INSTALL_NAME
     # 重新下载再安装
-    if [ -n "$ARGV_reset" -a "$ARGV_reset" = '2' ];then
-        echo "删除相关文件或目录，重新下载安装"
-        if [ -e "$FILE_NAME" ];then
-            rm -f $FILE_NAME
-        fi
-        if [ -d "$DIR_NAME" ];then
-            rm -rf $DIR_NAME
-        fi
+    if [ "$ARGV_reset" = '3' -a -e "$FILE_NAME" ];then
+        echo "删除下载文件重新下载：$FILE_NAME"
+        rm -f $FILE_NAME
+    fi
+    if [[ "$ARGV_reset" =~ ^[2-3]$ ]] && [ -d "$DIR_NAME" ];then
+        echo "删除解压目录重新解压：$DIR_NAME"
+        rm -rf $DIR_NAME
     fi
     if [ ! -e "$FILE_NAME" ];then
         if ! wget --no-check-certificate -T 7200 $1; then
@@ -186,7 +185,16 @@ parse_install_param(){
     local _PARSE_DEFINE_PARAMS_STR_ _PARSE_DEFINE_PARAMS_="
 [version]指定安装版本，不传则是获取最新稳定版本号，传new安装最新版，传指定版本号则安装指定版本
 [-h, --help]显示安装脚本帮助信息
-[-r, --reset=0]重新安装：0 标准安装，1 重新安装 2重新下载再安装，默认0
+[--install-path='/usr/local'] 安装根目录，各软件服务安装最终目录是 安装根目录/软件名/版本号
+# 没有特殊要求建议安装根目录不设置到非系统所在硬盘目录下
+[-r, --reset=0]重新安装：0 标准安装，1 重新安装 2 重新解压再安装 3 重新下载解压再安装，默认0
+[--data-free=ask]数据空间不够用时处理
+# auto 自动选择，空间不足时搜索空间够用的硬盘使用
+# save 保存自动选择，主要是保存虚拟内存变化，保存重启仍然有效
+# ask 询问，可以选择性的允许空间处理
+# ignore 忽略，空间不足时不能保证安装成功
+# 数据空间包括编译目录硬盘和内存大概最少剩余空间
+# 处理操作有：编译目录转移，自动添加虚拟内存等
 "
     if [ -n "$DEFINE_INSTALL_TYPE" ];then
         _PARSE_DEFINE_PARAMS_=$_PARSE_DEFINE_PARAMS_"
@@ -228,23 +236,23 @@ Usage:
 ${_PARSE_DEFINE_PARAMS_STR_}
 Help:
     安装脚本一般使用方式:
-        获取最新稳定安装版本号:
-            bash ${INSTALL_NAME}-install.sh
+    获取最新稳定安装版本号:
+        bash ${INSTALL_NAME}-install.sh
 
-        安装最新稳定版本${INSTALL_NAME}:
-            bash ${INSTALL_NAME}-install.sh new
+    安装最新稳定版本${INSTALL_NAME}:
+        bash ${INSTALL_NAME}-install.sh new
 
-        安装指定版本${INSTALL_NAME}:
-            bash ${INSTALL_NAME}-install.sh 1.1.1";
+    安装指定版本${INSTALL_NAME}:
+        bash ${INSTALL_NAME}-install.sh 1.1.1";
     if [ "$DEFINE_INSTALL_TYPE" = 'configure' ];then
         echo -e "
-        安装最新稳定版本${INSTALL_NAME}且指定安装选项:
-            bash ${INSTALL_NAME}-install.sh new --options=\"?ext1 ext2\"
+    安装最新稳定版本${INSTALL_NAME}且指定安装选项:
+        bash ${INSTALL_NAME}-install.sh new --options=\"?ext1 ext2\"
 "
     elif [ -n "$DEFINE_INSTALL_TYPE" ];then
         echo -e "
-        安装最新稳定版本${INSTALL_NAME}且指定安装选项:
-            bash ${INSTALL_NAME}-install.sh new --options=\"opt1 opt2\"
+    安装最新稳定版本${INSTALL_NAME}且指定安装选项:
+        bash ${INSTALL_NAME}-install.sh new --options=\"opt1 opt2\"
 "
     fi
         echo -e "
@@ -786,7 +794,7 @@ random_password(){
     done
     eval "$1='$PASSWORD_STR'"
 }
-# 常规公式计算
+# 常规高精度公式计算
 # @command math_compute $result $formula [$scale]
 # @param $result            计算结果写入变量名
 # @param $formula           计算公式
@@ -806,6 +814,33 @@ math_compute(){
     RESULT_STR=`echo $RESULT_STR|awk -F '.' '{if($1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
     eval "$1='$RESULT_STR'"
 }
+# 解析列表并去重再导出数组
+# @command parse_lists $export_name $string $separator $match
+# @param $export_name       计算结果写入变量名
+# @param $string            要解析的列表字符串
+# @param $separator         列表字符串的分隔符，可以是正则
+# @param $match             列表每项匹配正则
+# return 1|0
+parse_lists(){
+    local ITEM NEXT INDEX PARSE_STRING=`printf '%s' "$2"|sed -r "s/(^\s+|\s+$)//g"` PARSE_ARRAY=()
+    eval "$1=()"
+    while [ -n "$PARSE_STRING" ]; do
+        NEXT=`printf '%s' "$PARSE_STRING"|grep -oP "^.*?$3"`
+        ITEM=`printf '%s' "$NEXT"|sed -r "s/(^\s+|\s*$3$)//g"`
+        if [ -z "$ITEM" ] || ! printf '%s' "$ITEM"|grep -qP "^$4$";then
+            return $((`printf '%s' "$2"|wc -m` - `printf '%s' "$PARSE_STRING"|wc -m` + 1))
+        fi
+        PARSE_STRING=${PARSE_STRING:`printf '%s' "$NEXT"|wc -m`}
+        # 去重处理
+        for ((INDEX=0; INDEX < `eval "\${#$1[@]}"`; INDEX++)); do
+            if test `eval "\${$1[$INDEX]}"` = $ITEM ;then
+                continue 2
+            fi
+        done
+        eval "$1[\${#$1[@]}]"="\$ITEM"
+    done
+    return 0
+}
 # 运行安装脚本
 # @command run_install_shell $shell_file $version_num [$other ...]
 # @param $shell_file        安装脚本名
@@ -813,14 +848,14 @@ math_compute(){
 # @param $other             其它安装参数集
 # return 1|0
 run_install_shell (){
-    if [ -z "$1" ] || [ ! -e "$CURRENT_PATH/$1" ]; then
+    if [ -z "$1" ] || [ ! -e "$SHELL_WORK_PATH/$1" ]; then
         error_exit "安装的shell脚本不存在: $1"
     fi
     if [ -z "$2" ]; then
         error_exit "安装shell脚本必需指定的安装的版本号参数"
     fi
     local CURRENT_PWD=`pwd`
-    cd $CURRENT_PATH
+    cd $SHELL_WORK_PATH
     bash ${@:1}
     if_error "安装shell脚本失败：$1"
     cd $CURRENT_PWD
@@ -847,6 +882,131 @@ get_ip(){
     else
         echo '没有ifconfig命令，无法获取当前IP，将使用默认地址：'$SERVER_IP >&2
     fi
+}
+# 当前安装内存空间要求，不够将添加虚拟内存扩充
+# @command memory_require $min_size
+# @param $min_size          安装脚本最低内存大小，G为单位
+# return 1|0
+memory_require(){
+    local ASK_INPUT CURRENT_MEMORY DIFF_SIZE
+    # 总内存G
+    CURRENT_MEMORY=`cat /proc/meminfo|grep -P '^(MemTotal|SwapTotal):'|awk '{count+=$2} END{print count/1048576}'`
+    # 剩余内存G
+    # CURRENT_MEMORY=cat /proc/meminfo|grep -P '^(MemFree|SwapFree):'|awk '{count+=$2} END{print count/1048576}'
+    DIFF_SIZE=$(($1 - $CURRENT_MEMORY))
+    if (($DIFF_SIZE > 0)) && (ask_select ASK_INPUT "内存最少 ${1}G，现在只有 ${CURRENT_MEMORY}G，是否增加虚拟内存 ${DIFF_SIZE}G：" || [ "$ASK_INPUT" = 'y' ]);then
+        local BASE_PATH SWAP_PATH
+        path_require $MIN_SIZE / BASE_PATH;
+        SWAP_PATH=$BASE_PATH/swap
+        echo '创建虚拟内存交换区：'$SWAP_PATH
+        # 创建一个空文件区，并以每块bs字节重复写count次数且全部写0，主要是为防止内存溢出或越权访问到异常数据
+        dd if=/dev/zero of=$SWAP_PATH bs=1024 count=8M
+        # 将/swap目录设置为交换区
+        mkswap $SWAP_PATH
+        # 修改此目录权限
+        chmod 0600 $SWAP_PATH
+        # 开启/swap目录交换空间，开启后系统将建立虚拟内存，大小为 bs * count
+        swapon $SWAP_PATH
+        if [ "$ARGV_data_free" = 'save' ] || (ask_select ASK_INPUT '虚拟内存交换是否写入系统配置：' || [ "$ASK_INPUT" = 'y' ]);then
+            # 写入配置文件，重启系统自动开启/swap目录交换空间
+            echo "$SWAP_PATH swap swap sw 0 0" >> /etc/fstab
+        fi
+    fi
+}
+# 安装编译工作目录剩余空间要求
+# @command work_path_require $min_size
+# @param $min_size          安装编译工作目录最低磁盘剩余空间大小，G为单位
+# return 1|0
+work_path_require(){
+    local BASE_PATH MIN_SIZE
+    # 如果目录已经存在文件则需要获取当前目录的空间再剥除，这块操作比较耗时间
+    MIN_SIZE=$(( $1 - `du --max-depth=1 $CURRENT_PATH/$INSTALL_NAME` * / 1048576 ))
+    if (($MIN_SIZE > 0));then
+        path_require $MIN_SIZE $CURRENT_PATH BASE_PATH;
+        # 有匹配的工作目录，直接转移工作目录
+        if [ -n "$BASE_PATH" ];then
+            mkdirs $BASE_PATH/shell-install
+            CURRENT_PATH="$BASE_PATH/shell-install"
+        fi
+    fi
+}
+# 安装目录剩余空间要求
+# @command install_path_require $min_size $path
+# @param $min_size          安装目录最低磁盘剩余空间大小，G为单位
+# @param $path              要判断的目录，默认安装根目录
+# return 1|0
+install_path_require(){
+    if ((`df ${2-$INSTALL_BASE_PATH}|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
+        echo "安装目录 $2 所在硬盘 `df ./|awk '{print $1}'|tail -1` 剩余空间不足：${1}G ，无法进行安装！"
+        if [ "$ARGV_data_free" = 'ignore' ];then
+            echo '忽略空间不足'
+            return 0
+        fi
+        exit 1
+    fi
+}
+# 获取指定目录对应挂载磁盘剩余空间要求
+# @command path_require $min_size $path $path_name
+# @param $min_size          安装脚本最低磁盘剩余空间大小，G为单位
+# @param $path              要判断的目录
+# @param $path_name         有空余的目录
+# return 1|0
+path_require(){
+    if ((`df $2|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
+        echo "目录 $2 所在硬盘 `df ./|awk '{print $1}'|tail -1` 剩余空间不足：${1}G"
+        if [[ "$ARGV_data_free" =~ ^(auto|save|ask)$ ]];then
+            search_free_path $3 $(($1 * 1048576))
+        else
+            echo '忽略空间不足'
+        fi
+    fi
+}
+# 获取可用空间达到的硬盘绑定目录
+# @command search_free_path $path_name $min_size
+# @param $path_name         获取有效目录写入变量名
+# @param $min_size          最低磁盘剩余空间大小，K为单位
+# return 1|0
+search_free_path(){
+    local ITEM ASK_INPUT
+    while read ITEM; do
+        if ask_select ASK_INPUT `printf "文件系统：%s 挂载目录：%s 可用空间：%s 是否选用：" $ITEM` || [ "$ASK_INPUT" = 'y' ] ;then
+            ITEM=$(echo "$ITEM"|awk '{print $2}')
+            eval "$1=\$ITEM"
+            return 0
+        fi
+    done <<EOF
+`df -T|awk '$5 > '$2' && $2 !~ /*tmpfs/ && $6 > 10 {$5=$5/1048576; print \$1,\$7,\$5}'`
+EOF
+    error_exit "没有合适空间，终止执行！"
+}
+# 询问选项处理
+# @command ask_select $select_name $msg [$options]
+# @param $select_name       询问获取输入内容写入变量名
+# @param $msg               询问提示文案
+# @param $options           询问输入选项，多个使用/分开，默认是 y/n
+# return 1|0
+ask_select(){
+    if [ "$ARGV_data_free" != 'ask' ];then
+        return 0
+    fi
+    local OPTIONS INPUT=${3-y/n} MSG_TEXT="$2" ATTEMPT=0
+    MSG_TEXT="$MSG_TEXT 请输入：[ $INPUT ]"
+    OPTIONS=$(printf '%s' "${OPTIONS[@]}"|sed 's/\//|/g'|sed 's/ //g')
+    while [ -z "$INPUT" ]; do
+        printf '%s' "$MSG_TEXT"
+        read INPUT
+        if ! printf '%s' "$INPUT"|grep -qP "^($OPTIONS)$";then
+            INPUT=''
+        fi
+        if ((ATTEMPT >= 10));then
+            error_exit "已经连续输入错误 ${ATTEMPT} 次，终止执行！"
+        else
+            echo "输入错误，请注意输入选项要求！"
+            ((ATTEMPT++))
+        fi
+    done
+    eval "$1=\$INPUT"
+    return 1
 }
 # 初始化安装
 # @command init_install $min_version $get_version_url $get_version_match [$get_version_rule]
@@ -879,11 +1039,14 @@ init_install (){
     if ps aux|grep -P "$INSTALL_NAME-install\.sh\s+(new|\d+\.\d+)"|grep -vqP "\s+$$\s+"; then
         error_exit "$INSTALL_NAME 已经在安装运行中"
     fi
+    if [ -n "$ARGV_reset" ] && ! [[ "$ARGV_reset" =~ [0-3] ]];then
+        error_exit "--reset 未知重装参数值：$ARGV_reset"
+    fi
     # 安装目录
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
     if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -type f -executable|grep -qP "$INSTALL_NAME|bin";then
         echo "$INSTALL_NAME-$INSTALL_VERSION 安装目录不是空的: $INSTALL_PATH$INSTALL_VERSION/"
-        if [[ -z "$ARGV_reset" || ! "$ARGV_reset" =~ ^[1-2]$ ]];then
+        if [ -z "$ARGV_reset" ];then
             exit 0
         else
             echo "强制重新安装：$INSTALL_NAME-$INSTALL_VERSION"
@@ -904,8 +1067,8 @@ init_install (){
     # 加载环境配置
     source /etc/profile
     # 内存空间不够
-    if ! free -tg|grep -qi swap && if_version `free -tg|tail -1|grep -oP '\d+'|head -1` '<' '4';then
-        dd if=/dev/zero of=/swap bs=1024 count=4M
+    if ! free -tg|grep -qi swap && if_version `free -tg|tail -1|grep -oP '\d+'|head -1` '<' '8';then
+        dd if=/dev/zero of=/swap bs=1024 count=8M
         mkswap /swap
         chmod 0600 /swap
         swapon /swap
@@ -921,6 +1084,11 @@ for ((INDEX=1;INDEX<=$#;INDEX++));do
 done
 unset INDEX
 parse_install_param CALL_INPUT_ARGVS
+#基本安装目录
+INSTALL_BASE_PATH=${ARGV_install_path-/usr/local}
+if [ -z "$INSTALL_BASE_PATH" -r ! -d "$INSTALL_BASE_PATH" ];then
+    error_exit '安装根目录无效：'$INSTALL_BASE_PATH
+fi
 # 加载配置
 source config.sh
 # 判断系统适用哪个包管理器
@@ -971,3 +1139,4 @@ if [[ "$0" =~ '/' ]]; then
 else
     CURRENT_PATH=$OLD_PATH
 fi
+SHELL_WORK_PATH=$CURRENT_PATH

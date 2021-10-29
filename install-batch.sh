@@ -2,8 +2,6 @@
 #
 # 批量安装服务
 # 受 install-batch.conf 配置文件影响
-# 
-
 if [ -n "$1" ];then
     CONFIG_FILE=$1;
 else
@@ -68,7 +66,7 @@ read_config(){
 }
 # 获取文件长度
 CONFIG_FILE_LINE=`wc -l $CONFIG_FILE|grep -P '\d+' -o`
-if [ -z "$CURRENT_PATH" ];then
+if [ "$0" = 'install-batch.sh' ] || [[ "$0" == */install-batch.sh ]];then
     read_config install install_server
 fi
 
