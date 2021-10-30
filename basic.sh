@@ -866,7 +866,8 @@ run_install_shell (){
 # return 1|0
 get_os(){
     if [ -e '/etc/os-release' ];then
-        echo $(source /etc/os-release; echo $ID $VERSION_ID)|tr '[:upper:]' '[:lower:]'
+        source /etc/os-release;
+        echo "$ID $VERSION_ID"|tr '[:upper:]' '[:lower:]'
     fi
 }
 # 获取当前IP地址，内网是局域IP，写入全局变量SERVER_IP
@@ -893,10 +894,10 @@ memory_require(){
     CURRENT_MEMORY=`cat /proc/meminfo|grep -P '^(MemTotal|SwapTotal):'|awk '{count+=$2} END{print count/1048576}'`
     # 剩余内存G
     # CURRENT_MEMORY=cat /proc/meminfo|grep -P '^(MemFree|SwapFree):'|awk '{count+=$2} END{print count/1048576}'
-    DIFF_SIZE=$(($1 - $CURRENT_MEMORY))
+    math_compute DIFF_SIZE "$1 - $CURRENT_MEMORY"
     if (($DIFF_SIZE > 0)) && (ask_select ASK_INPUT "内存最少 ${1}G，现在只有 ${CURRENT_MEMORY}G，是否增加虚拟内存 ${DIFF_SIZE}G：" || [ "$ASK_INPUT" = 'y' ]);then
         local BASE_PATH SWAP_PATH
-        path_require $MIN_SIZE / BASE_PATH;
+        path_require $DIFF_SIZE / BASE_PATH;
         SWAP_PATH=$BASE_PATH/swap
         echo '创建虚拟内存交换区：'$SWAP_PATH
         # 创建一个空文件区，并以每块bs字节重复写count次数且全部写0，主要是为防止内存溢出或越权访问到异常数据
@@ -920,7 +921,7 @@ memory_require(){
 work_path_require(){
     local BASE_PATH MIN_SIZE
     # 如果目录已经存在文件则需要获取当前目录的空间再剥除，这块操作比较耗时间
-    MIN_SIZE=$(( $1 - `du --max-depth=1 $CURRENT_PATH/$INSTALL_NAME` * / 1048576 ))
+    math_compute MIN_SIZE "$1-`du --max-depth=1 $CURRENT_PATH/$INSTALL_NAME|tail -1|awk '{print$1}'`/1048576"
     if (($MIN_SIZE > 0));then
         path_require $MIN_SIZE $CURRENT_PATH BASE_PATH;
         # 有匹配的工作目录，直接转移工作目录
@@ -969,13 +970,13 @@ path_require(){
 search_free_path(){
     local ITEM ASK_INPUT
     while read ITEM; do
-        if ask_select ASK_INPUT `printf "文件系统：%s 挂载目录：%s 可用空间：%s 是否选用：" $ITEM` || [ "$ASK_INPUT" = 'y' ] ;then
+        if [ -n "$ITEM" ] && (ask_select ASK_INPUT `printf "文件系统：%s 挂载目录：%s 可用空间：%s 是否选用：" $ITEM` || [ "$ASK_INPUT" = 'y' ]);then
             ITEM=$(echo "$ITEM"|awk '{print $2}')
             eval "$1=\$ITEM"
             return 0
         fi
     done <<EOF
-`df -T|awk '$5 > '$2' && $2 !~ /*tmpfs/ && $6 > 10 {$5=$5/1048576; print \$1,\$7,\$5}'`
+`df -T|awk 'NR >1 && $5 > '$2' && $2 !~ /*tmpfs/ && $6 > 10 {$5=$5/1048576; print $1,$7,$5}'`
 EOF
     error_exit "没有合适空间，终止执行！"
 }
@@ -989,16 +990,17 @@ ask_select(){
     if [ "$ARGV_data_free" != 'ask' ];then
         return 0
     fi
-    local OPTIONS INPUT=${3-y/n} MSG_TEXT="$2" ATTEMPT=0
-    MSG_TEXT="$MSG_TEXT 请输入：[ $INPUT ]"
-    OPTIONS=$(printf '%s' "${OPTIONS[@]}"|sed 's/\//|/g'|sed 's/ //g')
+    local INPUT MSG_TEXT REGEXP_TEXT ATTEMPT=1  OPTIONS=$(printf '%s' "${3-y/n}"|sed 's/ //g')
+    MSG_TEXT="$2 请输入：[ $OPTIONS ]"
+    REGEXP_TEXT=$(printf '%s' "$OPTIONS"|sed 's/\//|/g')
     while [ -z "$INPUT" ]; do
         printf '%s' "$MSG_TEXT"
         read INPUT
-        if ! printf '%s' "$INPUT"|grep -qP "^($OPTIONS)$";then
-            INPUT=''
+        if printf '%s' "$INPUT"|grep -qP "^($REGEXP_TEXT)$";then
+            break
         fi
-        if ((ATTEMPT >= 10));then
+        INPUT=''
+        if ((ATTEMPT > 10));then
             error_exit "已经连续输入错误 ${ATTEMPT} 次，终止执行！"
         else
             echo "输入错误，请注意输入选项要求！"
@@ -1086,7 +1088,7 @@ unset INDEX
 parse_install_param CALL_INPUT_ARGVS
 #基本安装目录
 INSTALL_BASE_PATH=${ARGV_install_path-/usr/local}
-if [ -z "$INSTALL_BASE_PATH" -r ! -d "$INSTALL_BASE_PATH" ];then
+if [ -z "$INSTALL_BASE_PATH" ] || [ ! -d "$INSTALL_BASE_PATH" ];then
     error_exit '安装根目录无效：'$INSTALL_BASE_PATH
 fi
 # 加载配置
