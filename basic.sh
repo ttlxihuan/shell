@@ -810,8 +810,7 @@ math_compute(){
         SCALE_NUM=`echo "$3"|grep -oP '^\d+'`
         SCALE_NUM=`echo "$SCALE_NUM"|awk '{if($1 == ""){print "0"}else{print $1}}'`
     fi
-    RESULT_STR=`echo "scale=$SCALE_NUM; $2"|bc|sed 's/\\\\//'`
-    RESULT_STR=`echo $RESULT_STR|awk -F '.' '{if($1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
+    RESULT_STR=`echo "scale=$SCALE_NUM; $2"|bc|sed 's/\\\\//'|awk -F '.' '{if($1 ~ "+|-" || $1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
     eval "$1='$RESULT_STR'"
 }
 # 解析列表并去重再导出数组
@@ -898,7 +897,11 @@ memory_require(){
     if (($DIFF_SIZE > 0)) && (ask_select ASK_INPUT "内存最少 ${1}G，现在只有 ${CURRENT_MEMORY}G，是否增加虚拟内存 ${DIFF_SIZE}G：" || [ "$ASK_INPUT" = 'y' ]);then
         local BASE_PATH SWAP_PATH
         path_require $DIFF_SIZE / BASE_PATH;
-        SWAP_PATH=$BASE_PATH/swap
+        SWAP_PATH=$(find $BASE_PATH -maxdepth 1 -name swap*|grep -oP 'swap\d+$'|sort -r|head -1|grep -oP '\d+$')
+        if [ -n "$SWAP_PATH" ];then
+            WAP_PATH=$(( $SWAP_PATH + 1))
+        fi
+        SWAP_PATH=$BASE_PATH/swap$SWAP_PATH
         echo '创建虚拟内存交换区：'$SWAP_PATH
         # 创建一个空文件区，并以每块bs字节重复写count次数且全部写0，主要是为防止内存溢出或越权访问到异常数据
         dd if=/dev/zero of=$SWAP_PATH bs=1024 count=8M
@@ -919,9 +922,11 @@ memory_require(){
 # @param $min_size          安装编译工作目录最低磁盘剩余空间大小，G为单位
 # return 1|0
 work_path_require(){
-    local BASE_PATH MIN_SIZE
+    local BASE_PATH MIN_SIZE=0
     # 如果目录已经存在文件则需要获取当前目录的空间再剥除，这块操作比较耗时间
-    math_compute MIN_SIZE "$1-`du --max-depth=1 $CURRENT_PATH/$INSTALL_NAME|tail -1|awk '{print$1}'`/1048576"
+    if [ -d $CURRENT_PATH/$INSTALL_NAME ];then
+        math_compute MIN_SIZE "$1-`du --max-depth=1 $CURRENT_PATH/$INSTALL_NAME|tail -1|awk '{print$1}'`/1048576"
+    fi
     if (($MIN_SIZE > 0));then
         path_require $MIN_SIZE $CURRENT_PATH BASE_PATH;
         # 有匹配的工作目录，直接转移工作目录
