@@ -231,7 +231,7 @@ parse_install_param(){
     安装${INSTALL_NAME}脚本
 
 Usage:
-    bash ${INSTALL_NAME}-install.sh [arguments] [options ...]
+    bash ${INSTALL_NAME}-install.sh [Arguments] [Options ...]
 
 ${_PARSE_DEFINE_PARAMS_STR_}
 Help:
@@ -913,8 +913,9 @@ memory_require(){
         swapon $SWAP_PATH
         if [ "$ARGV_data_free" = 'save' ] || (ask_select ASK_INPUT '虚拟内存交换是否写入系统配置：' || [ "$ASK_INPUT" = 'y' ]);then
             # 写入配置文件，重启系统自动开启/swap目录交换空间
-            echo "$SWAP_PATH swap swap sw 0 0" >> /etc/fstab
+            echo "$SWAP_PATH swap swap defaults 0 0" >> /etc/fstab
         fi
+        echo "如果需要删除虚拟内存，先关闭交换区：swapon $SWAP_PATH ，然后删除文件：rm -f $SWAP_PATH ，再去掉/etc/fstab文件中的配置行。"
     fi
 }
 # 安装编译工作目录剩余空间要求
@@ -996,16 +997,15 @@ ask_select(){
         return 0
     fi
     local INPUT MSG_TEXT REGEXP_TEXT ATTEMPT=1  OPTIONS=$(printf '%s' "${3-y/n}"|sed 's/ //g')
-    MSG_TEXT="$2 请输入：[ $OPTIONS ]"
+    MSG_TEXT="$2 请输入：[ $OPTIONS ] "
     REGEXP_TEXT=$(printf '%s' "$OPTIONS"|sed 's/\//|/g')
     while [ -z "$INPUT" ]; do
-        printf '%s' "$MSG_TEXT"
-        read INPUT
+        read -p "$MSG_TEXT" INPUT
         if printf '%s' "$INPUT"|grep -qP "^($REGEXP_TEXT)$";then
             break
         fi
         INPUT=''
-        if ((ATTEMPT > 10));then
+        if ((ATTEMPT >= 10));then
             error_exit "已经连续输入错误 ${ATTEMPT} 次，终止执行！"
         else
             echo "输入错误，请注意输入选项要求！"
