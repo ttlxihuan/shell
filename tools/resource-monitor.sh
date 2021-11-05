@@ -220,9 +220,9 @@ resources_warn(){
             if [ -n "$WARN_PATH" ] && ! in_options "$WARN_PATH" $(eval "echo \${CONDITION_ITEMS_$3[$((INDEX+1))]}|awk -F ',' '{print}'");then
                 continue
             fi
-            _AS=$(eval echo \${CONDITION_ITEMS_$WARN_NAME[$INDEX]})
-            WARN_TIME=$(eval echo \${CONDITION_ITEMS_$WARN_NAME[$((INDEX+2))]})
-            WARN_COND=$(eval echo \${CONDITION_ITEMS_$WARN_NAME[$((INDEX+3))]})
+            eval _AS=\${CONDITION_ITEMS_$WARN_NAME[$INDEX]}
+            eval WARN_TIME=\${CONDITION_ITEMS_$WARN_NAME[$((INDEX+2))]}
+            eval WARN_COND=\${CONDITION_ITEMS_$WARN_NAME[$((INDEX+3))]}
             if [ $(( $WARN_COND )) != '0' ];then
                 debug_show "资源名：$WARN_NAME 资源路径：$WARN_PATH 持续时长：$WARN_TIME 条件表达式：$WARN_COND ，触发报警处理"
                 if ! persist_warn WARN_TIME "$WARN_PATH($WARN_COND)" "$WARN_TIME";then
@@ -245,13 +245,17 @@ resources_warn(){
 # return 0|1
 trigger_warn(){
     debug_show "触发报警：$1"
-    local INDEX MAX_INDEX=$(eval echo \${#MSG_ITEMS_$1[@]})
+    local INDEX TEXT_STR MAX_INDEX=$(eval echo \${#MSG_ITEMS_$1[@]})
     for ((INDEX=0;INDEX<MAX_INDEX;INDEX++));do
-        eval eval "echo \${MSG_ITEMS_$1[$INDEX]}"
+        eval TEXT_STR=\${MSG_ITEMS_$1[$INDEX]}
+        debug_show "报警消息："$TEXT_STR
+        eval echo "$TEXT_STR"
     done
     MAX_INDEX=$(eval echo \${#EXEC_ITEMS_$1[@]})
     for ((INDEX=0;INDEX<MAX_INDEX;INDEX++));do
-        eval "$ITEM"
+        eval TEXT_STR=\${EXEC_ITEMS_$1[$INDEX]}
+        debug_show "报警命令："$TEXT_STR
+        eval $TEXT_STR
     done
 }
 # 持续处理
@@ -268,13 +272,13 @@ persist_warn(){
         return 1
     fi
     local CURR_TIME=`date "+%s"` PREV_TIME=`grep "$NAME=" $ARGV_cache_file|tail -n 1|awk -F '=' '{print $2}'`
-    local DIFF_TIME=$((`echo "$3"|sed -e 's/i/*60+/g' -e 's/h/*3600+/g' -e 's/d/*86400+/g'|sed 's/+$//'`))
     if [ -z "$PREV_TIME" ];then
-        debug_show "初始触发报警，持续时间要求：$DIFF_TIME 秒，当前时间：`date -d @$CURR_TIME '+%Y-%m-%d %H:%M:%S'`"
+        debug_show "开始触发报警，记录时间：`date -d @$CURR_TIME '+%Y-%m-%d %H:%M:%S'`"
         # 写异常节点
         echo "$NAME=$CURR_TIME" >> $ARGV_cache_file
         return 1
     else
+        local DIFF_TIME=$((`echo "$3"|sed -e 's/i/*60+/g' -e 's/h/*3600+/g' -e 's/d/*86400+/g'|sed 's/+$//'`))
         debug_show "初始触发报警时间：`date -d @$PREV_TIME '+%Y-%m-%d %H:%M:%S'`，持续时间要求：$DIFF_TIME 秒，当前时间：`date -d @$CURR_TIME '+%Y-%m-%d %H:%M:%S'`"
         duration_format $1 $((CURR_TIME - PREV_TIME))
         return $((DIFF_TIME > CURR_TIME - PREV_TIME))
@@ -308,7 +312,7 @@ duration_format(){
 debug_show(){
     if [ "$ARGV_debug" = '1' ];then
         echo -e "$@"
-        printf '请回车继续后续调试输出：'
+        printf '[debug] 请回车继续：'
         read
     fi
 }
