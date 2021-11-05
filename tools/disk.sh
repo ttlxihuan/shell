@@ -170,8 +170,17 @@ part_mount(){
         fi
         if mount $1 $PATH_STR;then
             if [ "$ARGV_temp" != '1' ];then
-                echo "$1 $PATH_STR ${#PART_INFO[1]} defaults 0 0" >> /etc/fstab
-                echo "挂载 $1 => $PATH_STR 成功，并已经写入 /etc/fstab"
+                if grep -qP "^$1 " /etc/fstab;then
+                    echo "/etc/fstab 文件中已经存在 $1 挂载配置，即将替换更新"
+                    sed -i -r "s,^$1 .*$,$1 $PATH_STR ${PART_INFO[1]} defaults 0 0," /etc/fstab
+                    echo "挂载 $1 => $PATH_STR 成功，并已经更新到 /etc/fstab"
+                else
+                    echo "$1 $PATH_STR ${PART_INFO[1]} defaults 0 0" >> /etc/fstab
+                    echo "挂载 $1 => $PATH_STR 成功，并已经写入 /etc/fstab"
+                fi
+                if ! mount -a;then
+                    echo '请检查 /etc/fstab 文件，是否有配置错误，如果有请手动修改更新，否则重启系统可能会异常！'
+                fi
             else
                 echo "挂载 $1 => $PATH_STR 成功"
             fi
