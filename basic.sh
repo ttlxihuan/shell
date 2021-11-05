@@ -1096,6 +1096,9 @@ INSTALL_BASE_PATH=${ARGV_install_path-/usr/local}
 if [ -z "$INSTALL_BASE_PATH" ] || [ ! -d "$INSTALL_BASE_PATH" ];then
     error_exit '安装根目录无效：'$INSTALL_BASE_PATH
 fi
+if [ `whoami` != 'root' ];then
+    echo '当前执行用户非 root 安装可能会无法正常进行！' >&2;
+fi
 # 加载配置
 source config.sh
 # 判断系统适用哪个包管理器
