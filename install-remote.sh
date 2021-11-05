@@ -49,6 +49,9 @@ CMD
 # 提取安装的脚本
 copy_server(){
     echo -n " ./$1-install.sh"
+    if [ -d "./$1" ];then
+        echo -n " ./$1"
+    fi
 }
 COPY_FILES="./install-batch.sh ./install-batch.conf ./basic.sh"`read_config install copy_server`
 # 开始安装
