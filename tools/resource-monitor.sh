@@ -224,12 +224,12 @@ resources_warn(){
             eval WARN_TIME=\${CONDITION_ITEMS_$WARN_NAME[$((INDEX+2))]}
             eval WARN_COND=\${CONDITION_ITEMS_$WARN_NAME[$((INDEX+3))]}
             if [ $(( $WARN_COND )) != '0' ];then
-                debug_show "资源名：$WARN_NAME 资源路径：$WARN_PATH 持续时长：$WARN_TIME 条件表达式：$WARN_COND ，触发报警处理"
+                debug_show "资源名：$WARN_NAME ，资源路径：$WARN_PATH ，持续时长：$WARN_TIME ，条件表达式：$WARN_COND ，触发报警处理"
                 if ! persist_warn WARN_TIME "$WARN_PATH($WARN_COND)" "$WARN_TIME";then
                     continue
                 fi
             else
-                debug_show "资源名：$WARN_NAME 资源路径：$WARN_PATH 持续时长：$WARN_TIME 条件表达式：$WARN_COND ，释放报警处理"
+                debug_show "资源名：$WARN_NAME ，资源路径：$WARN_PATH ，持续时长：$WARN_TIME ，条件表达式：$WARN_COND ，释放报警处理"
                 persist_warn WARN_TIME "$WARN_PATH($WARN_COND)"
                 continue
             fi
@@ -249,7 +249,7 @@ trigger_warn(){
     for ((INDEX=0;INDEX<MAX_INDEX;INDEX++));do
         eval TEXT_STR=\${MSG_ITEMS_$1[$INDEX]}
         debug_show "报警消息："$TEXT_STR
-        eval echo "$TEXT_STR"
+        eval echo $TEXT_STR
     done
     MAX_INDEX=$(eval echo \${#EXEC_ITEMS_$1[@]})
     for ((INDEX=0;INDEX<MAX_INDEX;INDEX++));do
@@ -267,7 +267,8 @@ trigger_warn(){
 persist_warn(){
     local NAME=`printf '%s' "$2"|sed -r 's/\s+//g'|md5sum -t|awk '{print $1}'`
     if [ -z "$3" ];then
-        sed -i -r "s/^$NAME=.*//" $ARGV_cache_file
+        # 删除匹配行
+        sed -i -r "/^$NAME=.*/d" $ARGV_cache_file
         eval "$1=''"
         return 1
     fi
