@@ -38,7 +38,7 @@ install_server(){
     echo "安装：$1"
     echo "bash ./$1-install.sh $PARAMS_LIST 2>&1"
     {
-        if bash ./$1-install.sh $PARAMS_LIST 2>&1 > $1-install.log >/dev/null; then
+        if bash ./$1-install.sh $PARAMS_LIST --data-free=save 2>&1 > $1-install.log >/dev/null; then
             echo "安装成功：$1"
         else
             echo "安装失败：$1"

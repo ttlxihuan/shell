@@ -42,7 +42,7 @@ CMD
         ssh $SSH_USER@$1 -C 'mkdir -p ~/install-shell'
         scp -r $COPY_FILES $SSH_USER@$1:./install-shell/
         echo "ssh 安装"
-        ssh $SSH_USER@$1 -C 'cd ~/install-shell; nohup bash ./install.sh &' &
+        ssh $SSH_USER@$1 -C 'cd ~/install-shell; nohup bash ./install-batch.sh &' &
     fi
     return 0
 }
@@ -50,6 +50,6 @@ CMD
 copy_server(){
     echo -n " ./$1-install.sh"
 }
-COPY_FILES="./install.sh ./install.conf ./basic.sh"`read_config install copy_server`
+COPY_FILES="./install-batch.sh ./install-batch.conf ./basic.sh"`read_config install copy_server`
 # 开始安装
 read_config host ssh_install_server
