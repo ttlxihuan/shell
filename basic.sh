@@ -855,7 +855,7 @@ run_install_shell (){
     fi
     local CURRENT_PWD=`pwd`
     cd $SHELL_WORK_PATH
-    bash ${@:1}
+    bash ${@:1} --data-free=${ARGV_data_free} --install-path=${INSTALL_BASE_PATH}
     if_error "安装shell脚本失败：$1"
     cd $CURRENT_PWD
     source /etc/profile
