@@ -74,7 +74,7 @@ vim install.sh
 ```
 #!/bin/bash
 if ! which wget 2>&1 &>/dev/null || ! which unzip 2>&1 &>/dev/null ;then
-    echo 'require install wget and unzip'
+    echo '需要安装： wget 和 unzip 进行下载和解压！'
     exit 1
 fi
 if [ ! -d "shell-master" ];then

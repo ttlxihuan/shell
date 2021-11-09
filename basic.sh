@@ -1006,7 +1006,7 @@ ask_select(){
         fi
         INPUT=''
         if ((ATTEMPT >= 10));then
-            error_exit "已经连续输入错误 ${ATTEMPT} 次，终止执行！"
+            error_exit "已经连续输入错误 ${ATTEMPT} 次，终止询问！"
         else
             echo "输入错误，请注意输入选项要求！"
             ((ATTEMPT++))
