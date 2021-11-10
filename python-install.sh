@@ -54,7 +54,7 @@ if if_lib 'zlib' '>=' '1.2.8'; then
     echo 'zlib ok'
 else
     download_software http://zlib.net/zlib-1.2.11.tar.gz
-    configure_install --prefix=$INSTALL_BASE_PATH"zlib/1.2.11"
+    configure_install --prefix=$INSTALL_BASE_PATH"/zlib/1.2.11"
     cd $PYTHON_CURRENT_PATH
 fi
 
