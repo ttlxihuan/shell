@@ -334,6 +334,9 @@ fi
 if [ -z "$ARGV_type" ] || ! which "mkfs.$ARGV_type" >/dev/null;then
     error_exit "--type 分区错误，请核对：$ARGV_type"
 fi
+if [ `whoami` != 'root' ];then
+    echo '当前执行用户非 root 可能会无法正常进行！' >&2;
+fi
 # 搜索未挂载的分区
 DISKS_ARRAY=()
 while read ITEM;do
