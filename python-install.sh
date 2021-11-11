@@ -84,7 +84,10 @@ if [ -n "$PYTHON_NAME" ]; then
     ln -svf $INSTALL_PATH$PYTHON_VERSION/bin/$PYTHON_NAME /usr/local/bin/$PYTHON_NAME
     if [ -e "$INSTALL_PATH$PYTHON_VERSION/bin/$PIP_NAME" ]; then
         if [ ! -e "get-pip.py" ];then
-            curl -OLkN --connect-timeout 7200 https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+            curl -OLkN --connect-timeout 7200 https://bootstrap.pypa.io/pip/${PYTHON_VERSION%.*}/get-pip.py -o get-pip.py
+            if [ "$?" != '0' ];then
+                curl -OLkN --connect-timeout 7200 https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+            fi
         fi
         if [ -e "get-pip.py" ]; then
             $INSTALL_PATH$PYTHON_VERSION/bin/$PYTHON_NAME get-pip.py
