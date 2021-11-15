@@ -97,8 +97,7 @@ gpgkey=http://mirrors.sohu.com/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentO
 
 ' > $HTTP_REPO_FILE
     yum makecache
-	yum install -y openssl
-	if [ $? != '0' ];then
+	if [ $? = '0' ];then
 		echo 'yum 修复成功'
 	else
 		error_exit 'yum 修复失败'
