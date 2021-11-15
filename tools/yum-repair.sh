@@ -34,7 +34,7 @@ echo '重新生成 yum 缓存'
 yum makecache
 
 if [ $? != '0' ]; then
-	HTTP_REPO_FILE='/etc/yum.repos.d/CentOS-Base-http.repo'
+    HTTP_REPO_FILE='/etc/yum.repos.d/CentOS-Base-http.repo'
     echo '尝试添加 http 镜像生成 yum 缓存 '$HTTP_REPO_FILE' ，修复成功后可手动删除生成的镜像文件'
     echo -e '
 # 以下是收集可用http站点，主要针对yum报错：problem making ssl connection
@@ -97,11 +97,11 @@ gpgkey=http://mirrors.sohu.com/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentO
 
 ' > $HTTP_REPO_FILE
     yum makecache
-	if [ $? = '0' ];then
-		echo 'yum 修复成功'
-	else
-		error_exit 'yum 修复失败'
-	fi
+    if [ $? = '0' ];then
+        echo 'yum 修复成功'
+    else
+        error_exit 'yum 修复失败'
+    fi
 else
-	echo 'yum 正常，无需修复！'
+    echo 'yum 正常，无需修复！'
 fi
