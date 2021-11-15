@@ -1053,7 +1053,7 @@ init_install (){
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
     if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -type f -executable|grep -qP "$INSTALL_NAME|bin";then
         echo "$INSTALL_NAME-$INSTALL_VERSION 安装目录不是空的: $INSTALL_PATH$INSTALL_VERSION/"
-        if [ -z "$ARGV_reset" ];then
+        if [ -z "$ARGV_reset" -o "$ARGV_reset" = '0' ];then
             exit 0
         else
             echo "强制重新安装：$INSTALL_NAME-$INSTALL_VERSION"
