@@ -25,7 +25,7 @@
 ####################################################################################
 # 定义安装参数
 DEFINE_INSTALL_PARAMS="
-[-d, --work-dir='']svn服务工作目录
+[-d, --work-dir='/var/svn']svn服务工作目录
 "
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
@@ -42,17 +42,16 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$SVN_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
 ADD_OPTIONS='?utf8proc=internal ?lz4=internal '$ARGV_options
 # ************** 编译安装 ******************
-# 版本服务工作目录
-SERVER_WORK_PATH=${ARGV_work_dir-'/var/svn'}
 # 下载svn包
-download_software https://downloads.apache.org/subversion/subversion-$SVN_VERSION.tar.gz
+download_software https://archive.apache.org/dist/subversion/subversion-$SVN_VERSION.tar.gz
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 暂存编译目录
 SVN_CONFIGURE_PATH=`pwd`
 # 安装依赖
 echo "安装相关已知依赖"
-# sqlite 处理
+# sqlite 处理，多个版本时容易出问题，svn: E200030: SQLite compiled for 3.36.0, but running with 3.6.20
+# 目录需要把安装目录里的 libsqlite3.so.0.8.6 复制到 /usr/lib64 目录才能编译完成并正常使用svn
 SQLITE_MINIMUM_VER=`grep -oP 'SQLITE_MINIMUM_VER="\d+(\.\d+)+"' ./configure|grep -oP '\d+(\.\d+)+'`
 if [ -z "$SQLITE_MINIMUM_VER" ] || if_version "$SQLITE_MINIMUM_VER" "<" "3.0.0";then
     packge_manager_run install -SQLITE_DEVEL_PACKGE_NAMES
@@ -80,17 +79,37 @@ if if_lib 'libzip';then
 else
     packge_manager_run install -ZLIB_DEVEL_PACKGE_NAMES
 fi
-# 安装apr-util
-if if_lib 'apr-util-1';then
-    echo 'apr-util ok'
+# 安装apr和apr-util
+if [ -e 'INSTALL' ];then
+    # 获取最低版本
+    MIN_APR_DEVEL_VERSION=$(grep -oP 'Apache Portable Runtime \d+(\.\d+)+ or newer' INSTALL|grep -oP '\d+(\.\d+)+')
+    if [ -n "$MIN_APR_DEVEL_VERSION" ];then
+        until echo "$MIN_APR_DEVEL_VERSION"|grep -qP '\d+(\.\d+){2,}';do
+            MIN_APR_DEVEL_VERSION="$MIN_APR_DEVEL_VERSION.0"
+        done
+        for ITEM_APR in : -util:_UTIL;do
+            if ! if_lib "apr${ITEM_APR%:*}-1" '>=' $MIN_APR_DEVEL_VERSION;then
+                packge_manager_run install -APR${ITEM_APR#*:}_DEVEL_PACKGE_NAMES
+            fi
+            if if_lib "apr${ITEM_APR%:*}-1" '>=' $MIN_APR_DEVEL_VERSION;then
+                echo "apr${ITEM_APR%:*} ok"
+            else
+                error_exit "apr${ITEM_APR%:*}版本过低，要求apr${ITEM_APR%:*}-$MIN_APR_DEVEL_VERSION+ ，需要手动安装或者降低svn安装版本"
+            fi
+        done
+    fi
 else
-    packge_manager_run install -APR_UTIL_DEVEL_PACKGE_NAMES
-fi
-# 安装apr
-if if_lib 'apr-1';then
-    echo 'apr ok'
-else
-    packge_manager_run install -APR_DEVEL_PACKGE_NAMES
+    # 安装apr-util
+    if if_lib 'apr-util-1';then
+        echo 'apr-util ok'
+    else
+        packge_manager_run install -APR_UTIL_DEVEL_PACKGE_NAMES
+    fi
+    if if_lib 'apr-1';then
+        echo 'apr ok'
+    else
+        packge_manager_run install -APR_DEVEL_PACKGE_NAMES
+    fi
 fi
 cd $SVN_CONFIGURE_PATH
 # 编译安装
@@ -98,14 +117,15 @@ configure_install $CONFIGURE_OPTIONS
 
 cd $INSTALL_PATH$SVN_VERSION
 # 基本项配置
-# 创建库存目录
-mkdirs $SERVER_WORK_PATH;
-
-# 创建用户
-add_user svnserve
-chown -R svnserve:svnserve $SERVER_WORK_PATH
-
-# 启动服务
-sudo -u svnserve ./bin/svnserve -d -r $SERVER_WORK_PATH
+if [ -n "$ARGV_work_dir" ];then
+    # 创建库存目录
+    mkdirs $ARGV_work_dir;
+    # 创建用户
+    add_user svnserve
+    chown -R svnserve:svnserve $ARGV_work_dir
+    # 启动服务
+    echo "sudo -u svnserve ./bin/svnserve -d -r $ARGV_work_dir"
+    sudo -u svnserve ./bin/svnserve -d -r $ARGV_work_dir
+fi
 
 echo "安装成功：svn-$SVN_VERSION"
