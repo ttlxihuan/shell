@@ -422,11 +422,11 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
     echo '修改初始mysql密码';
     echo "初始密码: $TEMP_PASSWORD"
     if [ -n "$TEMP_PASSWORD" ]; then
-        echo "mysql -uroot --password=\"$TEMP_PASSWORD\" --connect-expired-password -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'\" 2>&1"
+        echo "mysql -uroot --password=\"$TEMP_PASSWORD\" -h127.0.0.1 --connect-expired-password -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'\" 2>&1"
         for((LOOP_NUM=1;LOOP_NUM<10;LOOP_NUM++))
         do
             echo "第${LOOP_NUM}次尝试修改密码";
-            UPDATE_PASSWORD=`mysql -uroot --password="$TEMP_PASSWORD" --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'" 2>&1`
+            UPDATE_PASSWORD=`mysql -uroot --password="$TEMP_PASSWORD" -h127.0.0.1 --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'" 2>&1`
             if [[ "$UPDATE_PASSWORD" =~ "ERROR" ]]; then
                 echo $UPDATE_PASSWORD
                 echo "修改mysql初始密码失败"
@@ -443,7 +443,7 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
         echo "# 初始 root 密码: $TEMP_PASSWORD" >> $MY_CNF
     fi
     # 配置主从
-    if [[ "$MYSQL_SYNC_BIN" == 'main' ]]; then
+    if [ "$MYSQL_SYNC_BIN" = 'main' ]; then
         echo '主从配置，当前服务为：main';
         #
         # 数据库指派权限时，如果库名有下划线需要加反斜杠转义否则指派异常
@@ -457,9 +457,9 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
         # File                    Slave_IO_Running 必需项
         # Replication Client      终端基本查询必需项如 show master status;
         # Replication Slave       Slave_SQL_Running  必需项
-        echo "mysql -uroot --password=\"$MYSQL_ROOT_PASSWORD\" -e \"create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;\""
-        mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -e "create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;"
-    elif [[ "$MYSQL_SYNC_BIN" == 'slave' ]]; then
+        echo "mysql -uroot --password=\"$MYSQL_ROOT_PASSWORD\" -h127.0.0.1 -e \"create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;\""
+        mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -h127.0.0.1 -e "create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;"
+    elif [ "$MYSQL_SYNC_BIN" = 'slave' ]; then
         echo '主从配置，当前服务为：slave';
         MASTER_USER=`echo $MYSQL_SYNC_BIN_HOST|grep -P '^[^@]+' -o`
         MASTER_HOST=`echo $MYSQL_SYNC_BIN_HOST|grep -P '[^@]+$' -o`
@@ -469,8 +469,8 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
         MASTER_LOG_FILE=`echo $SQL_RESULT|grep -P 'File[^<]+' -o|grep -P '[^>]+$' -o`
         MASTER_LOG_POS=`echo $SQL_RESULT|grep -P 'Position[^<]+' -o|grep -P '\d+$' -o`
         if [ -n "$MASTER_LOG_FILE" ] && [ -n "$MASTER_LOG_POS" ]; then
-            echo "mysql -uroot --password='$MYSQL_ROOT_PASSWORD' -e \"change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS; start slave; show slave status \G\""
-            mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -e "stop slave;change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS;start slave;show slave status \G "
+            echo "mysql -uroot --password='$MYSQL_ROOT_PASSWORD' -h127.0.0.1 -e \"change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS; start slave; show slave status \G\""
+            mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -h127.0.0.1 -e "stop slave;change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS;start slave;show slave status \G "
         else
             echo $SQL_RESULT;
             echo '主从配置失败';
