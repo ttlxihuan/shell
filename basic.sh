@@ -807,10 +807,9 @@ math_compute(){
     fi
     local SCALE_NUM=0
     if [ -n "$3" ]; then
-        SCALE_NUM=`echo "$3"|grep -oP '^\d+'`
-        SCALE_NUM=`echo "$SCALE_NUM"|awk '{if($1 == ""){print "0"}else{print $1}}'`
+        SCALE_NUM=$(echo "$3"|grep -oP '^\d+'|awk '{if($1 == ""){print "0"}else{print $1}}')
     fi
-    RESULT_STR=`echo "scale=$SCALE_NUM; $2"|bc|sed 's/\\\\//'|awk -F '.' '{if($1 ~ "[0-9]+" || $1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
+    RESULT_STR=`echo "scale=$SCALE_NUM; $2"|bc|sed 's/\\\\//'|awk -F '.' '{if($1 ~ "[+-]" || $1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
     eval "$1='$RESULT_STR'"
 }
 # 解析列表并去重再导出数组
@@ -895,27 +894,34 @@ memory_require(){
     # CURRENT_MEMORY=cat /proc/meminfo|grep -P '^(MemFree|SwapFree):'|awk '{count+=$2} END{print count/1048576}'
     math_compute DIFF_SIZE "$1 - $CURRENT_MEMORY"
     if ((DIFF_SIZE > 0)) && (ask_select ASK_INPUT "内存最少 ${1}G，现在只有 ${CURRENT_MEMORY}G，是否增加虚拟内存 ${DIFF_SIZE}G：" || [ "$ASK_INPUT" = 'y' ]);then
-        local BASE_PATH SWAP_PATH
+        local BASE_PATH SWAP_PATH SWAP_NUM
         path_require $DIFF_SIZE / BASE_PATH;
-        SWAP_PATH=$(find $BASE_PATH -maxdepth 1 -name swap*|grep -oP 'swap\d+$'|sort -r|head -1|grep -oP '\d+$')
-        if [ -n "$SWAP_PATH" ];then
-            WAP_PATH=$(( $SWAP_PATH + 1))
+        SWAP_PATH=${BASE_PATH%/*}/swap
+        SWAP_NUM=$(find $BASE_PATH -maxdepth 1 -name swap*|grep -oP 'swap\d+$'|sort -r|head -1|grep -oP '\d+$')
+        if [ -n "$SWAP_NUM" ];then
+            SWAP_PATH=$SWAP_PATH$(( SWAP_NUM + 1))
+        elif [ -e "$SWAP_PATH" ];then
+            SWAP_PATH=${SWAP_PATH}1
         fi
-        SWAP_PATH=$BASE_PATH/swap$SWAP_PATH
         echo '创建虚拟内存交换区：'$SWAP_PATH
         # 创建一个空文件区，并以每块bs字节重复写count次数且全部写0，主要是为防止内存溢出或越权访问到异常数据
-        dd if=/dev/zero of=$SWAP_PATH bs=1024 count=8M
+        dd if=/dev/zero of=$SWAP_PATH bs=1024 count=${DIFF_SIZE}M
         # 将/swap目录设置为交换区
         mkswap $SWAP_PATH
         # 修改此目录权限
         chmod 0600 $SWAP_PATH
         # 开启/swap目录交换空间，开启后系统将建立虚拟内存，大小为 bs * count
         swapon $SWAP_PATH
-        if [ "$ARGV_data_free" = 'save' ] || (ask_select ASK_INPUT '虚拟内存交换是否写入系统配置：' || [ "$ASK_INPUT" = 'y' ]);then
+        if [ "$ARGV_data_free" = 'save' ] || (ask_select ASK_INPUT '虚拟内存交换是否写入系统配置用于重启后自动生效：' || [ "$ASK_INPUT" = 'y' ]);then
             # 写入配置文件，重启系统自动开启/swap目录交换空间
-            echo "$SWAP_PATH swap swap defaults 0 0" >> /etc/fstab
+            if grep -qP "^$SWAP_PATH " /etc/fstab;then
+                sed -i -r "s,^$SWAP_PATH .*$,$SWAP_PATH swap swap defaults 0 0," /etc/fstab
+            else
+                echo "$SWAP_PATH swap swap defaults 0 0" >> /etc/fstab
+            fi
         fi
-        echo "如果需要删除虚拟内存，先关闭交换区：swapon $SWAP_PATH ，然后删除文件：rm -f $SWAP_PATH ，再去掉/etc/fstab文件中的配置行。"
+        echo "如果需要删除虚拟内存，先关闭交换区 ，然后删除文件，再去掉/etc/fstab文件中的配置行。"
+        echo "可以执行命令：swapoff $SWAP_PATH && rm -f $SWAP_PATH && sed -i -r '/^${SWAP_PATH//\//\\/}\s+/d' /etc/fstab"
     fi
 }
 # 安装编译工作目录剩余空间要求
@@ -956,16 +962,18 @@ install_path_require(){
 # @command path_require $min_size $path $path_name
 # @param $min_size          安装脚本最低磁盘剩余空间大小，G为单位
 # @param $path              要判断的目录
-# @param $path_name         有空余的目录
+# @param $path_name         有空余的目录写入变量名
 # return 1|0
 path_require(){
     if ((`df $2|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
         echo "目录 $2 所在硬盘 `df ./|awk '{print $1}'|tail -1` 剩余空间不足：${1}G"
-        if [[ "$ARGV_data_free" =~ ^(auto|save|ask)$ ]];then
-            search_free_path $3 $(($1 * 1048576))
-        else
+        if [ "$ARGV_data_free" = 'ignore' ];then
             echo '忽略空间不足'
+        else
+            search_free_path $3 $(($1 * 1048576))
         fi
+    else
+        eval "$3=\$2"
     fi
 }
 # 获取可用空间达到的硬盘绑定目录
@@ -982,7 +990,7 @@ search_free_path(){
             return 0
         fi
     done <<EOF
-`df -T|awk 'NR >1 && $5 > '$2' && $2 !~ /*tmpfs/ && $6 > 10 {$5=$5/1048576; print $1,$7,$5}'`
+`df -T|awk 'NR >1 && $5 > '$2' && $2 !~ "/*tmpfs/" && $4/$3 < 0.9 {$5=$5/1048576; print $1,$7,$5}'`
 EOF
     error_exit "没有合适空间，终止执行！"
 }
@@ -1073,14 +1081,6 @@ init_install (){
     fi
     # 加载环境配置
     source /etc/profile
-    # 内存空间不够
-    if ! free -tg|grep -qi swap && if_version `free -tg|tail -1|grep -oP '\d+'|head -1` '<' '8';then
-        dd if=/dev/zero of=/swap bs=1024 count=8M
-        mkswap /swap
-        chmod 0600 /swap
-        swapon /swap
-        echo "/swap swap swap sw 0 0" >> /etc/fstab
-    fi
     return 0
 }
 INSTALL_NAME=${0%-*}
