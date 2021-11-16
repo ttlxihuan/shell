@@ -810,7 +810,7 @@ math_compute(){
         SCALE_NUM=`echo "$3"|grep -oP '^\d+'`
         SCALE_NUM=`echo "$SCALE_NUM"|awk '{if($1 == ""){print "0"}else{print $1}}'`
     fi
-    RESULT_STR=`echo "scale=$SCALE_NUM; $2"|bc|sed 's/\\\\//'|awk -F '.' '{if($1 ~ "+|-" || $1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
+    RESULT_STR=`echo "scale=$SCALE_NUM; $2"|bc|sed 's/\\\\//'|awk -F '.' '{if($1 ~ "[0-9]+" || $1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
     eval "$1='$RESULT_STR'"
 }
 # 解析列表并去重再导出数组
@@ -894,7 +894,7 @@ memory_require(){
     # 剩余内存G
     # CURRENT_MEMORY=cat /proc/meminfo|grep -P '^(MemFree|SwapFree):'|awk '{count+=$2} END{print count/1048576}'
     math_compute DIFF_SIZE "$1 - $CURRENT_MEMORY"
-    if (($DIFF_SIZE > 0)) && (ask_select ASK_INPUT "内存最少 ${1}G，现在只有 ${CURRENT_MEMORY}G，是否增加虚拟内存 ${DIFF_SIZE}G：" || [ "$ASK_INPUT" = 'y' ]);then
+    if ((DIFF_SIZE > 0)) && (ask_select ASK_INPUT "内存最少 ${1}G，现在只有 ${CURRENT_MEMORY}G，是否增加虚拟内存 ${DIFF_SIZE}G：" || [ "$ASK_INPUT" = 'y' ]);then
         local BASE_PATH SWAP_PATH
         path_require $DIFF_SIZE / BASE_PATH;
         SWAP_PATH=$(find $BASE_PATH -maxdepth 1 -name swap*|grep -oP 'swap\d+$'|sort -r|head -1|grep -oP '\d+$')
@@ -928,7 +928,7 @@ work_path_require(){
     if [ -d $CURRENT_PATH/$INSTALL_NAME ];then
         math_compute MIN_SIZE "$1-`du --max-depth=1 $CURRENT_PATH/$INSTALL_NAME|tail -1|awk '{print$1}'`/1048576"
     fi
-    if (($MIN_SIZE > 0));then
+    if ((MIN_SIZE > 0));then
         path_require $MIN_SIZE $CURRENT_PATH BASE_PATH;
         # 有匹配的工作目录，直接转移工作目录
         if [ -n "$BASE_PATH" ];then
