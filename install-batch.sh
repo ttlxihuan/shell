@@ -29,21 +29,14 @@ install_server(){
         echo "$1 脚本已经在安装中"
         return 1;
     fi
-    # 提取安装参数
-    local PARAMS_LIST=''
-    for ((INDEX=2;INDEX<=$#;INDEX++));do
-        PARAMS_LIST="$PARAMS_LIST \"${@:$INDEX:1}\""
-    done
     unset INDEX
-    echo "安装：$1"
-    echo "bash ./$1-install.sh $PARAMS_LIST 2>&1"
-    {
-        if bash ./$1-install.sh $PARAMS_LIST --data-free=save 2>&1 > $1-install.log >/dev/null; then
-            echo "安装成功：$1"
-        else
-            echo "安装失败：$1"
-        fi
-    }&
+    if ps aux|grep -P "$1-install\.sh\s+(new|\d+\.\d+)"; then
+        echo "$1 已经在安装运行中"
+    else
+        echo "安装：$1 ，安装信息保存在：$1-install.log"
+        echo "nohup bash ./$1-install.sh ${@:2} --data-free=save >> $1-install.log 2>/dev/null &"
+        nohup bash ./$1-install.sh ${@:2} --data-free=save >> $1-install.log 2>/dev/null &
+    fi
 }
 # 读取配置文件
 # @command read_config $node_name $command_name
