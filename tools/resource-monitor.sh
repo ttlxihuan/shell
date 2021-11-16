@@ -179,7 +179,7 @@ EOF
     for ((INDEX=0;INDEX<${#INFOS[@]};INDEX++)); do
         TEMP=(${INFOS[$INDEX]})
         for ((ITEM=1;ITEM<${#NAMES[@]};ITEM++)); do
-            declare -l NETC_${NAMES[$ITEM]}=`printf '%.0f' ${TEMP[$ITEM]}` # 网卡信息
+            declare -l NETC_${NAMES[$ITEM]//*%/}=`printf '%.0f' ${TEMP[$ITEM]}` # 网卡信息
         done
         # 网卡是多个，需要每个独立运行
         resources_warn ${TEMP[0]} NETC
@@ -223,6 +223,7 @@ resources_warn(){
             eval _AS=\${CONDITION_ITEMS_$WARN_NAME[$INDEX]}
             eval WARN_TIME=\${CONDITION_ITEMS_$WARN_NAME[$((INDEX+2))]}
             eval WARN_COND=\${CONDITION_ITEMS_$WARN_NAME[$((INDEX+3))]}
+            echo "$WARN_COND"
             if [ $(( $WARN_COND )) != '0' ];then
                 debug_show "资源名：$WARN_NAME ，资源路径：$WARN_PATH ，持续时长：$WARN_TIME ，条件表达式：$WARN_COND ，触发报警处理"
                 if ! persist_warn WARN_TIME "$WARN_PATH($WARN_COND)" "$WARN_TIME";then
@@ -350,7 +351,7 @@ parse_conf(){
                         continue
                     fi
                     _NAME=CONDITION_ITEMS_$(echo "$_ITEM"|grep -oP '(^|\W)\w+\s*:'|grep -oP '\w+')
-                    eval "$_NAME[\${#$_NAME[@]-0}]=\$_ALIAS_NAME"
+                    eval "if [ -z \"\${#$_NAME[@]}\" ];then $_NAME=(); fi; $_NAME[\${#$_NAME[@]}]=\$_ALIAS_NAME"
                     eval "$_NAME[\${#$_NAME[@]}]=\$(echo \"\$_ITEM\"|grep -oP ':\s*([\w/\.,\s]+)?:'|head -n 1|grep -oP '[\w/\.,\s]+')"
                     eval "$_NAME[\${#$_NAME[@]}]=\$(echo \"\$_ITEM\"|grep -oP ':\s*([0-9]+[ihd])*\s*\('|head -n 1|grep -oP '([0-9]+[ihd])*')"
                     eval "$_NAME[\${#$_NAME[@]}]=\$(echo \"\$_ITEM\"|grep -oP '\(.*?\)\s*;'|sed -r 's/(^\(+|\)\s*;$)//g'|sed 's/\./_/g')"
@@ -359,7 +360,7 @@ parse_conf(){
 EOF
             else
                 _NAME=$(echo $ITEM|tr '[:lower:]' '[:upper:]')_ITEMS_
-                eval "$_NAME$_ALIAS_NAME[\${#$_NAME$_ALIAS_NAME[@]-0}]=\$_ALIAS_VALUE"
+                eval "if [ -z \"\${#$_NAME$_ALIAS_NAME[@]}\" ];then $_NAME$_ALIAS_NAME=(); fi; $_NAME$_ALIAS_NAME[\${#$_NAME$_ALIAS_NAME[@]}]=\$_ALIAS_VALUE"
             fi
         done <<EOF
 `printf '%s' "$GET_CONTENTS"`
@@ -373,9 +374,9 @@ EOF
 # 定义参数
 ARGUMENTS=()
 # 定义有值选项
-OPTIONS=('-f, --warn-conf' '-m, --warn-msg' '-c, --warn-condition' '-e, --warn-exec' '-f, --warn-file' '-l, --loop-time' '--cache-file')
+OPTIONS=('-f, --warn-conf' '-l, --loop-time' '--cache-file')
 # 定义无值选项
-OPTIONALS=('-h,--help' '-d, --debug')
+OPTIONALS=('-h,--help' '-d, --debug' '-i, --auto-install')
 # 提取安装参数
 CALL_INPUT_ARGVS=()
 for ((INDEX=1;INDEX<=$#;INDEX++));do
@@ -396,6 +397,8 @@ Usage:
 Options:
     -h, --help              显示脚本帮助信息
     -d, --debug             调试模式，将输出相关信息用于调试
+    -i, --auto-install      自动安装依赖工具：sysstat
+                            如果已经安装此参数无效，使用此参数需要在root账号下运行
     -f, --warn-conf [='$ARGV_warn_conf']
                             监听配置文件，方便使用更复杂的监听条件
                             配置文件格式：（块不分先后）
@@ -474,6 +477,31 @@ Help:
 ";
     exit 0
 fi
+# 必要命令判断
+for COMMAND_NAME in sar iostat; do
+    if ! which $COMMAND_NAME 2>&1 >/dev/null;then
+        if [ -n "$ARGV_auto_install" ];then
+            if [ `whoami` != 'root' ];then
+                echo '当前执行用户非 root 可能会无法正常安装！' >&2;
+            fi
+            for INSTALL_COMMAND_NAME in yum apt dnf; do
+                if which $INSTALL_COMMAND_NAME 2>&1 >/dev/null;then
+                    if $INSTALL_COMMAND_NAME install -y sysstat;then
+                        if [ -e '/etc/default/sysstat' ];then
+                            sed -i -r 's/^ENABLED="false"/ENABLED="true"/' /etc/default/sysstat
+                            service sysstat restart
+                        fi
+                        break 2
+                    fi
+                fi
+            done
+            echo '当前系统安装没有找到支持的安装工具，需要手动安装！'
+        fi
+        echo '安装命令可参考：[yum|apt|dnf] install sysstat'
+        echo '或者使用 --auto-install 参数自动安装，自动安装只支持 yum|apt|dnf'
+        error_exit "当前系统没有安装 $COMMAND_NAME 工具，请安装后再使用！";
+    fi
+done
 # 参数验证处理
 if [ -n "$ARGV_warn_conf" -a -e "$ARGV_warn_conf" ];then
     debug_show "配置文件处理：$ARGV_warn_conf"
