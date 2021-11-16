@@ -341,7 +341,7 @@ fi
 DISKS_ARRAY=()
 while read ITEM;do
     BLOCK_ARRAY=($ITEM)
-    BLOCK_SIZE=(`lsblk -bna ${BLOCK_ARRAY[0]}|awk 'BEGIN{use=0;part=0}$6 != "disk" && $7 != ""{use += $4} $6 == "part"{part += $4}END{print use,part}'`)
+    BLOCK_SIZE=(`lsblk -bna ${BLOCK_ARRAY[0]}|awk 'BEGIN{use=0;part=0}$6 != "disk" && $7 != ""{use += $4} $6 == "part"{part += $4}END{printf("%.0f %.0f",use,part)}'`)
     if (( ${BLOCK_ARRAY[3]} <= ${BLOCK_SIZE[0]} )) || ([ "${BLOCK_ARRAY[5]}" = 'part' ] && (( ${BLOCK_SIZE[0]} > 0 )));then
         continue
     elif [ "${BLOCK_ARRAY[5]}" = 'disk' ];then
