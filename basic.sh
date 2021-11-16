@@ -1031,6 +1031,9 @@ ask_select(){
 # @param $get_version_rule  安装脚本提取版本号正则
 # return 1|0
 init_install (){
+    if [ -z "$INSTALL_NAME" ];then
+        error_exit "安装名为空，应该在安装脚本中指定 INSTALL_NAME 或脚本名是: \w+-install\.sh"
+    fi
     if (($# < 3));then
         error_exit "安装初始化参数错误"
     fi
@@ -1083,7 +1086,7 @@ init_install (){
     source /etc/profile
     return 0
 }
-INSTALL_NAME=${0%-*}
+INSTALL_NAME=$(echo "$0"|grep -oP '\w+-install\.sh$'|grep -oP '^\w+')
 # 提取安装参数
 CALL_INPUT_ARGVS=()
 for ((INDEX=1;INDEX<=$#;INDEX++));do
