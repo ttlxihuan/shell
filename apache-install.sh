@@ -116,6 +116,7 @@ fi
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 # 启动服务
+run_msg 'apachectl -k start'
 apachectl -k start
 # 添加执行文件连接
 ln -svf $INSTALL_PATH$APACHE_VERSION/bin/apachectl /usr/local/bin/httpd

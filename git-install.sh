@@ -200,6 +200,7 @@ elif [ "$ARGV_tool" = "gitlab" ]; then
     # 配置处理
     gitlab-ctl reconfigure
     # 启动服务
+    run_msg 'gitlab-ctl start'
     gitlab-ctl start
     info_msg 'gitlab 工作目录：/opt/gitlab/'
     info_msg 'gitlab 配置文件：/etc/gitlab/gitlab.rb'
