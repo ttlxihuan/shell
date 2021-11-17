@@ -114,6 +114,7 @@ if [ ! -d "vhosts" ]; then
     mkdirs certs
     cd vhosts
     cat > ssl <<conf
+# 此文件为共用文件，用于其它 server 块引用
 #常规https配置
 #ssl                  on;
 ssl_certificate      certs/ssl.pem;
@@ -124,43 +125,51 @@ ssl_session_timeout  5m;
 
 #ssl_ciphers  HIGH:!aNULL:!MD5;
 #ssl_prefer_server_ciphers  on;
+# 强制必需使用https
 if ( \$scheme = http ) {
- return 301 https://\$host\$request_uri;
+    return 301 https://\$host\$request_uri;
 }
 conf
-    cat > ssl_websocket <<conf
-# 代理websocket wss连接
+    cat > websocket <<conf
+# 此文件为共用文件，用于其它 server 块引用
+# 代理websocket连接，建议使用复制文件再重命名方便多个 websocket 代理并存
+# 引用后需要视需求修改：匹配地址、代理websocket地址
 location /websocket {
+    # 代理的websocket地址
     proxy_pass http://127.0.0.1:800;
+    
+    # 以下常规配置
     proxy_http_version 1.1;
     proxy_set_header Upgrade \$http_upgrade;
     proxy_set_header Connection "upgrade";
 }
 conf
     cat > php <<conf
+# 此文件为共用文件，用于其它 server 块引用
 # PHP配置
 if (!-e \$request_filename) {
     rewrite  ^/(.*)$ /index.php?s=\$1  last;
     break;
 }
 
-# proxy the PHP scripts to Apache listening on 127.0.0.1:80
-#
+# 代理 http://127.0.0.1:80 地址
 #location ~ \.php$ {
 #    proxy_pass   http://127.0.0.1;
 #}
 
-# pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
-#
+# fastcgi接口监听 127.0.0.1:9000
+# 转到php-fpm上
 location ~ \.php\$ {
     fastcgi_pass   127.0.0.1:9000;
     fastcgi_index  index.php;
     fastcgi_param  SCRIPT_FILENAME  \$document_root\$fastcgi_script_name;
     include        fastcgi_params;
 }
+# 使用静态配置
 include vhosts/static;
 conf
     cat > static <<conf
+# 此文件为共用文件，用于其它 server 块引用
 # 常规静态配置
 location = / {
     index index.html index.htm index.php;
@@ -170,40 +179,179 @@ location = / {
 # 去掉响应头服务器标识
 server_tokens off;
 
-# redirect server error pages to the static page /50x.html
-#
+# 重定向错误页面
 # error_page   500 502 503 504  /50x.html;
+# 指定错误页面根目录，也可以不指定
 # location = /50x.html {
 #     root   html;
 # }
 
-# deny access to .htaccess files, if Apache's document root
-# concurs with nginx's one
-#
-
+# 静态可访问后缀
 location ~* ^.+\.(jpg|jpeg|png|css|js|gif|html|htm|xls)$ {
     access_log  off;
     expires     30d;
 }
 conf
     cat > static.conf.default <<conf
+# 此文件为静态服务配置模板
+# 使用时建议复制文件并去掉文件名后缀 .default
+# 开启后视需求修改：域名、ssl、根目录
 server {
+    # 配置端口号
     listen 80;
-    #listen 443 ssl;
+
+    # 配置https
+    # listen 443 ssl;
+    # include vhosts/ssl;
+
+    # 配置访问域名，多个空格隔开
     server_name  localhost;
+
+    # 配置根目录
     root /www/localhost/dist;
+
+    # 引用静态文件基础配置
     include vhosts/static;
-    #include vhosts/ssl;
 }
 conf
     cat > php.conf.default <<conf
+# 此文件为PHP服务配置模板
+# 使用时建议复制文件并去掉文件名后缀 .default
+# 开启后视需求修改：域名、ssl、根目录
 server {
+    # 配置端口号
     listen 80;
-    #listen 443 ssl;
+
+    # 配置https
+    # listen 443 ssl;
+    # include vhosts/ssl;
+
+    # 配置访问域名，多个空格隔开
     server_name localhost;
+
+    # 配置根目录
     root /www/localhost/public;
+
+    # 引用PHP基础配置
     include vhosts/php;
-    #include vhosts/ssl;
+}
+conf
+    cat > upstream.conf.default <<conf
+# 此文件为负载均衡配置模板
+# 使用时建议复制文件并去掉文件名后缀 .default
+# 开启后视需求修改：集群名、集群节点、负载均衡入口端口
+# 以下配置示例中丢弃了商业命令，即付费版本有效，
+# 集群文档：http://nginx.org/en/docs/http/ngx_http_upstream_module.html
+
+# 集群节点配置，需要指定唯一集群名
+# 命令语法：upstream name { ... }
+#   name        集群名
+#   { ... }     集群节点及策略等配置区
+# 集群名用于proxy_pass、fastcgi_pass配置，例如：
+#   proxy_pass http://集群名
+#   proxy_pass https://集群名
+#   fastcgi_pass 集群名; 
+# 实际注意修改集群名
+upstream http_cluster {
+    # 负载均衡策略配置分为：逐个循环、最少连接、ip哈希、哈希、随机等
+    # 当一组负载只有一个节点时，将没有不可用处理
+    # 默认逐个循环策略
+
+    # 开启最少连接策略，开启后会优先匹配连接少的节点
+    # 从1.3.2和1.2.2开始有效
+    # least_conn;
+
+    # 开启随机策略
+    # 从1.15.1版本开始有效
+    # 命令语法：random [two [method]];
+    #   two         可选，指定随机提取两个节点再进行其它策略，不指定在所有节点中随机取一个节点
+    #   method      可选，指定在随机节点基础上再策略，默认 least_conn
+    #               指定后将在两个节点先中使用指定策略提取最终匹配节点
+    # random
+
+    # 开启ip哈希持久策略，开启后首次按其它策略匹配节点且生成ip哈希值并与节点绑定，之后对应IP哈希值持久连接到固定节点
+    # 哈希匹配节点不可用将重新按首次匹配并绑定节点
+    # 从1.3.2和1.2.2开始支持IPv6地址
+    # 在1.3.1和1.2.2版本之前，不可指定节点权重
+    # ip_hash;
+
+    # 开启哈希持久策略，开启后首次按其它策略匹配节点且生成哈希值并与节点绑定，后续对应哈希值持久连接到固定节点
+    # 哈希匹配节点不可用将重新按首次匹配并绑定节点
+    # 添加或删除节点可能会导致将大多数密钥重新映射到不同的节点，避免需要增加consistent选项
+    # 从1.7.2版本开始有效
+    # 命令语法：hash key [consistent];
+    # key           可以包含文本或变量（允许组合），指定后会按此值生成hash再绑定节点
+    #               可用变量文档：https://nginx.org/en/docs/http/ngx_http_core_module.html#variables
+    # consistent    可选项（固定值），则将使用ketama一致性哈希方法代替，减少节点可用数变化大量重新映射节点
+    # 以下hash内容：服务端口号+请求类型+请求全地址（含GET参数）
+    # hash $server_port$request_method$request_uri consistent;
+
+    # 节点配置
+    # 命令语法：server address [parameters];
+    #   address         节点HOST+IP，具体是http还是https由proxy_pass命令决定
+    #   parameters      可选附加参数
+    #       weight=number       节点权重配置，值越高匹配机率越大，默认 weight=1
+    #       max_conns=number    限制节点最大连接数，1.11.5版开始有效，默认 max_conns=0
+    #       max_fails=number    指定节点持续时间内最大失败尝试次数，超过即节点不可用，默认 max_fails=0
+    #       fail_timeout=time   指定节点失败尝试持续时长，与max_fails对应次数，超过即节点不可用，默认 fail_timeout=10
+    #       backup              指定为备份节点，当其它节点都不可用时才加入策略匹配，该参数不能与 hash、ip_hash、random 并存，默认无
+    #       down                指定节点永久不可用，默认无
+    #       resolve             监控节点域名对应的IP变化并自动修正到代理转发中，1.5.12版本开始有效【依赖商业命令sticky】
+    #       route=string        设置节点路由名称【依赖商业命令sticky】
+    #       service=name        启用解析 DNS SRV 记录，1.9.13版本开始有效【依赖商业命令sticky】
+    #       slow_start=time     设置节点从不可用到可用时权重值回升时长，该参数不能与 hash、ip_hash、random 并存，默认无
+    #       drain               设置节点为排水模式，1.13.6版本开始有效【依赖商业命令sticky】
+    # 节点集配置
+    server  localhost:10001 weight=1;
+
+    # 通过keepalive的保活最大连接数，超过将关闭连接，不建议设置，此配置依赖 Keepalived 服务
+    # 1.15.3版开始有效
+    # keepalive_requests 100;
+
+    # 限制通过一个保活连接处理请求的最长时间，此配置依赖 Keepalived 服务
+    # 1.15.3版开始有效
+    # keepalive_time 1h;
+
+    # 在此期间与上游服务器的空闲保持连接将保持打开状态，此配置依赖 Keepalived 服务
+    # 1.15.3版开始有效
+    # keepalive_timeout 60s;
+
+    # 设置保留在每个工作进程缓存中上游服务器的最大空闲保持连接数，此配置依赖 Keepalived 服务
+    # 此配置项必需在节点集下面才有效
+    # 1.1.4版开始有效
+    # keepalive 100
+}
+# 负载均衡入口配置
+server {
+    # 配置端口号
+    listen       80;
+
+    # 配置https
+    # listen 443 ssl;
+    # include vhosts/ssl;
+
+    # 配置访问域名，多个空格隔开
+    server_name  localhost;
+
+    location / {
+        # 负载均衡各节点使用http
+        proxy_pass http://http_cluster;
+
+        # 负载均衡各节点使用https
+        # proxy_pass https://http_cluster;
+
+        # 负载均衡各节点使用fastcgi，比如php-fpm使用此命令
+        # fastcgi_pass http_cluster;
+
+        # 设置此参数可使用keepalive命令有效
+        # fastcgi_keep_conn on
+
+        proxy_redirect default;
+
+        # 保持身份验证上下文时需要开启下两项
+        # proxy_http_version 1.1;
+        # proxy_set_header Connection "";
+    }
 }
 conf
     cd ../
@@ -243,8 +391,10 @@ if [ -n "`./nginx -t|grep error`" ]; then
     info_msg "nginx 配置文件错误，请注意修改"
 else
     if [ -n "ps aux|grep nginx" ]; then
+        run_msg './nginx'
         ./nginx
     else
+        run_msg './nginx -s reload'
         ./nginx -s reload
     fi
 fi
