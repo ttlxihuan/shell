@@ -524,7 +524,7 @@ in_add_options(){
 # return 1|0
 make_install(){
     info_msg "make 编译安装"
-    make -j $HTREAD_NUM ${@:2} 2>&1
+    make -j $INSTALL_THREAD_NUM ${@:2} 2>&1
     if_error "make 编译失败"
     make install 2>&1
     if_error "make 安装失败"
@@ -1190,25 +1190,27 @@ else
 fi
 # 网络基本工具安装
 tools_install curl wget
-# 获编译任务数
+# 获取总线程数
+TOTAL_THREAD_NUM=`lscpu |grep '^CPU(s)'|grep -oP '\d+$'`
+# 获取编译任务数
 if [ -n "$DEFINE_INSTALL_TYPE" ];then
     case "$ARGV_make_jobs" in
         avg)
-            HTREAD_NUM=$((`lscpu |grep '^CPU(s)'|grep -oP '\d+$'`/2+1))
+            INSTALL_THREAD_NUM=$((TOTAL_THREAD_NUM/2+1))
         ;;
         max)
-            HTREAD_NUM=`lscpu |grep '^CPU(s)'|grep -oP '\d+$'`
+            INSTALL_THREAD_NUM=$TOTAL_THREAD_NUM
         ;;
         *)
             if printf '%s' "$ARGV_make_jobs"|grep -qP '^[1-9]\d*$';then
-                HTREAD_NUM=$ARGV_make_jobs
+                INSTALL_THREAD_NUM=$ARGV_make_jobs
             else
                 error_exit '--make-jobs 必需是 >= 0 的正整数或者avg|max，现在是：'$ARGV_make_jobs
             fi
         ;;
     esac
 else
-    HTREAD_NUM=1
+    INSTALL_THREAD_NUM=1
 fi
 # 提取工作目录
 OLD_PATH=`pwd`

@@ -115,16 +115,20 @@ if [ ! -d "vhosts" ]; then
     cd vhosts
     cat > ssl <<conf
 # 此文件为共用文件，用于其它 server 块引用
-#常规https配置
-#ssl                  on;
+# 多个不同域名证书需要单独指定证书文件，而不能在此指定证书文件
+# 常规https配置
+# ssl                  on;
+
+# 注意修改证书名
+# 从1.15.9版本开始且OpenSSL-1.0.2以上文件名可以使用变量
 ssl_certificate      certs/ssl.pem;
 ssl_certificate_key  certs/ssl.key;
 
-#ssl_session_cache    shared:SSL:1m;
+# ssl_session_cache    shared:SSL:1m;
 ssl_session_timeout  5m;
 
-#ssl_ciphers  HIGH:!aNULL:!MD5;
-#ssl_prefer_server_ciphers  on;
+# ssl_ciphers  HIGH:!aNULL:!MD5;
+# ssl_prefer_server_ciphers  on;
 # 强制必需使用https
 if ( \$scheme = http ) {
     return 301 https://\$host\$request_uri;
@@ -364,10 +368,10 @@ sed -i -r 's/^#(user\s+)nobody/\1nginx/' nginx.conf
 # 开户gzip
 sed -i -r 's/^#(gzip\s+)on/\1 on/' nginx.conf
 # 修改工作子进程数，最优化，子进程数 = CPU数 * 3 / 2
-math_compute PROCESSES_NUM "$HTREAD_NUM * 3 / 2"
+math_compute PROCESSES_NUM "$TOTAL_THREAD_NUM * 3 / 2"
 sed -i -r "s/^(worker_processes\s+)[0-9]+;/\1 $PROCESSES_NUM;/" nginx.conf
 # 修改每个工作进程最大连接数
-math_compute MAX_CONNECTIONS "$HTREAD_NUM * 1024"
+math_compute MAX_CONNECTIONS "$TOTAL_THREAD_NUM * 1024"
 sed -i -r "s/^(worker_connections\s+)[0-9]+;/\1 $MAX_CONNECTIONS;/" nginx.conf
 # 添加引入虚拟配置目录
 if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then

@@ -372,7 +372,7 @@ cp -f etc/php-fpm.conf.default etc/php-fpm.conf
 cp -f etc/php-fpm.d/www.conf.default etc/php-fpm.d/www.conf
 
 # 修改配置参数
-math_compute MAX_CHILDREN "$HTREAD_NUM * 10"
+math_compute MAX_CHILDREN "$TOTAL_THREAD_NUM * 10"
 math_compute MIN_SPARE "$MAX_CHILDREN * 0.1"
 math_compute MAX_SPARE "$MAX_CHILDREN * 0.5"
 math_compute INIT_CHILDREN "$MAX_CHILDREN * 0.3"

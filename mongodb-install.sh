@@ -129,11 +129,11 @@ if [ -e "etc/pip/compile-requirements.txt" ];then
     fi
     info_msg '$PYTHON_NAME 编译安装 mongobd'
     if grep -q '\-\-prefix' docs/building.md;then
-        run_msg "$PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $HTREAD_NUM"
-        $PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $HTREAD_NUM
+        run_msg "$PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $INSTALL_THREAD_NUM"
+        $PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $INSTALL_THREAD_NUM
     else
-        run_msg "$PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $HTREAD_NUM"
-        $PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $HTREAD_NUM
+        run_msg "$PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $INSTALL_THREAD_NUM"
+        $PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $INSTALL_THREAD_NUM
     fi
     if_error '安装失败：mongodb'
 else
@@ -159,13 +159,13 @@ else
             info_msg 'Scons OK'
         fi
         info_msg 'scons 编译安装 mongobd'
-        run_msg "scons all -j $HTREAD_NUM"
-        scons all -j $HTREAD_NUM
+        run_msg "scons all -j $INSTALL_THREAD_NUM"
+        scons all -j $INSTALL_THREAD_NUM
         run_msg "scons $CONFIGURE_OPTIONS install"
         scons $CONFIGURE_OPTIONS install
     else
-        run_msg "$PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $HTREAD_NUM"
-        $PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $HTREAD_NUM
+        run_msg "$PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $INSTALL_THREAD_NUM"
+        $PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $INSTALL_THREAD_NUM
     fi
     if_error '安装失败：mongodb'
 fi
