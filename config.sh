@@ -93,3 +93,5 @@ READLINE_DEVEL_PACKGE_NAMES=('readline-devel' 'readline-dev')
 LIBFFI_DEVEL_PACKGE_NAMES=('libffi-devel' 'libffi-dev')
 # 安装gettext
 GETTEXT_DEVEL_PACKGE_NAMES=('gettext-devel' 'gettext-dev')
+# 安装java
+JAVA_PACKGE_NAMES=('java' 'default-jre')

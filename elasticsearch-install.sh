@@ -164,7 +164,7 @@ work_path_require 3 # 安装编译目录最少G
 install_path_require 4 # 安装目录最少G
 # ************** 安装 ******************
 # 下载elasticsearch包
-LINUX_BIT=`uname -a|grep -P 'el\d+\.x\d+_\d+' -o|grep -P 'x\d+_\d+' -o`
+LINUX_BIT=`uname -a|grep -P 'x\d+_\d+' -o|tail -n 1`
 # 不同版本文件名有区别
 if if_version $ELASTICSEARCH_VERSION '>=' '8.0.0'; then
     # 8.0以上的版本
@@ -176,6 +176,11 @@ else
     TAR_FILE_NAME=""
 fi
 download_software https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-$ELASTICSEARCH_VERSION$TAR_FILE_NAME.tar.gz elasticsearch-$ELASTICSEARCH_VERSION$(echo "$TAR_FILE_NAME"|sed -r 's/-linux-.*$//')
+# 安装java
+packge_manager_run install -JAVA_PACKGE_NAMES
+if ! if_command java;then
+    error_exit '安装java失败'
+fi
 # 创建用户
 add_user elasticsearch
 # 复制安装包
@@ -183,8 +188,6 @@ mkdirs $INSTALL_PATH$ELASTICSEARCH_VERSION
 echo '复制所有文件到：'$INSTALL_PATH$ELASTICSEARCH_VERSION
 cp -R ./* $INSTALL_PATH$ELASTICSEARCH_VERSION
 cd $INSTALL_PATH$ELASTICSEARCH_VERSION
-# 安装java
-tools_install java
 
 mkdirs data
 

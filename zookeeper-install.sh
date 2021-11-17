@@ -34,6 +34,11 @@ else
     DOWNLOAD_FILE_TYPE=""
 fi
 download_software "https://mirrors.bfsu.edu.cn/apache/zookeeper/zookeeper-$ZOOKEEPER_VERSION/apache-zookeeper-$ZOOKEEPER_VERSION$DOWNLOAD_FILE_TYPE.tar.gz" apache-zookeeper-$ZOOKEEPER_VERSION$DOWNLOAD_FILE_TYPE
+# 安装java
+packge_manager_run install -JAVA_PACKGE_NAMES
+if ! if_command java;then
+    error_exit '安装java失败'
+fi
 # 创建用户
 add_user zookeeper
 # 复制安装包
@@ -41,8 +46,6 @@ mkdirs $INSTALL_PATH$ZOOKEEPER_VERSION zookeeper
 echo '复制所有文件到：'$INSTALL_PATH$ZOOKEEPER_VERSION
 cp -R ./* $INSTALL_PATH$ZOOKEEPER_VERSION
 cd $INSTALL_PATH$ZOOKEEPER_VERSION
-# 安装java
-tools_install java
 echo 'zookeeper 配置文件修改'
 # 复制默认配置文件
 if [ ! -e "./conf/zoo.cfg" ];then
