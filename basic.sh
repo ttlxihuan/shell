@@ -123,50 +123,64 @@ download_software(){
         echo "删除解压目录重新解压：$DIR_NAME"
         rm -rf $DIR_NAME
     fi
-    if [ ! -e "$FILE_NAME" ];then
-        if ! wget --no-check-certificate -T 7200 $1; then
-            curl -OLkN --connect-timeout 7200 $1
+    local ATTEMPT=1
+    while true;do
+        ((ATTEMPT++))
+        if [ ! -e "$FILE_NAME" ];then
+            if ! wget --no-check-certificate -T 7200 $1; then
+                curl -OLkN --connect-timeout 7200 $1
+            fi
+            if [ $? -ne 0 ];then
+                mv $FILE_NAME "`date +'%Y_%m_%d_%H_%M_%S'`_error_$FILE_NAME"
+                error_exit "下载失败: $1"
+            fi
+        else
+            echo '已经存在下载文件：'$FILE_NAME
         fi
-        if [ $? -ne 0 ];then
-            mv $FILE_NAME "`date +'%Y_%m_%d_%H_%M_%S'`_error_$FILE_NAME"
-            error_exit "下载失败: $1"
+        if [ -d "$DIR_NAME" ] && (( `ls -las $DIR_NAME|wc -l` > 2 ));then
+            echo "解压目标目录 $DIR_NAME 已经存在有效文件，跳过解压操作"
+            break
+        else
+            echo '解压下载文件：'$FILE_NAME
+            case "$FILE_NAME" in
+                *.gz|*.tar.gz|*.tgz)
+                    tar -zxf $FILE_NAME
+                ;;
+                *.tar|*.tar.bz2)
+                    tar -xf $FILE_NAME
+                ;;
+                *.zip)
+                    if ! if_command unzip; then
+                        packge_manager_run install -UNZIP_PACKGE_NAMES
+                    fi
+                    unzip $FILE_NAME
+                ;;
+                *.tar.xz)
+                    if ! if_command xz; then
+                        packge_manager_run install -XZ_PACKGE_NAMES
+                    fi
+                    xz -d $FILE_NAME
+                    TAR_FILE_NAME=${FILE_NAME%*.xz}
+                    tar -xf $TAR_FILE_NAME
+                ;;
+                *.rpm|*.pem)
+                    return 0
+                ;;
+                *)
+                    error_exit "未知解压文件: $FILE_NAME"
+                ;;
+            esac
+            if [ $? = '0' ];then
+                echo "下载文件的sha256: "`sha256sum $FILE_NAME`
+                break
+            elif ((ATTEMPT <= 3));then
+                echo "解压文件失败: $FILE_NAME，正在第 $ATTEMPT 次尝试重新下载解压"
+                rm -f $FILE_NAME
+            else
+                error_exit "解压文件失败: $FILE_NAME ，请确认下载地址：$1"
+            fi
         fi
-    else
-        echo '已经存在下载文件：'$FILE_NAME
-    fi
-    if [ ! -d "$DIR_NAME" ];then
-        echo '解压下载文件：'$FILE_NAME
-        case "$FILE_NAME" in
-            *.gz|*.tar.gz|*.tgz)
-                tar -zxf $FILE_NAME
-            ;;
-            *.tar|*.tar.bz2)
-                tar -xf $FILE_NAME
-            ;;
-            *.zip)
-                if ! if_command unzip; then
-                    packge_manager_run install -UNZIP_PACKGE_NAMES
-                fi
-                unzip $FILE_NAME
-            ;;
-            *.tar.xz)
-                if ! if_command xz; then
-                    packge_manager_run install -XZ_PACKGE_NAMES
-                fi
-                xz -d $FILE_NAME
-                TAR_FILE_NAME=${FILE_NAME%*.xz}
-                tar -xf $TAR_FILE_NAME
-            ;;
-            *.rpm|*.pem)
-                return 0
-            ;;
-            *)
-                error_exit "未知解压文件: $FILE_NAME"
-            ;;
-        esac
-        if_error "解压文件失败: $FILE_NAME"
-        echo "下载文件的sha256: "`sha256sum $FILE_NAME`
-    fi
+    done
     cd $DIR_NAME
     if_error "解压目录找不到: $DIR_NAME"
     return 0
