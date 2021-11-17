@@ -696,7 +696,7 @@ tools_install(){
         if ! if_command $TOOL;then
             packge_manager_run install $TOOL 2> /dev/null
             if ! if_command $TOOL;then
-                error_exit "安装工具失败: $TOOL"
+                error_exit "安装工具 $TOOL 失败"
             fi
         fi
     done
