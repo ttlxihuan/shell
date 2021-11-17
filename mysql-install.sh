@@ -151,20 +151,20 @@ else
     CMAKE_CONFIG='-DDOWNLOAD_BOOST=1 -DWITH_BOOST=../boost/ -DDOWNLOAD_BOOST_TIMEOUT=10000'
 fi
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 # 新版需要cmake3来安装
 INSTALL_CMAKE=`cat CMakeLists.txt 2>&1|grep -P 'yum\s+install\s+cmake\d?' -o|grep -P 'cmake\d?' -o`
 if [ -z "$INSTALL_CMAKE" ];then
     INSTALL_CMAKE="cmake"
 fi
 if if_lib "openssl";then
-    echo 'openssl ok'
+    info_msg 'openssl ok'
 else
     # 安装openssl-dev
     packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
 fi
 if if_lib 'ncurses';then
-    echo 'ncurses ok'
+    info_msg 'ncurses ok'
 else
     packge_manager_run install -NCURSES_DEVEL_PACKGE_NAMES
 fi
@@ -277,7 +277,7 @@ MY_CONF
 fi
 touch ./run/mysqld.pid ./run/mysqld.log
 chown -R mysql:mysql ./*
-echo "mysql 配置文件修改"
+info_msg "mysql 配置文件修改"
 MYSQL_RUN_PATH="$INSTALL_PATH$MYSQL_VERSION/run"
 sed -i "s/^datadir.*=.*data.*/datadir=database/" $MY_CNF
 sed -i "s#^socket.*=.*#socket=$MYSQL_RUN_PATH/mysql.sock#" $MY_CNF
@@ -370,7 +370,7 @@ MY_CONF
 fi
 
 # 初始化处理
-echo 'mysql 初始化处理'
+info_msg 'mysql 初始化处理'
 if [ -e "./scripts/mysql_install_db" ];then
     ./scripts/mysql_install_db --user=mysql
 else
@@ -403,12 +403,12 @@ else
     OPEN_SERVICE="service mysqld start"
 fi
 
-echo $OPEN_SERVICE
+run_msg $OPEN_SERVICE
 
 # 重复多次尝试启动服务
 for((LOOP_NUM=1;LOOP_NUM<5;LOOP_NUM++))
 do
-   echo "第${LOOP_NUM}次尝试启动mysql";
+   info_msg "第${LOOP_NUM}次尝试启动mysql";
    eval "$OPEN_SERVICE"
    if [ -z "`netstat -ntlp|grep mysql`" ]; then
        sleep 5;
@@ -419,32 +419,32 @@ done
 
 # 修改密码，建立主从复制
 if [ -n "`netstat -ntlp|grep mysql`" ]; then
-    echo '修改初始mysql密码';
-    echo "初始密码: $TEMP_PASSWORD"
+    info_msg '修改初始mysql密码';
+    info_msg "初始密码: $TEMP_PASSWORD"
     if [ -n "$TEMP_PASSWORD" ]; then
-        echo "mysql -uroot --password=\"$TEMP_PASSWORD\" -h127.0.0.1 --connect-expired-password -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'\" 2>&1"
+        run_msg "mysql -uroot --password=\"$TEMP_PASSWORD\" -h127.0.0.1 --connect-expired-password -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'\" 2>&1"
         for((LOOP_NUM=1;LOOP_NUM<10;LOOP_NUM++))
         do
-            echo "第${LOOP_NUM}次尝试修改密码";
+            info_msg "第${LOOP_NUM}次尝试修改密码";
             UPDATE_PASSWORD=`mysql -uroot --password="$TEMP_PASSWORD" -h127.0.0.1 --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'" 2>&1`
             if [[ "$UPDATE_PASSWORD" =~ "ERROR" ]]; then
-                echo $UPDATE_PASSWORD
-                echo "修改mysql初始密码失败"
+                info_msg $UPDATE_PASSWORD
+                info_msg "修改mysql初始密码失败"
                 sleep 5;
             else
-                echo "新mysql密码: $MYSQL_ROOT_PASSWORD"
-                echo "新mysql密码已经写入配置文件中备注"
+                info_msg "新mysql密码: $MYSQL_ROOT_PASSWORD"
+                info_msg "新mysql密码已经写入配置文件中备注"
                 echo "#  root 密码: $MYSQL_ROOT_PASSWORD" >> $MY_CNF
                 break
             fi
         done
     else
-        echo "没有指定有效新密码，修改mysql初始密码失败，初始密码已经写入配置文件中备注，生产环境注意删除掉"
+        info_msg "没有指定有效新密码，修改mysql初始密码失败，初始密码已经写入配置文件中备注，生产环境注意删除掉"
         echo "# 初始 root 密码: $TEMP_PASSWORD" >> $MY_CNF
     fi
     # 配置主从
     if [ "$MYSQL_SYNC_BIN" = 'main' ]; then
-        echo '主从配置，当前服务为：main';
+        info_msg '主从配置，当前服务为：main';
         #
         # 数据库指派权限时，如果库名有下划线需要加反斜杠转义否则指派异常
         # 如 GRANT ALL PRIVILEGES ON `tt\_logs`.* TO `dev`@`localhost`
@@ -457,29 +457,29 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
         # File                    Slave_IO_Running 必需项
         # Replication Client      终端基本查询必需项如 show master status;
         # Replication Slave       Slave_SQL_Running  必需项
-        echo "mysql -uroot --password=\"$MYSQL_ROOT_PASSWORD\" -h127.0.0.1 -e \"create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;\""
+        run_msg "mysql -uroot --password=\"$MYSQL_ROOT_PASSWORD\" -h127.0.0.1 -e \"create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;\""
         mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -h127.0.0.1 -e "create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;"
     elif [ "$MYSQL_SYNC_BIN" = 'slave' ]; then
-        echo '主从配置，当前服务为：slave';
+        info_msg '主从配置，当前服务为：slave';
         MASTER_USER=`echo $MYSQL_SYNC_BIN_HOST|grep -P '^[^@]+' -o`
         MASTER_HOST=`echo $MYSQL_SYNC_BIN_HOST|grep -P '[^@]+$' -o`
         # 读取主服务器上的同步起始值
-        echo "mysql -h$MASTER_HOST -u$MASTER_USER --password=\"$MYSQL_SYNC_BIN_PASSWORD\" -e 'SHOW MASTER STATUS' -X 2>&1"
+        run_msg "mysql -h$MASTER_HOST -u$MASTER_USER --password=\"$MYSQL_SYNC_BIN_PASSWORD\" -e 'SHOW MASTER STATUS' -X 2>&1"
         SQL_RESULT=`mysql -h$MASTER_HOST -u$MASTER_USER --password="$MYSQL_SYNC_BIN_PASSWORD" -e 'SHOW MASTER STATUS' -X 2>&1`
         MASTER_LOG_FILE=`echo $SQL_RESULT|grep -P 'File[^<]+' -o|grep -P '[^>]+$' -o`
         MASTER_LOG_POS=`echo $SQL_RESULT|grep -P 'Position[^<]+' -o|grep -P '\d+$' -o`
         if [ -n "$MASTER_LOG_FILE" ] && [ -n "$MASTER_LOG_POS" ]; then
-            echo "mysql -uroot --password='$MYSQL_ROOT_PASSWORD' -h127.0.0.1 -e \"change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS; start slave; show slave status \G\""
+            run_msg "mysql -uroot --password='$MYSQL_ROOT_PASSWORD' -h127.0.0.1 -e \"change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS; start slave; show slave status \G\""
             mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -h127.0.0.1 -e "stop slave;change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS;start slave;show slave status \G "
         else
-            echo $SQL_RESULT;
-            echo '主从配置失败';
+            info_msg $SQL_RESULT;
+            info_msg '主从配置失败';
         fi
     else
-        echo '没有指定主从配置';
+        info_msg '没有指定主从配置';
     fi
 else
-    echo 'mysql服务未能启动，无法进行配置';
+    warn_msg 'mysql服务未能启动，无法进行配置';
 fi
 
-echo "安装成功：mysql-$MYSQL_VERSION";
+info_msg "安装成功：mysql-$MYSQL_VERSION";

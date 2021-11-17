@@ -64,7 +64,7 @@ download_software http://$NGINX_HOST/download/nginx-$NGINX_VERSION.tar.gz
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 if ! if_command pcre-config;then
     # 安装pcre
     packge_manager_run install -PCRE_DEVEL_PACKGE_NAMES
@@ -85,7 +85,7 @@ if in_options 'http_ssl_module' $CONFIGURE_OPTIONS;then
         CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-openssl=`pwd`"
         cd $NGINX_CONFIGURE_PATH
     elif if_lib 'openssl' '>=' '1.0.1' && which -a openssl|grep -P '^/usr(/local|/pkg)?/bin/openssl$';then
-        echo 'openssl ok'
+        info_msg 'openssl ok'
     else
         # 删除原来版本
         packge_manager_run remove -OPENSSL_DEVEL_PACKGE_NAMES
@@ -96,7 +96,7 @@ fi
 # http_gzip_module 模块
 if ! in_options '!http_gzip_module' $CONFIGURE_OPTIONS;then
     if if_lib 'libzip';then
-        echo 'libzip ok'
+        info_msg 'libzip ok'
     else
         # 安装zlib
         packge_manager_run install -ZLIB_DEVEL_PACKGE_NAMES
@@ -107,7 +107,7 @@ configure_install $CONFIGURE_OPTIONS
 # 创建用户组
 add_user nginx
 # 配置文件处理
-echo "nginx 配置文件修改"
+info_msg "nginx 配置文件修改"
 cd $INSTALL_PATH$NGINX_VERSION/conf
 if [ ! -d "vhosts" ]; then
     mkdirs vhosts
@@ -240,7 +240,7 @@ fi
 #fi
 cd $INSTALL_PATH$NGINX_VERSION/sbin
 if [ -n "`./nginx -t|grep error`" ]; then
-    echo "nginx 配置文件错误，请注意修改"
+    info_msg "nginx 配置文件错误，请注意修改"
 else
     if [ -n "ps aux|grep nginx" ]; then
         ./nginx
@@ -250,4 +250,4 @@ else
 fi
 
 # 安装成功
-echo "安装成功：nginx-$NGINX_VERSION";
+info_msg "安装成功：nginx-$NGINX_VERSION";

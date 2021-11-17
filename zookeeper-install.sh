@@ -26,7 +26,6 @@ memory_require 4 # 内存最少G
 work_path_require 1 # 安装编译目录最少G
 install_path_require 1 # 安装目录最少G
 # ************** 编译安装 ******************
-chdir $INSTALL_NAME
 # 下载kzookeeper包
 if if_version $ZOOKEEPER_VERSION '>=' '3.5.5';then
     DOWNLOAD_FILE_TYPE="-bin"
@@ -43,10 +42,10 @@ fi
 add_user zookeeper
 # 复制安装包
 mkdirs $INSTALL_PATH$ZOOKEEPER_VERSION zookeeper
-echo '复制所有文件到：'$INSTALL_PATH$ZOOKEEPER_VERSION
+info_msg '复制所有文件到：'$INSTALL_PATH$ZOOKEEPER_VERSION
 cp -R ./* $INSTALL_PATH$ZOOKEEPER_VERSION
 cd $INSTALL_PATH$ZOOKEEPER_VERSION
-echo 'zookeeper 配置文件修改'
+info_msg 'zookeeper 配置文件修改'
 # 复制默认配置文件
 if [ ! -e "./conf/zoo.cfg" ];then
     cp ./conf/zoo_sample.cfg ./conf/zoo.cfg
@@ -58,7 +57,7 @@ chown -R zookeeper:zookeeper ./
 sed -i -r "s/^(dataDir=).*$/\1$(echo "$INSTALL_PATH$ZOOKEEPER_VERSION/"|sed 's/\//\\\//g')run/" ./conf/zoo.cfg
 
 # 启动服务端服务
-echo "sudo -u zookeeper ./bin/zkServer.sh --config ./conf start"
+run_msg "sudo -u zookeeper ./bin/zkServer.sh --config ./conf start"
 sudo -u zookeeper ./bin/zkServer.sh --config ./conf start
 
 RUN_STATUS_OUT=`find $INSTALL_PATH$ZOOKEEPER_VERSION/logs/ -name 'zookeeper*.out'|tail -n 1`
@@ -66,4 +65,4 @@ if [ -e "$RUN_STATUS_OUT" ];then
     cat $RUN_STATUS_OUT
 fi
 
-echo "安装成功：zookeeper-$ZOOKEEPER_VERSION";
+info_msg "安装成功：zookeeper-$ZOOKEEPER_VERSION";

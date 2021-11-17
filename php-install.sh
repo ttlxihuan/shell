@@ -82,7 +82,7 @@ PHP_CONFIGURE_PATH=`pwd`
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 # ca-certificates 根证书更新
 packge_manager_run install -CA_CERT_PACKGE_NAMES
 # ***选项处理&选项依赖安装***
@@ -93,7 +93,7 @@ fi
 # mcrypt 扩展使用（PHP7已经不再使用）
 if in_options mcrypt $CONFIGURE_OPTIONS;then
     if if_command libmcrypt-config;then
-        echo 'libmcrypt ok'
+        info_msg 'libmcrypt ok'
     else
         # 安装 libmcrypt
         packge_manager_run install -LIBMCRYPT_DEVEL_PACKGE_NAMES
@@ -111,7 +111,7 @@ if ! in_options !iconv $CONFIGURE_OPTIONS;then
         # 安装iconv
         # 获取最新版
         get_version LIBICONV_VERSION http://ftp.gnu.org/pub/gnu/libiconv/ 'libiconv-\d+\.\d+\.tar\.gz' '\d+\.\d+'
-        echo "安装：libiconv-$LIBICONV_VERSION"
+        info_msg "安装：libiconv-$LIBICONV_VERSION"
         # 下载
         download_software http://ftp.gnu.org/pub/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz
         # 编译安装
@@ -120,13 +120,13 @@ if ! in_options !iconv $CONFIGURE_OPTIONS;then
         # 安装多个版本需要指定安装目录
         CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-iconv=`which iconv|grep -oP '/([^/]+/)+'|grep -oP '(/[^/]+)+'` "
     else
-        echo 'libiconv ok'
+        info_msg 'libiconv ok'
     fi
 fi
 # gmp扩展
 if in_options gmp $CONFIGURE_OPTIONS;then
     if ldconfig -p|grep -q '/libgmp\.so' && find /usr/include/ -name 'gmp.h'|grep 'gmp' && find /usr/local/include/ -name 'gmp.h'|grep 'gmp';then
-        echo 'gmp ok'
+        info_msg 'gmp ok'
     else
         # 安装gmp-dev
         packge_manager_run install -GMP_DEVEL_PACKGE_NAMES
@@ -135,13 +135,13 @@ fi
 # gd 扩展使用
 if in_options gd $CONFIGURE_OPTIONS;then
     if if_lib 'libpng';then
-        echo 'libpng ok'
+        info_msg 'libpng ok'
     else
         # 安装png-dev
         packge_manager_run install -PNG_DEVEL_PACKGE_NAMES
     fi
     if if_lib 'freetype2';then
-        echo 'freetype2 ok'
+        info_msg 'freetype2 ok'
     else
         # 安装freetype
         packge_manager_run install -FREETYPE_DEVEL_PACKGE_NAMES
@@ -151,12 +151,12 @@ if in_options gd $CONFIGURE_OPTIONS;then
         if if_version $PHP_VERSION '>=' 7.4.0;then
             # 安装 libjpeg
             if if_lib "libjpeg";then
-                echo 'libjpeg ok'
+                info_msg 'libjpeg ok'
             else
                 # 获取最新版
                 get_version JPEG_PATH http://www.ijg.org/files/ 'jpegsrc\.v\d+c\.tar\.gz' '.*'
                 JPEG_VERSION=`echo $JPEG_PATH|grep -oP '\d+c\.tar\.gz$'|grep -oP '\d+'`
-                echo "安装：jpeg-$JPEG_VERSION"
+                info_msg "安装：jpeg-$JPEG_VERSION"
                 # 下载
                 download_software http://www.ijg.org/files/$JPEG_PATH "jpeg-"$JPEG_VERSION"c"
                 # 编译安装
@@ -172,7 +172,7 @@ fi
 if in_options zip $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 7.3.0;then
         if if_lib "libzip";then
-            echo 'libzip ok'
+            info_msg 'libzip ok'
         else
             # 安装libzip-dev
             packge_manager_run install -ZIP_DEVEL_PACKGE_NAMES
@@ -183,7 +183,7 @@ if in_options zip $CONFIGURE_OPTIONS;then
         # libzip-1.3+ 编译不能通过会提示 错误:‘LIBZIP_VERSION’未声明(在此函数内第一次使用)
         # 目前安装 1.2 版本可以通过编译
         LIBZIP_VERSION="1.2.0"
-        echo "安装：libzip-$LIBZIP_VERSION"
+        info_msg "安装：libzip-$LIBZIP_VERSION"
         download_software https://libzip.org/download/libzip-$LIBZIP_VERSION.tar.gz
         # 删除旧包
         packge_manager_run remove -ZIP_DEVEL_PACKGE_NAMES
@@ -193,14 +193,14 @@ if in_options zip $CONFIGURE_OPTIONS;then
         configure_install --prefix=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
         #cp /usr/local/lib/libzip/include/zipconf.h /usr/local/include/zipconf.h
     else
-        echo 'libzip ok'
+        info_msg 'libzip ok'
     fi
 fi
 # openssl 扩展使用
 if in_options openssl $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 7.0.0;then
         if if_lib "openssl";then
-            echo 'openssl ok'
+            info_msg 'openssl ok'
         else
             # 安装openssl-dev
             packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
@@ -208,13 +208,13 @@ if in_options openssl $CONFIGURE_OPTIONS;then
     else
         # 安装 openssl
         if if_lib "openssl" ">=" "1.0.2";then
-            echo 'openssl ok'
+            info_msg 'openssl ok'
         else
             # 获取较新版
             # get_version OPENSSL_VERSION https://www.openssl.org/source/ 'openssl-\d+\.\d+\.\d+[a-z]*\.tar\.gz[^\.]' '\d+\.\d+\.\d+[a-z]*'
             # 使用固定较新版本，版本过新有兼容问题
             OPENSSL_VERSION='1.1.1g'
-            echo "安装：openssl-$OPENSSL_VERSION"
+            info_msg "安装：openssl-$OPENSSL_VERSION"
             # 下载
             download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
             # 移除不要的组件
@@ -240,26 +240,26 @@ if in_options curl $CONFIGURE_OPTIONS;then
         # 安装较高版本
         # 获取最新版
         get_version LIBCURL_VERSION https://curl.se/download.html 'curl-\d+(\.\d+)+\.tar\.gz'
-        echo "安装：libcurl-$LIBCURL_VERSION"
+        info_msg "安装：libcurl-$LIBCURL_VERSION"
         # 下载
         download_software https://curl.se/download/curl-$LIBCURL_VERSION.tar.gz
         # 编译安装
         configure_install --prefix=$INSTALL_BASE_PATH/curl/$LIBCURL_VERSION --enable-libcurl-option --with-openssl
     fi
-    echo 'libcurl ok'
+    info_msg 'libcurl ok'
 fi
 # sqlite3 扩展使用
 if ! in_options !sqlite3 $CONFIGURE_OPTIONS || ! in_options !pdo-sqlite $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '>=' 7.4.0;then
         if if_lib "sqlite3" ">" "3.7.4"; then
-            echo 'sqlite3 ok'
+            info_msg 'sqlite3 ok'
         else
             # 安装tcl
             packge_manager_run install -TCL_PACKGE_NAMES
             # 获取最新版
             get_version SPLITE3_PATH https://www.sqlite.org/download.html '(\w+/)+sqlite-autoconf-\d+\.tar\.gz' '.*'
             SPLITE3_VERSION=`echo $SPLITE3_PATH|grep -oP '\d+\.tar\.gz$'|grep -oP '\d+'`
-            echo "安装：sqlite3-$SPLITE3_VERSION"
+            info_msg "安装：sqlite3-$SPLITE3_VERSION"
             # 下载
             download_software https://www.sqlite.org/$SPLITE3_PATH
             # 编译安装
@@ -271,7 +271,7 @@ fi
 if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 7.4.0;then
         if if_lib "libxml-2.0";then
-            echo 'libxml ok'
+            info_msg 'libxml ok'
         else
             # 安装libxml2-dev
             packge_manager_run install -LIBXML2_DEVEL_PACKGE_NAMES
@@ -284,11 +284,11 @@ if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;the
         fi
         # 安装libxml2
         if if_lib "libxml-2.0" ">=" "$MIN_LIBXML2_VERSION";then
-            echo 'libxml ok'
+            info_msg 'libxml ok'
         else
             # 获取最新版
             get_version LIBXML2_VERSION "ftp://xmlsoft.org/libxml2/" 'libxml2-sources-\d+\.\d+\.\d+\.tar\.gz'
-            echo "安装：libxml2-$LIBXML2_VERSION"
+            info_msg "安装：libxml2-$LIBXML2_VERSION"
             # 下载
             download_software ftp://xmlsoft.org/libxml2/libxml2-sources-$LIBXML2_VERSION.tar.gz libxml2-$LIBXML2_VERSION
             # 安装 python-dev
@@ -312,11 +312,11 @@ if if_version $PHP_VERSION '>=' 7.4.0;then
 #        if test ! -f "$PHP_CONFIGURE_PATH/Zend/zend_language_parser.h" || test ! -f "$PHP_CONFIGURE_PATH/Zend/zend_language_parser.c"; then
 #            # bison 安装
 #            if if_command bison && if_version `bison -V|head -n 1|grep -oP '\d+\.\d+'` '>=' '3.0';then
-#                echo 'bison ok'
+#                info_msg 'bison ok'
 #            else
 #                # 获取最新版
 #                get_version BISON_VERSION http://ftp.gnu.org/gnu/bison/ 'bison-\d+\.\d+\.tar\.gz'
-#                echo "安装：bison-$BISON_VERSION"
+#                info_msg "安装：bison-$BISON_VERSION"
 #                # 下载
 #                download_software http://ftp.gnu.org/gnu/bison/bison-$BISON_VERSION.tar.gz
 #                # 编译安装
@@ -365,7 +365,7 @@ configure_install $CONFIGURE_OPTIONS
 add_user phpfpm
 
 # 配置文件处理
-echo 'php 配置文件修改'
+info_msg 'php 配置文件修改'
 cp -f php.ini-production $INSTALL_PATH$PHP_VERSION/lib/php.ini
 cd $INSTALL_PATH$PHP_VERSION
 cp -f etc/php-fpm.conf.default etc/php-fpm.conf
@@ -411,18 +411,18 @@ do
         EXT_ADD_OPTIONS="`echo $EXT_OPTIONS|awk '{$1=""; print}'`"
     fi
     if in_add_options $EXT_NAME $ADD_OPTIONS && $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "$EXT_NAME";then
-        echo "安装pecl扩展：$EXT_NAME"
+        info_msg "安装pecl扩展：$EXT_NAME"
         # 最低PHP版本处理
         get_version MIN_PHP_VERSION "https://pecl.php.net/package/$EXT_NAME" "PHP Version: PHP \d+\.\d+\.\d+ or newer" "\d+\.\d+\.\d+"
         if if_version $MIN_PHP_VERSION '>' $PHP_VERSION;then
-            echo "$EXT_NAME 需要 php 版本大于：$MIN_PHP_VERSION"
+            warn_msg "$EXT_NAME 需要 php 版本大于：$MIN_PHP_VERSION"
             continue
         fi
         if [ -z $EXT_VERSION ] || [[ $EXT_VERSION == "new" ]]; then
-            echo "获取 $EXT_NAME 最新版本号"
+            info_msg "获取 $EXT_NAME 最新版本号"
             get_version EXT_VERSION "https://pecl.php.net/package/$EXT_NAME" "$EXT_NAME-\d+\.\d+\.\d+.tgz" "\d+\.\d+\.\d+"
         fi
-        echo "安装：$EXT_NAME-$EXT_VERSION"
+        info_msg "安装：$EXT_NAME-$EXT_VERSION"
         # 下载
         download_software https://pecl.php.net/get/$EXT_NAME-$EXT_VERSION.tgz
         # 通过phpize安装
@@ -434,12 +434,12 @@ do
         if [ -z "`cat lib/php.ini|grep extension=$EXT_NAME.so`" ]; then
             echo "extension=$EXT_NAME.so" >> lib/php.ini
         fi
-        echo "安装成功：$EXT_NAME-$EXT_VERSION"
+        info_msg "安装成功：$EXT_NAME-$EXT_VERSION"
     fi
 done
 
 # 启动服务
-echo './sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid'
+run_msg './sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid'
 ./sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid
 # 添加执行文件连接
 add_local_run $INSTALL_PATH$PHP_VERSION/bin/ php
@@ -453,4 +453,4 @@ if [ -n "$PHP_SSL_LOCA_CERT_FILE" ] && [ ! -e "$PHP_SSL_LOCA_CERT_FILE" ];then
         mv cacert.pem $PHP_SSL_LOCA_CERT_FILE
     fi
 fi
-echo "安装成功：php-$PHP_VERSION";
+info_msg "安装成功：php-$PHP_VERSION";

@@ -44,7 +44,7 @@ download_software http://archive.apache.org/dist/httpd/httpd-$APACHE_VERSION.tar
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 APACHE_CURRENT_PATH=`pwd`
 # 开启ssl
 if in_options ssl $CONFIGURE_OPTIONS;then
@@ -59,7 +59,7 @@ if in_options ssl $CONFIGURE_OPTIONS;then
         OPENSSL_VERSION='0.9.8c'
     fi
     if if_lib "openssl" ">=" $OPENSSL_VERSION;then
-        echo 'openssl ok'
+        info_msg 'openssl ok'
     else
         OPENSSL_VERSION='1.1.1'
         download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
@@ -76,7 +76,7 @@ if in_options ssl $CONFIGURE_OPTIONS;then
     fi
 fi
 if if_lib 'libpcre';then
-    echo 'pcre ok'
+    info_msg 'pcre ok'
 else
     packge_manager_run install -PCRE_DEVEL_PACKGE_NAMES
 fi
@@ -92,7 +92,7 @@ if [ -n "$APR_MIN_VERSION" ];then
     if [ ! -d "$APACHE_CURRENT_PATH/srclib/apr" ];then
         # 获取最新版
         get_version APR_VERSION https://archive.apache.org/dist/apr/ "apr-$VERSION_MATCH\.tar\.gz"
-        echo "下载：apr-$APR_VERSION"
+        info_msg "下载：apr-$APR_VERSION"
         # 下载
         download_software https://archive.apache.org/dist/apr/apr-$APR_VERSION.tar.gz
         # 复制到编译目录
@@ -102,7 +102,7 @@ if [ -n "$APR_MIN_VERSION" ];then
     if [ ! -d "$APACHE_CURRENT_PATH/srclib/apr-util" ]; then
         # 获取最新版
         get_version APR_UTIL_VERSION https://archive.apache.org/dist/apr/ "apr-util-$VERSION_MATCH\.tar\.gz"
-        echo "下载：apr-util-$APR_UTIL_VERSION"
+        info_msg "下载：apr-util-$APR_UTIL_VERSION"
         # 下载
         download_software https://archive.apache.org/dist/apr/apr-util-$APR_UTIL_VERSION.tar.gz
         # 复制到编译目录
@@ -119,4 +119,4 @@ configure_install $CONFIGURE_OPTIONS
 apachectl -k start
 # 添加执行文件连接
 ln -svf $INSTALL_PATH$APACHE_VERSION/bin/apachectl /usr/local/bin/httpd
-echo "安装成功：apache-$APACHE_VERSION"
+info_msg "安装成功：apache-$APACHE_VERSION"

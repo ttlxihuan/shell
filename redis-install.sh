@@ -74,12 +74,12 @@ add_user redis
 
 # 复制安装包
 mkdirs $INSTALL_PATH$REDIS_VERSION redis
-echo '复制所有文件到：'$INSTALL_PATH$REDIS_VERSION
+info_msg '复制所有文件到：'$INSTALL_PATH$REDIS_VERSION
 cp -R ./* $INSTALL_PATH$REDIS_VERSION
 cd $INSTALL_PATH$REDIS_VERSION
 
 # redis conf set
-echo 'redis 配置文件修改'
+info_msg 'redis 配置文件修改'
 sed -i -r 's/^(daemonize )no/\1yes/' redis.conf # 后台运行
 
 # 开启自动保存到硬盘持久化配置
@@ -99,7 +99,7 @@ sed -i -r 's/^#\s*(masterauth ).*/\1 这里是密码内容/' redis.conf # 设置
 mkdirs data redis
 
 # 启动服务
-echo 'sudo -u redis ./src/redis-server redis.conf'
+run_msg 'sudo -u redis ./src/redis-server redis.conf'
 sudo -u redis ./src/redis-server redis.conf
 
 # 创建集群
@@ -118,5 +118,5 @@ if [ -n "$ARGV_cluster_hosts" ];then
     fi
 fi
 
-echo "安装成功：redis-$REDIS_VERSION";
+info_msg "安装成功：redis-$REDIS_VERSION";
 

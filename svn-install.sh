@@ -49,7 +49,7 @@ parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 暂存编译目录
 SVN_CONFIGURE_PATH=`pwd`
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 # sqlite 处理，多个版本时容易出问题，svn: E200030: SQLite compiled for 3.36.0, but running with 3.6.20
 # 目录需要把安装目录里的 libsqlite3.so.0.8.6 复制到 /usr/lib64 目录才能编译完成并正常使用svn
 SQLITE_MINIMUM_VER=`grep -oP 'SQLITE_MINIMUM_VER="\d+(\.\d+)+"' ./configure|grep -oP '\d+(\.\d+)+'`
@@ -59,23 +59,23 @@ elif ! if_command sqlite3 || if_version "$SQLITE_MINIMUM_VER" ">" "`sqlite3 --ve
     # 获取最新版
     get_version SPLITE3_PATH https://www.sqlite.org/download.html '(\w+/)+sqlite-autoconf-\d+\.tar\.gz' '.*'
     SPLITE3_VERSION=`echo $SPLITE3_PATH|grep -oP '\d+\.tar\.gz$'|grep -oP '\d+'`
-    echo "安装：sqlite3-$SPLITE3_VERSION"
+    info_msg "安装：sqlite3-$SPLITE3_VERSION"
     # 下载
     download_software https://www.sqlite.org/$SPLITE3_PATH
     # 编译安装
     configure_install --prefix=/usr/local --enable-shared
 else
-    echo 'sqlite ok'
+    info_msg 'sqlite ok'
 fi
 # 安装openssl
 if if_lib "openssl";then
-    echo 'openssl ok'
+    info_msg 'openssl ok'
 else
     packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
 fi
 # 安装zlib
 if if_lib 'libzip';then
-    echo 'libzip ok'
+    info_msg 'libzip ok'
 else
     packge_manager_run install -ZLIB_DEVEL_PACKGE_NAMES
 fi
@@ -92,7 +92,7 @@ if [ -e 'INSTALL' ];then
                 packge_manager_run install -APR${ITEM_APR#*:}_DEVEL_PACKGE_NAMES
             fi
             if if_lib "apr${ITEM_APR%:*}-1" '>=' $MIN_APR_DEVEL_VERSION;then
-                echo "apr${ITEM_APR%:*} ok"
+                info_msg "apr${ITEM_APR%:*} ok"
             else
                 error_exit "apr${ITEM_APR%:*}版本过低，要求apr${ITEM_APR%:*}-$MIN_APR_DEVEL_VERSION+ ，需要手动安装或者降低svn安装版本"
             fi
@@ -101,12 +101,12 @@ if [ -e 'INSTALL' ];then
 else
     # 安装apr-util
     if if_lib 'apr-util-1';then
-        echo 'apr-util ok'
+        info_msg 'apr-util ok'
     else
         packge_manager_run install -APR_UTIL_DEVEL_PACKGE_NAMES
     fi
     if if_lib 'apr-1';then
-        echo 'apr ok'
+        info_msg 'apr ok'
     else
         packge_manager_run install -APR_DEVEL_PACKGE_NAMES
     fi
@@ -124,8 +124,8 @@ if [ -n "$ARGV_work_dir" ];then
     add_user svnserve
     chown -R svnserve:svnserve $ARGV_work_dir
     # 启动服务
-    echo "sudo -u svnserve ./bin/svnserve -d -r $ARGV_work_dir"
+    run_msg "sudo -u svnserve ./bin/svnserve -d -r $ARGV_work_dir"
     sudo -u svnserve ./bin/svnserve -d -r $ARGV_work_dir
 fi
 
-echo "安装成功：svn-$SVN_VERSION"
+info_msg "安装成功：svn-$SVN_VERSION"

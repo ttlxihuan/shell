@@ -1,7 +1,5 @@
 #!/bin/bash
-if [ "$0" = 'basic.sh' ] || [[ "$0" == */basic.sh ]];then
-    error_exit "basic.sh 脚本是共用文件必需使用source调用"
-fi
+
 # 切换工作目录
 # @command chdir $path
 # @param $path      切换的子目录
@@ -109,18 +107,18 @@ download_software(){
     else
         DIR_NAME="$2"
     fi
-    echo "下载并解压：$1"
+    info_msg "下载并解压：$1"
     if [ -z "$DIR_NAME" ];then
         error_exit "下载目录找不到"
     fi
     chdir $INSTALL_NAME
     # 重新下载再安装
     if [ "$ARGV_reset" = '3' -a -e "$FILE_NAME" ];then
-        echo "删除下载文件重新下载：$FILE_NAME"
+        info_msg "删除下载文件重新下载：$FILE_NAME"
         rm -f $FILE_NAME
     fi
     if [[ "$ARGV_reset" =~ ^[2-3]$ ]] && [ -d "$DIR_NAME" ];then
-        echo "删除解压目录重新解压：$DIR_NAME"
+        info_msg "删除解压目录重新解压：$DIR_NAME"
         rm -rf $DIR_NAME
     fi
     local ATTEMPT=1
@@ -135,13 +133,13 @@ download_software(){
                 error_exit "下载失败: $1"
             fi
         else
-            echo '已经存在下载文件：'$FILE_NAME
+            info_msg '已经存在下载文件：'$FILE_NAME
         fi
         if [ -d "$DIR_NAME" ] && (( `ls -las $DIR_NAME|wc -l` > 2 ));then
-            echo "解压目标目录 $DIR_NAME 已经存在有效文件，跳过解压操作"
+            info_msg "解压目标目录 $DIR_NAME 已经存在有效文件，跳过解压操作"
             break
         else
-            echo '解压下载文件：'$FILE_NAME
+            info_msg '解压下载文件：'$FILE_NAME
             case "$FILE_NAME" in
                 *.gz|*.tar.gz|*.tgz)
                     tar -zxf $FILE_NAME
@@ -171,10 +169,10 @@ download_software(){
                 ;;
             esac
             if [ $? = '0' ];then
-                echo "下载文件的sha256: "`sha256sum $FILE_NAME`
+                info_msg "下载文件的sha256: "`sha256sum $FILE_NAME`
                 break
             elif ((ATTEMPT <= 3));then
-                echo "解压文件失败: $FILE_NAME，正在第 $ATTEMPT 次尝试重新下载解压"
+                warn_msg "解压文件失败: $FILE_NAME，正在第 $ATTEMPT 次尝试重新下载解压"
                 rm -f $FILE_NAME
             else
                 error_exit "解压文件失败: $FILE_NAME ，请确认下载地址：$1"
@@ -413,7 +411,7 @@ EOF
             ((ARGUMENTS_INDEX+=1))
         fi
         if [ -z "$NAME" ];then
-            echo "未知参数: "$ITEM
+            warn_msg "未知参数: "$ITEM
         else
             ARG_NAME="ARGV_"`printf '%s' "$NAME"|sed -r "s/^-{1,2}//"|sed "s/-/_/g"`
             eval "$ARG_NAME=\$VALUE"
@@ -502,7 +500,7 @@ in_options(){
         PREFIX='disable|without'
         OPTION_NAME=${1:1}
     fi
-    echo "${@:1}"|grep -qP "\--(($PREFIX)-)?($OPTION_NAME)(-dir(=\S+))?"
+    printf '%s' "${@:1}"|grep -qP "\--(($PREFIX)-)?($OPTION_NAME)(-dir(=\S+))?"
     return $?
 }
 # 是否存在待添加解析选项
@@ -525,7 +523,7 @@ in_add_options(){
 # @param $make_options      编译选项
 # return 1|0
 make_install(){
-    echo "make 编译安装"
+    info_msg "make 编译安装"
     make -j $HTREAD_NUM ${@:2} 2>&1
     if_error "make 编译失败"
     make install 2>&1
@@ -535,7 +533,7 @@ make_install(){
         if [[ "$1" =~ "=" ]];then
             PREFIX_PATH=${1#*=}
         fi
-        echo "添加环境变量PATH: $PREFIX_PATH"
+        info_msg "添加环境变量PATH: $PREFIX_PATH"
         # 添加动态库地址
         add_pkg_config $PREFIX_PATH
         # 添加环境目录
@@ -550,7 +548,7 @@ make_install(){
 # return 1|0
 configure_install(){
     make clean 2>&1
-    echo "./configure $*"
+    run_msg "./configure $*"
     ./configure $* 2>&1
     if_error "configure 编译配置失败"
     make_install "`echo "$*"|grep -oP "\--prefix=\S+"`"
@@ -563,7 +561,7 @@ cmake_install(){
     mkdirs build-tmp
     cd build-tmp
     make clean 2>&1
-    echo "$*"
+    run_msg "$*"
     $* 2>&1
     if_error "cmake 编译安装失败"
     make_install "`echo "$*"|grep -oP "\-DCMAKE_INSTALL_PREFIX=\S+"`"
@@ -583,8 +581,59 @@ if_error(){
 # @param $error_str     错误内容
 # return 1
 error_exit(){
-    echo "[ERROR] $1"
-    exit 1;
+    print_msg ERROR "$@"
+    exit 1
+}
+# 输出常规信息
+# @command info_msg $msg
+# @param $msg       信息内容
+# return 1
+info_msg(){
+    print_msg INFO "$@"
+}
+# 输出警告信息
+# @command warn_msg $msg
+# @param $msg       信息内容
+# return 1
+warn_msg(){
+    print_msg WARN "$@"
+}
+# 输出运行信息
+# @command run_msg $msg
+# @param $msg       信息内容
+# return 1
+run_msg(){
+    print_msg RUN "$@"
+}
+# 输出信息
+# @command print_msg $type $msg
+# @param $type      打印类型
+# @param $msg       打印信息
+# return 1
+print_msg(){
+    if [ -f /dev/stdout ];then
+        # 重定向不需要输出颜色
+        echo -n "[SHELL-$1]"
+    else
+        case "$1" in
+            ERROR)
+                echo -en "\033[40;31m[SHELL-ERROR]\033[0m"
+                ;;
+            INFO)
+                echo -en "\033[40;32m[SHELL-INFO]\033[0m"
+                ;;
+            WARN)
+                echo -en "\033[40;33m[SHELL-WARN]\033[0m"
+                ;;
+            RUN)
+                echo -en "\033[40;34m[SHELL-RUN]\033[0m"
+                ;;
+            *)
+                echo -en "\033[40;35m[SHELL-$1]\033[0m"
+                ;;
+        esac
+    fi
+    printf "%s\n" " ${@:2}"
 }
 # 创建用户（包含用户组、可执行shell、密码）
 # @command add_user $username [$shell_name] [$password]
@@ -594,7 +643,7 @@ error_exit(){
 # return 0
 add_user(){
     if [ -n "`id $1 2>&1|grep "($1)"`" ]; then
-         echo "用户：$1 已经存在无需再创建";
+         info_msg "用户：$1 已经存在无需再创建";
     else
         local RUN_FILE='/sbin/nologin'
         if [ -n "$2" -a -e "$2" ];then
@@ -603,7 +652,7 @@ add_user(){
         useradd -M -U -s $RUN_FILE $1
         if [ -n "$3" ];then
             if echo "$3"|passwd --stdin $1; then
-                echo "创建用户：$1 密码: $3"
+                info_msg "创建用户：$1 密码: $3"
             fi
         fi
     fi
@@ -764,7 +813,7 @@ if_lib(){
     if ! if_command pkg-config;then
         # 获取最新版
         get_version PKG_CONFIG_VERSION https://pkg-config.freedesktop.org/releases/ 'pkg-config-\d+\.\d+\.tar\.gz'
-        echo "install pkg-config-$PKG_CONFIG_VERSION"
+        info_msg "安装 pkg-config-$PKG_CONFIG_VERSION"
         # 下载
         download_software https://pkg-config.freedesktop.org/releases/pkg-config-$PKG_CONFIG_VERSION.tar.gz
         # 编译安装
@@ -893,7 +942,7 @@ get_ip(){
     if if_command ifconfig;then
         SERVER_IP=`ifconfig|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o -m 1|head -n 1`
     else
-        echo '没有ifconfig命令，无法获取当前IP，将使用默认地址：'$SERVER_IP >&2
+        warn_msg '没有ifconfig命令，无法获取当前IP，将使用默认地址：'$SERVER_IP
     fi
 }
 # 当前安装内存空间要求，不够将添加虚拟内存扩充
@@ -917,7 +966,7 @@ memory_require(){
         elif [ -e "$SWAP_PATH" ];then
             SWAP_PATH=${SWAP_PATH}1
         fi
-        echo '创建虚拟内存交换区：'$SWAP_PATH
+        info_msg '创建虚拟内存交换区：'$SWAP_PATH
         # 创建一个空文件区，并以每块bs字节重复写count次数且全部写0，主要是为防止内存溢出或越权访问到异常数据
         dd if=/dev/zero of=$SWAP_PATH bs=1024 count=${DIFF_SIZE}M
         # 将/swap目录设置为交换区
@@ -934,8 +983,8 @@ memory_require(){
                 echo "$SWAP_PATH swap swap defaults 0 0" >> /etc/fstab
             fi
         fi
-        echo "如果需要删除虚拟内存，先关闭交换区 ，然后删除文件，再去掉/etc/fstab文件中的配置行。"
-        echo "可以执行命令：swapoff $SWAP_PATH && rm -f $SWAP_PATH && sed -i -r '/^${SWAP_PATH//\//\\/}\s+/d' /etc/fstab"
+        info_msg "如果需要删除虚拟内存，先关闭交换区 ，然后删除文件，再去掉/etc/fstab文件中的配置行。"
+        info_msg "可以执行命令：swapoff $SWAP_PATH && rm -f $SWAP_PATH && sed -i -r '/^${SWAP_PATH//\//\\/}\s+/d' /etc/fstab"
     fi
 }
 # 安装编译工作目录剩余空间要求
@@ -964,9 +1013,9 @@ work_path_require(){
 # return 1|0
 install_path_require(){
     if ((`df ${2-$INSTALL_BASE_PATH}|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
-        echo "安装目录 $2 所在硬盘 `df ./|awk '{print $1}'|tail -1` 剩余空间不足：${1}G ，无法进行安装！"
+        info_msg "安装目录 $2 所在硬盘 `df ./|awk '{print $1}'|tail -1` 剩余空间不足：${1}G ，无法进行安装！"
         if [ "$ARGV_data_free" = 'ignore' ];then
-            echo '忽略空间不足'
+            warn_msg '忽略空间不足'
             return 0
         fi
         exit 1
@@ -980,9 +1029,9 @@ install_path_require(){
 # return 1|0
 path_require(){
     if ((`df $2|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
-        echo "目录 $2 所在硬盘 `df ./|awk '{print $1}'|tail -1` 剩余空间不足：${1}G"
+        info_msg "目录 $2 所在硬盘 `df ./|awk '{print $1}'|tail -1` 剩余空间不足：${1}G"
         if [ "$ARGV_data_free" = 'ignore' ];then
-            echo '忽略空间不足'
+            warn_msg '忽略空间不足'
         else
             search_free_path $3 $(($1 * 1048576))
         fi
@@ -1030,7 +1079,7 @@ ask_select(){
         if ((ATTEMPT >= 10));then
             error_exit "已经连续输入错误 ${ATTEMPT} 次，终止询问！"
         else
-            echo "输入错误，请注意输入选项要求！"
+            warn_msg "输入错误，请注意输入选项要求！"
             ((ATTEMPT++))
         fi
     done
@@ -1077,16 +1126,16 @@ init_install (){
     # 安装目录
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
     if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -type f -executable|grep -qP "$INSTALL_NAME|bin";then
-        echo "$INSTALL_NAME-$INSTALL_VERSION 安装目录不是空的: $INSTALL_PATH$INSTALL_VERSION/"
+        warn_msg "$INSTALL_NAME-$INSTALL_VERSION 安装目录不是空的: $INSTALL_PATH$INSTALL_VERSION/"
         if [ -z "$ARGV_reset" -o "$ARGV_reset" = '0' ];then
             exit 0
         else
-            echo "强制重新安装：$INSTALL_NAME-$INSTALL_VERSION"
+            warn_msg "强制重新安装：$INSTALL_NAME-$INSTALL_VERSION"
         fi
     fi
-    echo "即将安装：$INSTALL_NAME-$INSTALL_VERSION"
-    echo "工作目录: "`pwd`
-    echo "安装目录: $INSTALL_PATH"
+    info_msg "即将安装：$INSTALL_NAME-$INSTALL_VERSION"
+    info_msg "工作目录: "`pwd`
+    info_msg "安装目录: $INSTALL_PATH"
     # 安装必需工具
     tools_install gcc make
     if ! if_command ntpdate; then
@@ -1100,6 +1149,9 @@ init_install (){
     source /etc/profile
     return 0
 }
+if [ "$0" = 'basic.sh' ] || [[ "$0" == */basic.sh ]];then
+    error_exit "basic.sh 脚本是共用文件必需使用source调用"
+fi
 INSTALL_NAME=$(echo "$0"|grep -oP '\w+-install\.sh$'|grep -oP '^\w+')
 # 提取安装参数
 CALL_INPUT_ARGVS=()
@@ -1115,7 +1167,7 @@ if [ -z "$INSTALL_BASE_PATH" ] || [ ! -d "$INSTALL_BASE_PATH" ];then
 fi
 INSTALL_BASE_PATH=$(cd $INSTALL_BASE_PATH; pwd)
 if [ `whoami` != 'root' ];then
-    echo '当前执行用户非 root 安装可能会无法正常进行！' >&2;
+    warn_msg '当前执行用户非 root 安装可能会无法正常进行！'
 fi
 # 加载配置
 source config.sh

@@ -39,7 +39,7 @@ download_software https://ftp.postgresql.org/pub/source/v$POSTGRESQL_VERSION/pos
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 
 packge_manager_run install -READLINE_DEVEL_PACKGE_NAMES -BZIP2_PACKGE_NAMES -ZLIB_DEVEL_PACKGE_NAMES
 
@@ -54,15 +54,15 @@ configure_install $CONFIGURE_OPTIONS
 add_user postgresql
 cd $INSTALL_PATH$POSTGRESQL_VERSION
 
-echo "postgresql 基本配置处理"
+info_msg "postgresql 基本配置处理"
 mkdirs ./database postgresql
 
 # 初始化数据
 sudo -u postgresql ./bin/initdb -D $INSTALL_PATH$POSTGRESQL_VERSION/database
 
 # 启动服务
-echo 'sudo -u postgresql ./bin/pg_ctl -D ./database start'
+run_msg 'sudo -u postgresql ./bin/pg_ctl -D ./database start'
 sudo -u postgresql ./bin/pg_ctl -D ./database start
 
-echo "安装成功：$INSTALL_NAME-$POSTGRESQL_VERSION"
+info_msg "安装成功：postgresql-$POSTGRESQL_VERSION"
 

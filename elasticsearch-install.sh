@@ -185,7 +185,7 @@ fi
 add_user elasticsearch
 # 复制安装包
 mkdirs $INSTALL_PATH$ELASTICSEARCH_VERSION
-echo '复制所有文件到：'$INSTALL_PATH$ELASTICSEARCH_VERSION
+info_msg '复制所有文件到：'$INSTALL_PATH$ELASTICSEARCH_VERSION
 cp -R ./* $INSTALL_PATH$ELASTICSEARCH_VERSION
 cd $INSTALL_PATH$ELASTICSEARCH_VERSION
 
@@ -193,7 +193,7 @@ mkdirs data
 
 chown -R elasticsearch:elasticsearch ./*
 
-#echo "系统限制相关配置文件修改"
+#info_msg "系统限制相关配置文件修改"
 # 修改系统限制配置文件
 #if [ -e '/etc/security/limits.conf' ] && ! grep -qP '^elasticsearch soft nofile' /etc/security/limits.conf;then
 #    echo 'elasticsearch soft nofile 65536' > /etc/security/limits.conf
@@ -210,9 +210,9 @@ chown -R elasticsearch:elasticsearch ./*
 #    fi
 #fi
 
-echo "elasticsearch 配置文件修改"
+info_msg "elasticsearch 配置文件修改"
 if [ -e "/proc/$$/status" ] && ! cat /proc/$$/status|grep -qP '^Seccomp:';then
-    echo "当前系统不支持SecComp，即将配置 bootstrap.system_call_filter: false"
+    info_msg "当前系统不支持SecComp，即将配置 bootstrap.system_call_filter: false"
     sed -i -r "s/^#?(bootstrap\.memory_lock:).*$/\1 false/" ./config/elasticsearch.yml
     SET_LINEON=`grep -noP '^#?bootstrap.memory_lock:' ./config/elasticsearch.yml|grep -oP '^\d+'`
     if [ -n "$SET_LINEON" ];then
@@ -222,7 +222,7 @@ if [ -e "/proc/$$/status" ] && ! cat /proc/$$/status|grep -qP '^Seccomp:';then
 fi
 # 集群配置
 if [ -n "$ARGV_cluster_name" ];then
-    echo "集群配置处理"
+    info_msg "集群配置处理"
     CLUSTER_NAME=$(printf '%s' "$ARGV_cluster_name"|sed 's/\//\\\//g')
     NODE_NAME=$(printf '%s' "$ARGV_node_name"|sed 's/\//\\\//g')
     NODES_HOST=`printf '%s' "$ARGV_master_hosts"|sed -r 's/[^0-9|\.]+/ /g'|sed -r 's/([0-9|\.]+)/"\1", /g'`
@@ -230,20 +230,20 @@ if [ -n "$ARGV_cluster_name" ];then
     NODES_HOST=`printf '%s' "$NODES_HOST"|sed -r "s/\"$SERVER_IP\"(, )?//"|sed -r 's/(,|\s)+$//'`
     NODES_NUM=$(( (`printf '%s' "$NODES_HOST"|grep -o ','|wc -m`+1)/2+1 ))
     # 写集群标识
-    echo '写集群标识'
-    echo '所有集群节点：'$NODES_HOST
-    echo '集群节点数：'$NODES_NUM
+    info_msg '写集群标识'
+    info_msg '所有集群节点：'$NODES_HOST
+    info_msg '集群节点数：'$NODES_NUM
     sed -i -r "s/^#?(cluster\.name:).*$/\1 $CLUSTER_NAME/" ./config/elasticsearch.yml
     sed -i -r "s/^#?(node\.name:).*$/\1 $NODE_NAME/" ./config/elasticsearch.yml
     # 写节点类型
-    echo '写节点类型'
+    info_msg '写节点类型'
     SET_LINEON=`grep -noP '^node.name:' ./config/elasticsearch.yml|grep -oP '^\d+'`
     if [ -n "$SET_LINEON" ];then
         ((SET_LINEON++))
         sed -i "${SET_LINEON}i node.data: $NODE_DATA_VALUE" ./config/elasticsearch.yml
         sed -i "${SET_LINEON}i node.master: $NODE_MASTER_VALUE" ./config/elasticsearch.yml
     fi
-    echo '写集群连接及限制'
+    info_msg '写集群连接及限制'
     # 各版本差异
     if if_version $ELASTICSEARCH_VERSION '>=' '7.0.0'; then
         # 配置集群所有节点
@@ -263,8 +263,8 @@ if [ -n "$ARGV_cluster_name" ];then
 fi
 
 # 启动服务
-echo 'sudo -u elasticsearch ./bin/elasticsearch -d'
- sudo -u elasticsearch ./bin/elasticsearch -d
+run_msg 'sudo -u elasticsearch ./bin/elasticsearch -d'
+sudo -u elasticsearch ./bin/elasticsearch -d
 
 # 安装 kibana
 if [ "$ARGV_tool" = 'kibana' ];then
@@ -278,16 +278,16 @@ if [ "$ARGV_tool" = 'kibana' ];then
     fi
     download_software https://artifacts.elastic.co/downloads/kibana/kibana-$ELASTICSEARCH_VERSION$TAR_FILE_NAME.tar.gz kibana-$ELASTICSEARCH_VERSION$TAR_FILE_NAME
     mkdirs $INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
-    echo '复制所有文件到：'$INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
+    info_msg '复制所有文件到：'$INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
     cp -R ./* $INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
     cd $INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
     # 创建用户
     add_user kibana
     chown -R kibana:kibana ./*
     # 启动kibana
-    echo 'nohup sudo -u kibana bin/kibana & 2>&1 >/dev/null'
+    run_msg 'nohup sudo -u kibana bin/kibana & 2>&1 >/dev/null'
     nohup sudo -u kibana bin/kibana & 2>&1 >/dev/null
-    echo "kibana 管理地址：http://$SERVER_IP:5601"
+    info_msg "kibana 管理地址：http://$SERVER_IP:5601"
 fi
 
-echo "安装成功：elasticsearch-$ELASTICSEARCH_VERSION"
+info_msg "安装成功：elasticsearch-$ELASTICSEARCH_VERSION"

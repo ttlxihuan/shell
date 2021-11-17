@@ -36,7 +36,7 @@ download_software https://nodejs.org/dist/v$NODEJS_VERSION/node-v$NODEJS_VERSION
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 # 在编译目录里BUILDING.md文件有说明依赖版本要求，GCC在不同的大版本中有差异
 GCC_MIN_VERSION="`cat BUILDING.md|grep -oP '\`gcc\` and \`g\+\+\` (>= )?\d+(\.\d+)+ or newer'|grep -oP '\d+(\.\d+)+'`"
 if [ -n "$GCC_MIN_VERSION" ];then
@@ -54,9 +54,9 @@ if [ -n "$GCC_MIN_VERSION" ];then
         run_install_shell gcc-install.sh $GCC_MIN_VERSION
         if_error '安装失败：gcc-$GCC_MIN_VERSION'
     fi
-    echo "gcc-$GCC_MIN_VERSION ok"
+    info_msg "gcc-$GCC_MIN_VERSION ok"
 else
-    echo '获取 gcc 最低版本号失败'
+    warn_msg '获取 gcc 最低版本号失败'
 fi
 # 安装python3
 PYTHON_MIN_VERSION=`cat BUILDING.md|grep -oP 'Python\s+3(\.\d+)+'|grep -oP '\d+(\.\d+)+'|head -n 1`
@@ -79,12 +79,12 @@ if [ -n "$PYTHON_MIN_VERSION" ];then
         run_install_shell python-install.sh $PYTHON_MIN_VERSION
         if_error 'install $PYTHON_NAME fail'
     fi
-    echo "python-$PYTHON_MIN_VERSION ok"
+    info_msg "python-$PYTHON_MIN_VERSION ok"
 else
-    echo '获取 python 最低版本号失败'
+    warn_msg '获取 python 最低版本号失败'
 fi
 
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 
-echo "安装成功：nodejs-$NODEJS_VERSION";
+info_msg "安装成功：nodejs-$NODEJS_VERSION";

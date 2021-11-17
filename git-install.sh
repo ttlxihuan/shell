@@ -111,7 +111,7 @@ download_software https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 packge_manager_run install -LIBXML2_DEVEL_PACKGE_NAMES -PERL_DEVEL_PACKGE_NAMES
 
 # msgfmt命令在gettext包中
@@ -124,7 +124,7 @@ if ! if_command msgfmt;then
         # 安装gettext
         # 获取最新版
         get_version GETTEXT_VERSION https://ftp.gnu.org/pub/gnu/gettext 'gettext-\d+(\.\d+){2}\.tar\.gz'
-        echo "安装：gettext-$GETTEXT_VERSION"
+        info_msg "安装：gettext-$GETTEXT_VERSION"
         # 下载
         download_software https://ftp.gnu.org/pub/gnu/gettext/gettext-$GETTEXT_VERSION.tar.gz
         # 编译安装
@@ -146,11 +146,11 @@ if [ -n "$ARGV_tool" ];then
     mkdirs "$TOOL_WORK_PATH" git
 fi
 
-echo "安装成功：git-$GIT_VERSION"
+info_msg "安装成功：git-$GIT_VERSION"
 
 if [ "$ARGV_tool" = "gitolite" ]; then
     # 安装 gitolite
-    echo '安装git管理工具：gitolite'
+    info_msg '安装git管理工具：gitolite'
     # 下载gitolite包
     download_software https://github.com/sitaramc/gitolite/archive/master.zip gitolite-master
     if [ ! -e "$TOOL_WORK_PATH/gitolite-admin.pub" ]; then
@@ -164,25 +164,23 @@ if [ "$ARGV_tool" = "gitolite" ]; then
     ln -sv $INSTALL_BASE$GIT_VERSION/bin/git /bin/git
     mkdirs "$TOOL_WORK_PATH/gitolite" git
     packge_manager_run install 'perl(Data::Dumper)'
-    echo "./install -to $TOOL_WORK_PATH/gitolite"
+    run_msg "sudo -u git ./install -to $TOOL_WORK_PATH/gitolite"
     sudo -u git ./install -to $TOOL_WORK_PATH/gitolite
     if_error "gitolite install fail!"
     cd $TOOL_WORK_PATH/gitolite
-    echo "./gitolite setup -pk gitolite-admin.pub"
+    run_msg "sudo -u git ./gitolite setup -pk $TOOL_WORK_PATH/gitolite-admin.pub"
     sudo -u git ./gitolite setup -pk $TOOL_WORK_PATH/gitolite-admin.pub
     if [ -d "$TOOL_WORK_PATH/repositories" ]; then
         get_ip
-        echo '管理仓库地址：'
-        echo "git clone git@$SERVER_IP:gitolite-admin"
-        echo "安装成功：gitolite"
+        info_msg '管理仓库地址：'
+        info_msg "git clone git@$SERVER_IP:gitolite-admin"
+        info_msg "安装成功：gitolite"
     else
-        echo '安装失败：gitolite'
+        error_exit '安装失败：gitolite'
     fi
-fi
-
-if [ "$ARGV_tool" = "gitlab" ]; then
+elif [ "$ARGV_tool" = "gitlab" ]; then
     # 安装 gitlab
-    echo '安装git管理工具：gitlab'
+    info_msg '安装git管理工具：gitlab'
     if [ ! -e 'gitlab.sh' ];then
         if [[ "$PACKGE_MANAGER_INDEX" == 0 ]];then
             wget --no-check-certificate -T 7200 -O gitlab.sh https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.rpm.sh
@@ -197,15 +195,15 @@ if [ "$ARGV_tool" = "gitlab" ]; then
         if_error "安装失败：gitlab"
     fi
     # 修改配置
-    echo "gitlab 配置文件修改"
+    info_msg "gitlab 配置文件修改"
     sed -i -r "s/^(external_url\s+).*/\1'http:\/\/127.0.0.1'/" /etc/gitlab/gitlab.rb
     # 配置处理
     gitlab-ctl reconfigure
     # 启动服务
     gitlab-ctl start
-    echo 'gitlab 工作目录：/opt/gitlab/'
-    echo 'gitlab 配置文件：/etc/gitlab/gitlab.rb'
-    echo 'gitlab 地址: http://127.0.0.1'
-    # echo 'gitlab 自动启动中，如果需要关闭：systemctl disable gitlab-runsvdir.service'
-    echo "安装成功：gitlab"
+    info_msg 'gitlab 工作目录：/opt/gitlab/'
+    info_msg 'gitlab 配置文件：/etc/gitlab/gitlab.rb'
+    info_msg 'gitlab 地址: http://127.0.0.1'
+    # info_msg 'gitlab 自动启动中，如果需要关闭：systemctl disable gitlab-runsvdir.service'
+    info_msg "安装成功：gitlab"
 fi

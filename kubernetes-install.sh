@@ -36,11 +36,11 @@ echo "$(<kubectl.sha256) kubectl" | sha256sum --check
 if_error 'sha256sum 验证失败'
 # 复制安装包
 mkdirs $INSTALL_PATH$KUBERNETES_VERSION
-echo '复制所有文件到：'$INSTALL_PATH$KUBERNETES_VERSION
+info_msg '复制所有文件到：'$INSTALL_PATH$KUBERNETES_VERSION
 cp -R ./kubectl $INSTALL_PATH$KUBERNETES_VERSION
 chmod +x $INSTALL_PATH$KUBERNETES_VERSION/kubectl
 
 # 添加到环境变量中
 add_path $INSTALL_PATH$KUBERNETES_VERSION
 
-echo "安装成功：kubernetes-$KUBERNETES_VERSION";
+info_msg "安装成功：kubernetes-$KUBERNETES_VERSION";

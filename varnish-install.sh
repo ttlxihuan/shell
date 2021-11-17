@@ -37,42 +37,42 @@ download_software http://varnish-cache.org/_downloads/varnish-$VARNISH_VERSION.t
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 if if_command autoconf;then
-    echo 'autoconf ok'
+    info_msg 'autoconf ok'
 else
     packge_manager_run install -AUTOCONF_PACKGE_NAMES
 fi
 if if_command libtool;then
-    echo 'libtool ok'
+    info_msg 'libtool ok'
 else
     packge_manager_run install -LIBTOOL_PACKGE_NAMES
 fi
 if if_lib 'libedit';then
-    echo 'libedit ok'
+    info_msg 'libedit ok'
 else
     packge_manager_run install -LIBEDIT_DEVEL_PACKGE_NAMES
 fi
 if if_command 'jemalloc.sh';then
-    echo 'jemalloc ok'
+    info_msg 'jemalloc ok'
 else
     packge_manager_run install -JEMALLOC_DEVEL_PACKGE_NAMES
 fi
 if if_lib 'ncurses';then
-    echo 'ncurses ok'
+    info_msg 'ncurses ok'
 else
     packge_manager_run install -NCURSES_DEVEL_PACKGE_NAMES
 fi
 if if_version "$VARNISH_VERSION" ">=" "7.0.0"; then
     if if_lib 'libpcre2-8';then
-        echo 'libpcre2-8 ok'
+        info_msg 'libpcre2-8 ok'
     else
         # 暂存编译目录
         VARNISH_CONFIGURE_PATH=`pwd`
-        echo '安装：libpcre2-8'
+        info_msg '安装：libpcre2-8'
         # 获取最新版
         get_version LIBPCRE2_VERSION https://ftp.pcre.org/pub/pcre/ "pcre2-\d+\.\d+\.tar\.gz"
-        echo "下载：pcre2-$LIBPCRE2_VERSION"
+        info_msg "下载：pcre2-$LIBPCRE2_VERSION"
         # 下载
         download_software https://ftp.pcre.org/pub/pcre/pcre2-$LIBPCRE2_VERSION.tar.gz
         configure_install --prefix=$INSTALL_BASE_PATH/pcre2/$LIBPCRE2_VERSION
@@ -80,7 +80,7 @@ if if_version "$VARNISH_VERSION" ">=" "7.0.0"; then
     fi
 else
     if if_lib 'libpcre';then
-        echo 'pcre ok'
+        info_msg 'pcre ok'
     else
         packge_manager_run install -PCRE_DEVEL_PACKGE_NAMES
     fi
@@ -124,7 +124,7 @@ fi
 
 chown -R varnish:varnish ./*
 # 启动服务
-echo "./sbin/varnishd -f $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl $START_SERVER_PARAM"
+run_msg "./sbin/varnishd -f $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl $START_SERVER_PARAM"
 ./sbin/varnishd -f $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl $START_SERVER_PARAM
 
-echo "安装成功：varnish-$VARNISH_VERSION"
+info_msg "安装成功：varnish-$VARNISH_VERSION"

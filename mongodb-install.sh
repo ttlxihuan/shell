@@ -50,7 +50,7 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MONGODB_VERSION $ARGV_options"
 # 下载mongodb包
 download_software https://fastdl.mongodb.org/src/mongodb-src-r$MONGODB_VERSION.tar.gz
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 # 获取编辑安装的依赖要求
 GCC_VERSION=`grep -iP 'gcc\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
 PYTHON_VERSION=`grep -iP 'Python\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
@@ -79,7 +79,7 @@ if if_version "$GCC_VERSION" '>' "$GCC_CURRENT_VERSION" || ( if_version "${GCC_V
     run_install_shell gcc-install.sh $GCC_VERSION
     if_error '安装失败：gcc'
 else
-    echo 'GCC OK'
+    info_msg 'GCC OK'
 fi
 if ! echo "$PYTHON_VERSION"|grep -qP '^\d+\.\d+\.\d+$';then
     PYTHON_VERSION=$PYTHON_VERSION".0"
@@ -101,16 +101,16 @@ if if_version $PYTHON_VERSION '>' "$PYTHON_CURRENT_VERSION"; then
     run_install_shell python-install.sh $PYTHON_VERSION
     if_error '安装失败：python'
 else
-    echo 'python OK'
+    info_msg 'python OK'
 fi
 if if_lib "openssl";then
-    echo 'openssl ok'
+    info_msg 'openssl ok'
 else
     # 安装openssl-dev
     packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
 fi
 if if_lib "libcurl";then
-    echo 'libcurl ok'
+    info_msg 'libcurl ok'
 else
     # 安装 curl-dev
     packge_manager_run install -CURL_DEVEL_PACKGE_NAMES
@@ -122,17 +122,17 @@ fi
 
 # 编译安装
 if [ -e "etc/pip/compile-requirements.txt" ];then
-    echo "$PYTHON_NAME pip 自动安装依赖"
+    info_msg "$PYTHON_NAME pip 自动安装依赖"
     $PIP_NAME install -r etc/pip/compile-requirements.txt
     if (($? != 0));then
         $PYTHON_NAME -m pip install -r etc/pip/compile-requirements.txt
     fi
-    echo '$PYTHON_NAME 编译安装 mongobd'
+    info_msg '$PYTHON_NAME 编译安装 mongobd'
     if grep -q '\-\-prefix' docs/building.md;then
-        echo "$PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $HTREAD_NUM"
+        run_msg "$PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $HTREAD_NUM"
         $PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $HTREAD_NUM
     else
-        echo "$PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $HTREAD_NUM"
+        run_msg "$PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $HTREAD_NUM"
         $PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $HTREAD_NUM
     fi
     if_error '安装失败：mongodb'
@@ -156,15 +156,15 @@ else
             if_error '安装失败：scons'
             cd $MONGODB_INSTALL_PATH
         else
-            echo 'Scons OK'
+            info_msg 'Scons OK'
         fi
-        echo 'scons 编译安装 mongobd'
-        echo "scons all -j $HTREAD_NUM"
+        info_msg 'scons 编译安装 mongobd'
+        run_msg "scons all -j $HTREAD_NUM"
         scons all -j $HTREAD_NUM
-        echo "scons $CONFIGURE_OPTIONS install"
+        run_msg "scons $CONFIGURE_OPTIONS install"
         scons $CONFIGURE_OPTIONS install
     else
-        echo "$PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $HTREAD_NUM"
+        run_msg "$PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $HTREAD_NUM"
         $PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $HTREAD_NUM
     fi
     if_error '安装失败：mongodb'
@@ -173,7 +173,7 @@ fi
 add_user mongodb
 cd $INSTALL_PATH$MONGODB_VERSION
 
-echo "mongodb 配置文件修改"
+info_msg "mongodb 配置文件修改"
 # 配置文件处理
 mkdirs etc
 
@@ -887,4 +887,4 @@ chown -R mongodb:mongodb ./*
 sudo -u mongodb ./bin/mongod -f ./etc/mongod.conf
 
 # 安装成功
-echo "安装成功：mongodb-$MONGODB_VERSION";
+info_msg "安装成功：mongodb-$MONGODB_VERSION";

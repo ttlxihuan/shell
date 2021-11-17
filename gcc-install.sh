@@ -77,7 +77,7 @@ parse_options GCC_CONFIGURE_WITH $ADD_OPTIONS
 # 暂存编译目录
 GCC_CONFIGURE_PATH=`pwd`
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 packge_manager_run install -GCC_C_PACKGE_NAMES -BZIP2_PACKGE_NAMES -M4_PACKGE_NAMES
 # 部分版需要下载配置文件
 if [ ! -e "./configure" ] && [ -e "./contrib/download_prerequisites" ];then
@@ -91,7 +91,7 @@ else
     do
         PACKAGE=`echo $LINE|grep -P '^\w+' -o`
         if [ -d "$GCC_CONFIGURE_PATH/$PACKAGE" ];then
-            echo "$LINE 已经下载了，如果下载是失败文件必需删除后再安装";
+            info_msg "$LINE 已经下载了，如果下载是失败文件必需删除后再安装";
             continue;
         fi
         DOWNLOAD_FILENAME=`echo $LINE|sed 's/\./\\\./'`
@@ -119,12 +119,12 @@ fi
 configure_install --prefix=$INSTALL_PATH$GCC_VERSION$GCC_CONFIGURE_WITH
 # 动态库处理
 echo "$INSTALL_PATH$GCC_VERSION/lib64" >> /etc/ld.so.conf
-echo "移动文件 lib64/*.py"
+info_msg "移动文件 lib64/*.py"
 # 清除py文件，这些文件会影响共享的动态链接库ldconfig命令执行失败
 for PY_FILE in `find $INSTALL_PATH$GCC_VERSION/lib64/ -name "*.py"`
 do
     if [ -n "$PY_FILE" ] && [ -e "$PY_FILE" ];then
-        echo "mv $PY_FILE $INSTALL_PATH$GCC_VERSION"
+        run_msg "mv $PY_FILE $INSTALL_PATH$GCC_VERSION"
         mv $PY_FILE $INSTALL_PATH$GCC_VERSION
     fi
 done
@@ -136,4 +136,4 @@ packge_manager_run remove -GCC_C_PACKGE_NAMES
 add_local_run $INSTALL_PATH$GCC_VERSION/bin/ gcc c++ g++ cpp
 ln -svf /usr/local/bin/gcc /usr/bin/cc
 
-echo "安装成功：gcc-$GCC_VERSION";
+info_msg "安装成功：gcc-$GCC_VERSION";

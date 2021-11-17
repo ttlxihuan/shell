@@ -41,7 +41,7 @@ PYTHON_CURRENT_PATH=`pwd`
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
-echo "安装相关已知依赖"
+info_msg "安装相关已知依赖"
 if ! if_command 'gcc';then
     packge_manager_run install -GCC_C_PACKGE_NAMES
 fi
@@ -51,7 +51,7 @@ if ! if_lib 'openssl'; then
 fi
 
 if if_lib 'zlib' '>=' '1.2.8'; then
-    echo 'zlib ok'
+    info_msg 'zlib ok'
 else
     download_software http://zlib.net/zlib-1.2.11.tar.gz
     configure_install --prefix=$INSTALL_BASE_PATH"/zlib/1.2.11"
@@ -95,5 +95,5 @@ if [ -n "$PYTHON_NAME" ]; then
     fi
 fi
 
-echo "安装成功：python-$PYTHON_VERSION"
+info_msg "安装成功：python-$PYTHON_VERSION"
 
