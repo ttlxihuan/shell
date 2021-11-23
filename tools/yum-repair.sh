@@ -3,21 +3,14 @@
 # 主要针对yum异常修复而用
 # 修复后即可正常使用yum
 
-# 输出错误并退出
-# @command error_exit $error_str
-# @param $error_str     错误内容
-# return 1
-error_exit(){
-    echo "[ERROR] $1"
-    exit 1;
-}
+# 参数信息配置
+SHELL_RUN_DESCRIPTION='yum工具修复'
+SHELL_RUN_HELP='修复目录只针对https访问异常，其它异常修复不能保证可用性'
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../includes/tool.sh || exit
+
 if ! which yum 2>&1 >/dev/null;then
     error_exit '当前系统没有安装 yum 工具';
 fi
-if [ `whoami` != 'root' ];then
-    echo '当前执行用户非 root 安装可能会无法正常进行！' >&2;
-fi
-
 # 判断空间余量
 YUM_CACHE_PATH=$(cat /etc/yum.conf|grep -P '^cachedir\s*=\s*'|sed -r 's/.*?=\s*//'|sed -r 's/\$[^\/]+\/?//g')
 if [ -n "$YUM_CACHE_PATH" -a -d "$YUM_CACHE_PATH" ];then
@@ -27,15 +20,15 @@ if [ -n "$YUM_CACHE_PATH" -a -d "$YUM_CACHE_PATH" ];then
     fi
 fi
 
-echo '清除 yum 缓存'
+info_msg '清除 yum 缓存'
 yum clean all
 
-echo '重新生成 yum 缓存'
+info_msg '重新生成 yum 缓存'
 yum makecache
 
 if [ $? != '0' ]; then
     HTTP_REPO_FILE='/etc/yum.repos.d/CentOS-Base-http.repo'
-    echo '尝试添加 http 镜像生成 yum 缓存 '$HTTP_REPO_FILE' ，修复成功后可手动删除生成的镜像文件'
+    info_msg '尝试添加 http 镜像生成 yum 缓存 '$HTTP_REPO_FILE' ，修复成功后可手动删除生成的镜像文件'
     echo -e '
 # 以下是收集可用http站点，主要针对yum报错：problem making ssl connection
 # 因为openssl不可用或版本太低，需要更新，但大多数镜像使用的是https
@@ -98,10 +91,10 @@ gpgkey=http://mirrors.sohu.com/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentO
 ' > $HTTP_REPO_FILE
     yum makecache
     if [ $? = '0' ];then
-        echo 'yum 修复成功'
+        info_msg 'yum 修复成功'
     else
-        error_exit 'yum 修复失败'
+        warn_msg 'yum 修复失败'
     fi
 else
-    echo 'yum 正常，无需修复！'
+    info_msg 'yum 正常，无需修复！'
 fi

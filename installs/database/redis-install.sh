@@ -26,12 +26,12 @@ DEFINE_INSTALL_PARAMS="
 [-s, --save='60 5']开启自动保存到硬盘，配置规则：n秒 m次修改，为空则不开启
 [-p, --password='']安装成功后修改的新密码，默认或为空时随机生成25位密码
 [-c, --cluster-hosts='']指定集群地址名集 ip:port，端口号不传为默认6379
-# 多个使用逗号分开，最少三个含当前服务器，当前IP可以不传创建时自动补充
-# 只有5.0及以上的版本有效
+#多个使用逗号分开，最少三个含当前服务器，当前IP可以不传创建时自动补充
+#只有5.0及以上的版本有效
 [-R, --cluster-replicas=1]指定集群副本数
 "
 # 加载基本处理
-source basic.sh
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
 # 初始化安装
 init_install '3.0.0' "http://download.redis.io/releases/" 'redis-\d+\.\d+\.\d+\.tar\.gz'
 # 集群限制

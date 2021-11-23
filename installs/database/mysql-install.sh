@@ -95,16 +95,16 @@ DEFINE_INSTALL_PARAMS="
 [-p, --password='']安装成功后修改的新密码，默认或为空时随机生成25位密码
 [-t, --type='']主从配置 main|slave  ，默认是无主从配置
 [-H, --master-host='']主从配置地址  user@host 
-# 配置主服务器时这里指定从服务器连接的账号和地址
-# 配置从服务器时这里指定主服务器的连接账号和地址
+#配置主服务器时这里指定从服务器连接的账号和地址
+#配置从服务器时这里指定主服务器的连接账号和地址
 [-P, --master-password='']主从配置密码  password 
-# 配置主服务器时这里指定从服务器连接的密码
-# 配置从服务器时这里指定连接主服务器的密码
+#配置主服务器时这里指定从服务器连接的密码
+#配置从服务器时这里指定连接主服务器的密码
 "
 # 定义安装类型
 DEFINE_INSTALL_TYPE='cmake'
 # 加载基本处理
-source basic.sh
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
 # 初始化安装
 init_install '5.0.0' "https://dev.mysql.com/downloads/mysql/" 'mysql-\d+\.\d+\.\d+'
 memory_require 16 # 内存最少G
@@ -240,8 +240,8 @@ if [ ! -d "./etc" ];then
     if [ ! -e "$MY_CNF" ];then
         if [ -e 'support-files/my-default.cnf' ];then
             cp support-files/my-default.cnf ./etc/my.cnf
-        elif [ -e "$OLD_PATH/mysql/mysql-$MYSQL_VERSION/packaging/rpm-common/my.cnf" ];then
-            cp $OLD_PATH/mysql/mysql-$MYSQL_VERSION/packaging/rpm-common/my.cnf ./etc/my.cnf
+        elif [ -e "$SHELL_WROK_TEMP_PATH/mysql/mysql-$MYSQL_VERSION/packaging/rpm-common/my.cnf" ];then
+            cp $SHELL_WROK_TEMP_PATH/mysql/mysql-$MYSQL_VERSION/packaging/rpm-common/my.cnf ./etc/my.cnf
         else
             cat > $MY_CNF <<MY_CONF
 # For advice on how to change settings please see

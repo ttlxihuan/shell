@@ -70,7 +70,7 @@ DEFINE_INSTALL_PARAMS="
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source basic.sh
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
 # 初始化安装
 init_install '1.9.0' "https://mirrors.edge.kernel.org/pub/software/scm/git/" 'git-\d+\.\d+\.\d+\.tar\.gz'
 # 安装参数处理

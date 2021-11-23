@@ -23,7 +23,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source basic.sh
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
 # 初始化安装
 init_install '2.6.0' "https://www.python.org/downloads/source/" 'Python-\d+\.\d+\.\d+\.tgz'
 memory_require 4 # 内存最少G
@@ -37,7 +37,7 @@ ADD_OPTIONS='?ipv6 '$ARGV_options
 # ************** 编译安装 ******************
 # 下载python包
 download_software https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz
-PYTHON_CURRENT_PATH=`pwd`
+PYTHON_SHELL_WROK_TEMP_PATH=`pwd`
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
@@ -55,7 +55,7 @@ if if_lib 'zlib' '>=' '1.2.8'; then
 else
     download_software http://zlib.net/zlib-1.2.11.tar.gz
     configure_install --prefix=$INSTALL_BASE_PATH"/zlib/1.2.11"
-    cd $PYTHON_CURRENT_PATH
+    cd $PYTHON_SHELL_WROK_TEMP_PATH
 fi
 
 packge_manager_run install -BZIP2_DEVEL_PACKGE_NAMES

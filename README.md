@@ -5,45 +5,47 @@ linux 服务器常用工具安装包
 * CentOS 5+
 * Ubuntu 15+
 
+为方便增加脚本和管理，脚本全部存放在子目录中，由统一调用脚本 run.sh 入口操作。
+
 ### 查看安装脚本信息
 -----------------
 ```
-bash *_install.sh -h
+bash run.sh -h
 ```
 
 
 ### 单一安装脚本命令
 -----------------
 ```
-bash *_install.sh [version] [--options ...]
+bash run.sh [name] [version] [--options ...]
 ```
 
 参数说明：
-* [version]  指定安装版本，如果不指定则打印最新版本，如果要安装最新版本可以指定为 new
-* [--options]  安装选项，各安装脚本选项信息不一致，了解更多通过 -h 参数查看
+* [name]        指定安装脚本名，如：redis-install、nginx-install、php-install等
+* [version]     指定安装版本，如果不指定则打印最新版本，如果要安装最新版本可以指定为 new
+* [--options]   安装选项，各安装脚本选项信息不一致，了解更多通过 -h 参数查看
 
 #### 示例
 ```
-bash php_install.sh new
+bash run.sh php-install new
 ```
 
 
 安装过程中需要外网下载，并且需要root权限，安装成功后会自动尝试启动服务或应用。
-默认会使用多核编译如果需要指定编译核数据可以增加临时环境变量 INSTALL_HTREAD_NUM ，指定值不可过高，一般不超过实际核数
 
 
 ### 批量安装脚本命令
 -----------------
 #### 本机批量安装命令
 ```
-bash install-batch.sh
+bash run.sh install-batch
 ```
 #### 机群批量安装命令
 ```
-bash install-remote.sh
+bash run.sh install-remote
 ```
 
-批量安装需要调整安装配置文件 install-batch.conf
+批量安装需要调整安装配置文件 etc/install-batch.conf
 ```
 # 安装的服务器【机群安装】
 默认账号为 root
@@ -62,6 +64,7 @@ nginx 1.15.0
 如果命令运行出错可能是换行符的问题可以运行命令
 ```
 find ./ -maxdepth 1 -type f -name '*.sh' -exec sed -i 's/\r//' {} \;
+find ./installs ./tools ./includes ./etc -type f -name '*.sh' -o -name '*.conf'|xargs sed -i 's/\r//'
 ```
 
 ### 快速使用
@@ -83,13 +86,11 @@ if [ ! -d "shell-master" ];then
 fi
 cd shell-master
 find ./ -maxdepth 1 -type f -name '*.sh' -exec sed -i 's/\r//' {} \;
-if [ -d './tools' ];then
-    find ./tools -maxdepth 1 -type f -name '*.sh' -o -name '*.conf'|xargs sed -i 's/\r//'
-fi
+find ./installs ./tools ./includes ./etc -type f -name '*.sh' -o -name '*.conf'|xargs sed -i 's/\r//'
 for NAME in ${@:1}; do
     if [ -e "$NAME-install.sh" ];then
-        echo "install $NAME"
-        nohup bash $NAME-install.sh new 2>&1 &> ../$NAME-install.log &
+        echo "运行：$NAME"
+        nohup bash run.sh $NAME-install new 2>&1 &> ../$NAME-install.log &
     else
         echo "unknown install: $NAME"
     fi

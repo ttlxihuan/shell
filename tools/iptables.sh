@@ -65,57 +65,62 @@
 #
 #
 
-EDIT_IPTABLES_CONF=".iptables.conf";
-EDIT_IPTABLES_CONF_TMP=".tmp_iptables.conf";
+# 参数信息配置
+SHELL_RUN_DESCRIPTION='iptables自动更新规则'
+SHELL_RUN_HELP='自动更新主要用于动态域名，当使用动态IP时又不想使用VPN时就可以使用动态域名。
+动态域名更新会存在一定的时差，如果当前网络IP回收频次过高可能会更新不即时。
+动态域名更新受三方平台限制，一般此脚本需要放到定时器中，定时更新。
+'
+DEFINE_TOOL_PARAMS='
+[-f, --conf=":etc/iptables.conf"]配置文件
+[--cache-file=":temp/.iptables.cache"]用于记录开启数据，当配置调整进行匹配处理
+#当脚本在唯一执行时不需要调用此参数
+'
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../includes/tool.sh || exit
+
+# 提取配置文件路径
+if ! get_file_path $ARGV_conf ARGV_conf 1;then
+    error_exit "--conf 未指定有效配置文件：$ARGV_conf"
+fi
+# 提取缓存文件
+if ! get_file_path $ARGV_cache_file ARGV_cache_file || ([ ! -e "$ARGV_cache_file" ] && ! touch "$ARGV_cache_file");then
+    error_exit "--cache-file 缓存文件无效：$ARGV_cache_file"
+fi
+CONFIG_FILE=$ARGV_conf;
+EDIT_IPTABLES_CONF=$ARGV_cache_file;
+EDIT_IPTABLES_CONF_TEMP=$ARGV_cache_file.temp;
 DOMAIN_IPS="";
 CLIENT_IP="";
-if [ -n "$1" ];then
-    CONFIG_FILE=$1;
-else
-    CONFIG_FILE="iptables.conf";
-    CURRENT_DIR=`echo "$0" | grep -P '(/?[^/]+/)+' -o`
-    if [ ! -e "$CONFIG_FILE" ] && [ -e "$CURRENT_DIR$CONFIG_FILE" ]; then
-        cd $CURRENT_DIR
-    fi
-fi
 
-if [ ! -e "$CONFIG_FILE" ]; then
-    echo "$CONFIG_FILE config file is not exists!";
-    exit;
-fi
-
-echo "check iptables run status";
+info_msg "验证防火墙运行状态";
 #开启服务
 if [ -z "`systemctl --version 2>&1|grep "bash: systemctl:"`" ];then
     if [ -z "`service iptables status|grep 'not running'`" ];then
-        echo "iptables service running";
+        info_msg "iptables 服务在运行中";
     else
-        echo "[warning] iptables service not running";
-        exit 1;
+        error_exit "iptables 服务未运行";
     fi
 else
     # 默认没有iptables.service服务可以自己安装 ，否则需要使用 systemctl stop firewalld 来处理
     # yum install iptables-services
     if [ -z "`systemctl status iptables|grep 'Active: inactive (dead)'`" ];then
-        echo "iptables service running";
+        info_msg "iptables 服务在运行中";
     else
-        echo "[warning] iptables service not running";
-        exit 1;
+        error_exit "iptables 服务未运行";
     fi
 fi
-
 
 #添加IP到配置文件中
 add_client_iptables_conf(){
     if [ -n "`echo $1|grep -P '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'`" ] || [ "$1" == "-1" ];then
-        echo "$1 $2 $3 $4 insert" >> $EDIT_IPTABLES_CONF_TMP
+        echo "$1 $2 $3 $4 insert" >> $EDIT_IPTABLES_CONF_TEMP
     else
         #获取对应的IP地址
         get_ip_by_domain $1
         if [ -z "$CLIENT_IP" ];then
-            echo "$1 not ping ip"
+            warn_msg "$1 不能 ping 通，无法添加到规则中"
         else
-            echo "$CLIENT_IP $2 $3 $4 insert" >> $EDIT_IPTABLES_CONF_TMP
+            echo "$CLIENT_IP $2 $3 $4 insert" >> $EDIT_IPTABLES_CONF_TEMP
         fi
     fi
 }
@@ -126,25 +131,23 @@ get_ip_by_domain(){
     if [ -z "$CACHE_IP" ];then
         CLIENT_IP=`ping -c 1 -W 1 $1|grep -P "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}" -o -m 1`
         DOMAIN_IPS="$DOMAIN_IPS\n$1 $CLIENT_IP"
-        echo "ping $1 $CLIENT_IP"
+        info_msg "地址：$1 通过ping获取IP是：$CLIENT_IP"
     else
         CLIENT_IP=`echo "$CACHE_IP"|grep -oP "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"`;
-        echo "cache $1 $CLIENT_IP"
+        info_msg "地址：$1 通过上次ping获取IP是：$CLIENT_IP"
     fi
 }
-
 
 #判断文件是否存在
 if [ ! -e $EDIT_IPTABLES_CONF ] ;then
     echo "# host   port   mac    switch" > $EDIT_IPTABLES_CONF
 fi
-if [ -e "$EDIT_IPTABLES_CONF_TMP" ];then
-    echo 'update is runing'
-    exit
-fi
 #生成临时配置文件
 COMMENT_TEXT=`cat $EDIT_IPTABLES_CONF | grep -P "#.*"`
-echo -e "$COMMENT_TEXT" > $EDIT_IPTABLES_CONF_TMP
+if [ -e "$EDIT_IPTABLES_CONF_TEMP" ];then
+    error_exit '更新iptables脚本还在运行中'
+fi
+echo -e "$COMMENT_TEXT" > $EDIT_IPTABLES_CONF_TEMP
 
 #处理配置文件并添加规则
 cat $CONFIG_FILE | while read LINE
@@ -156,7 +159,7 @@ do
 done
 
 #判断是否有不一样
-CONFIG_DIFF=`diff $EDIT_IPTABLES_CONF_TMP $EDIT_IPTABLES_CONF`
+CONFIG_DIFF=`diff $EDIT_IPTABLES_CONF_TEMP $EDIT_IPTABLES_CONF`
 if [ -n "$CONFIG_DIFF" ];then
     echo -e "$COMMENT_TEXT" > $EDIT_IPTABLES_CONF
     echo -e "$CONFIG_DIFF"|while read LINE
@@ -175,8 +178,7 @@ if [ -n "$CONFIG_DIFF" ];then
     done
     #处理变更的规则
     #编辑规则
-    echo "edit iptables ruls";
-
+    info_msg "修改iptables规则";
     cat $EDIT_IPTABLES_CONF | while read LINE
     do
         if [ -n "$(echo $LINE|grep -P "^#.*$")" ] || [ -n "$(echo $LINE|grep -P "^[\t\n\s\r]*$")" ] || [ -z "$LINE" ]; then
@@ -193,21 +195,21 @@ if [ -n "$CONFIG_DIFF" ];then
         if [ -n "$(echo ${CONFIG[0]}|grep -P "^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(/\d{1,2})?$")" ]; then #
             SET_IP=" -s ${CONFIG[0]}";
         elif [ "${CONFIG[0]}" != "-1" ]; then
-            echo "ip config error ${CONFIG[0]}";
+            warn_msg "host配置错误：${CONFIG[0]}";
             continue;
         fi
         #port配置提取
         if [ -n "$(echo ${CONFIG[1]}|grep -P "^\d{1,4}(:\d{1,4})?$")" ]; then #
             SET_PORT=" --dport ${CONFIG[1]}";
         elif [ "${CONFIG[1]}" != "-1" ]; then
-            echo "port config error ${CONFIG[1]}";
+            warn_msg "port配置错误：${CONFIG[1]}";
             continue;
         fi
         #max配置提取
         if [ -n "$(echo ${CONFIG[2]}|grep -P "^([a-z0-9A-Z]{2}-){5}[a-z0-9A-Z]{2}$")" ]; then #
             SET_MAC=" -m mac --mac-source ${CONFIG[2]}";
         elif [ "${CONFIG[2]}" != "-1" ]; then
-            echo "mac config error ${CONFIG[2]}";
+            warn_msg "mac配置错误：${CONFIG[2]}";
             continue;
         fi
         #switch配置提取
@@ -216,7 +218,7 @@ if [ -n "$CONFIG_DIFF" ];then
         elif [ -n "$(echo ${CONFIG[3]}|grep -P "^(0|no)$")" ]; then #
             SET_SWITCH=" -j DROP";
         else
-            echo "switch config error ${CONFIG[3]}";
+            warn_msg "switch配置错误：${CONFIG[3]}";
             continue;
         fi
         #handle配置提取
@@ -227,16 +229,16 @@ if [ -n "$CONFIG_DIFF" ];then
         elif [ -n "$(echo ${CONFIG[4]}|grep -P "^(add)$")" ]; then #
             SET_HANDLE="-A";
         else
-            echo "remove config error ${CONFIG[4]}";
+            warn_msg "remove配置错误：${CONFIG[4]}";
             continue;
         fi
-        echo "iptables $SET_HANDLE INPUT -p tcp -m state --state NEW -m tcp$SET_IP$SET_PORT$SET_MAC$SET_SWITCH"
+        run_msg "iptables $SET_HANDLE INPUT -p tcp -m state --state NEW -m tcp$SET_IP$SET_PORT$SET_MAC$SET_SWITCH"
         iptables $SET_HANDLE INPUT -p tcp -m state --state NEW -m tcp$SET_IP$SET_PORT$SET_MAC$SET_SWITCH
     done
 
     #保存需要的规则
-    cat $EDIT_IPTABLES_CONF_TMP > $EDIT_IPTABLES_CONF
+    cat $EDIT_IPTABLES_CONF_TEMP > $EDIT_IPTABLES_CONF
 fi
 
 #删除临时文件
-rm -f $EDIT_IPTABLES_CONF_TMP
+rm -f $EDIT_IPTABLES_CONF_TEMP

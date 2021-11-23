@@ -20,7 +20,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source basic.sh
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
 # 初始化安装
 init_install '3.0.0' "http://varnish-cache.org/releases/index.html" 'varnish-\d+\.\d+\.\d+.tgz'
 memory_require 4 # 内存最少G

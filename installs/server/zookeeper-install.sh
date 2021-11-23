@@ -19,7 +19,7 @@
 ##################################### 安装处理 #####################################
 ####################################################################################
 # 加载基本处理
-source basic.sh
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
 # 初始化安装
 init_install '3.5.9' "https://dlcdn.apache.org/zookeeper/" 'zookeeper-\d+\.\d+\.\d+'
 memory_require 4 # 内存最少G

@@ -19,7 +19,7 @@
 ##################################### 安装处理 #####################################
 ####################################################################################
 # 加载基本处理
-source basic.sh
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
 # 初始化安装
 init_install '1.19.1' "https://kubernetes.io/releases/" '>\d+\.\d+\.\d+'
 memory_require 4 # 内存最少G

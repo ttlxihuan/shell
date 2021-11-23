@@ -96,6 +96,19 @@
 # 保存后执行生效命令： sysctl -p
 #
 #
+# 【调优建议】
+#   1、es查询性能依赖物理内存，且不能有内存交换到磁盘，所以需要开启内存锁定，关闭虚拟内存。jvm的堆内存设定为可用内存的一半以内。es8起支持自动配置。
+#   2、创建索引时需要注意分片设置，每个索引有主分片number_of_shards（默认5，不可改）和副本分片数number_of_replicas（默认1，可改），
+#       每个分片容量保持与jvm.options指定的-Xmx以内。主分片数据适中，如果数据量小可以设置为1。
+#       主分片数据可读可写，副本分片数据只读。
+#   3、总分片数不易过多（高版本有单节点最大分片数限制），如果一个索引number_of_shards=5且number_of_replicas=1则有10个分片生成。
+#   4、当数据不是很重要或初始大量写时可以关闭refresh_interval=-1（关闭间隔刷新索引）、number_of_replicas=0（关闭副本）、sync_interval=1m（同步到磁盘频次）来提升性能
+#   5、索引名尽量不使用_开头
+#   6、尽量避免使用join查询，join分nested数据类型和同索引不同type的parent和child
+#   7、避免大结果集进行深分页（分页到较高的数值，比如：100页），可以通过指定search_after进行上下页操作，从而减少深分页
+#   8、集群配置冷热分离，即配置node.attr.box_type=warm或hot，hot节点配置高用于常用数据保存节点，warn配置低用于处理不怎么使用数据保存节点，可以节省成本和保证性能
+#   9、不需要查询的数据建议存放到其它数据库中比如HBase中，无用的数据会增加es的开销
+#   10、查询使用filter会存放到query cache缓存中，可以适当（数据变化频次，变化过快的就不用调整了）调整下缓存大小indices.queries.cache.size（默认10%）
 #
 # 集群监控 Kibana 中的 Metrics 分支（Elasticsearch metrics）就可以监控集群相关信息
 # 数据同步工具 canal-adapter
@@ -113,7 +126,7 @@ DEFINE_INSTALL_PARAMS="
 [-T, --tool='kibana']安装管理工具，目前支持 kibana
 "
 # 加载基本处理
-source basic.sh
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
 # 初始化安装
 init_install 5.0.0 "https://www.elastic.co/downloads/elasticsearch" 'elasticsearch-\d+\.\d+\.\d+'
 if [ -n "$ARGV_tool" ] && ! [[ "$ARGV_tool" =~ ^kibana$ ]]; then
@@ -211,6 +224,43 @@ chown -R elasticsearch:elasticsearch ./*
 #fi
 
 info_msg "elasticsearch 配置文件修改"
+
+# JVM堆内存大小配置，堆用来缓存数据，同时es也依赖filesystem cache
+# 堆大小不建议超过32G且最多是系统物理内存的一半，堆内存大小受
+# 为合理处理堆内存使用物理可用内存的1/2并向下取整为G，当不足1G时此参数不变
+# es实际使用内存将可能超过JVM堆内存，因为es运行本身需要内存、还依赖缓冲区、文件系统缓存等
+# es-8启支持自动配置-Xmx，即可以不指定
+if grep -q '^-Xmx' ./config/jvm.options;then
+    # 内核3.14的上有MemAvailable
+    if grep -q '^MemAvailable:' /proc/meminfo;then
+        JVM_XM_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{printf "%d",count/1048576/2}')
+    else
+        JVM_XM_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|Buffers|Cached):'|awk '{count+=$2} END{printf "%d",count/1048576/2}')
+    fi
+    if [ -n "$JVM_XM_MEMORY" ] && ((JVM_XM_MEMORY > 0));then
+        # 设置大小不建议超过30G，同时启动后注意：heap size [实际有效大小], compressed ordinary object pointers [true]
+        JVM_XM_MEMORY=$((JVM_XM_MEMORY > 30 ? 30 : JVM_XM_MEMORY))
+        info_msg "JVM 堆内存大小设置为：${JVM_XM_MEMORY}g"
+        info_msg "启动后注意日志中打印的实际堆内存大小：heap size [看这里的大小], compressed ordinary object pointers [true]。如果小于配置就修改配置重启"
+        sed -i -r "s/^\s*(-Xms)[0-9]+[mgt]/\1${JVM_XM_MEMORY}g/" ./config/jvm.options
+        sed -i -r "s/^\s*(-Xmx)[0-9]+[mgt]/\1${JVM_XM_MEMORY}g/" ./config/jvm.options
+    else
+        warn_msg "当前系统可用物理内存不足1G，跳过修改JVM堆内存大小"
+    fi
+fi
+# 调整内存交换，内存交换即将物理内存数据转移到磁盘上，用来回收物理内存
+# 转移原则是访问频次底的内存页面优先转移，当应用使用时再转移到物理内存中，期间可能会导致应用卡顿等待内存读取
+# 转移不仅会造成应用等待，还有可能是应用即将回收的数据来回转移拖慢性能（比如java的FullGC回收空间时会造成严重卡顿）
+# 对于操作需要内存数据时尽量设置此配置为0，即优先清理page cache数据。
+# 以下有修改待验证
+info_msg '禁用虚拟内存，并修改相关配置'
+run_msg "echo '0' > /proc/sys/vm/swappiness"
+echo '0' > /proc/sys/vm/swappiness
+# 禁用所有swap，即无法进行物理数据转移到磁盘虚拟内存
+run_msg "swapoff -a"
+swapoff -a
+
+# 系统不支持SecComp处理
 if [ -e "/proc/$$/status" ] && ! cat /proc/$$/status|grep -qP '^Seccomp:';then
     info_msg "当前系统不支持SecComp，即将配置 bootstrap.system_call_filter: false"
     sed -i -r "s/^#?(bootstrap\.memory_lock:).*$/\1 false/" ./config/elasticsearch.yml
@@ -219,6 +269,10 @@ if [ -e "/proc/$$/status" ] && ! cat /proc/$$/status|grep -qP '^Seccomp:';then
         ((SET_LINEON++))
         sed -i "${SET_LINEON}i bootstrap.system_call_filter: false" ./config/elasticsearch.yml
     fi
+else
+    info_msg "当前系统支持SecComp"
+    # 锁定内存可能会失败，导致无法启动
+    # sed -i -r "s/^#?(bootstrap\.memory_lock:).*$/\1 true/" ./config/elasticsearch.yml
 fi
 # 集群配置
 if [ -n "$ARGV_cluster_name" ];then

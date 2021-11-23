@@ -11,74 +11,85 @@
 #    sar 命令文档：http://linux.die.net/man/1/sar
 #
 
-# 解析命令参数
-# 命令参数解析成功后，将写入参数名规则：ARGV_参数全名（横线转换为下划线，缩写选项使用标准选项代替，使用时注意参数名的大小写不变）
-# @command parse_command_param
-# return 1|0
-parse_command_param() {
-    # 解析匹配传入参数
-    local NAME INDEX ITEM ARG_NAME ARG_NUM VALUE OPTIONS_TEMP NAME_TEMP VALUE_TEMP ARGUMENTS_INDEX=0 ARG_SIZE=${#CALL_INPUT_ARGVS[@]}
-    for ((ARG_NUM=0; ARG_NUM < $ARG_SIZE; ARG_NUM++)); do
-        ITEM=${CALL_INPUT_ARGVS[$ARG_NUM]}
-        if [ -z "$ITEM" ];then
-            continue
-        fi
-        NAME=''
-        if printf '%s' "$ITEM"|grep -qiP '^((--[a-z0-9][\w\-]+(=.*)?)|(-[a-z0-9]))$'; then
-            # 有参数的选项处理
-            if printf '%s' "$ITEM"|grep -qiP '^--[a-z0-9][\w\-]+=.*';then
-                NAME_TEMP=$(printf '%s' "$ITEM"|grep -oiP '^--[a-z0-9][\w\-]+')
-                VALUE=$(printf '%s' "$ITEM"|sed -r "s/^[^=]+=//")
-            else
-                NAME_TEMP="$ITEM"
-                VALUE=''
-                for ((INDEX=0; INDEX < ${#OPTIONALS[@]}; INDEX++)); do
-                    OPTIONS_TEMP=${OPTIONALS[$INDEX]}
-                    if [ "$OPTIONS_TEMP" != "`printf '%s' "$OPTIONS_TEMP"|sed -r "s/$NAME_TEMP($|,)//"`" ];then
-                        NAME=$(printf '%s' "$OPTIONS_TEMP"|sed -r "s/(-[A-Za-z0-9]\s*,\s*)?--//")
-                        VALUE='1'
-                        break
-                    fi
-                done
-            fi
-            if [ -z "$NAME" ];then
-                for ((INDEX=0; INDEX < ${#OPTIONS[@]}; INDEX++)); do
-                    OPTIONS_TEMP=${OPTIONS[$INDEX]}
-                    if [ "$OPTIONS_TEMP" != "`printf '%s' "$OPTIONS_TEMP"|sed -r "s/$NAME_TEMP($|,)//"`" ];then
-                        NAME=$(printf '%s' "$OPTIONS_TEMP"|sed -r "s/(-[A-Za-z0-9]\s*,\s*)?--//")
-                        if [ -z "$VALUE" ] && printf '%s' "$NAME_TEMP"|grep -qiP '^-[a-z0-9]$';then
-                            ((ARG_NUM++))
-                            VALUE=${CALL_INPUT_ARGVS[$ARG_NUM]}
-                        fi
-                        if [ -z "$VALUE" ] && ! [[ $ITEM =~ = ]] && (($ARG_NUM >= $ARG_SIZE));then
-                            error_exit "$NAME 必需指定一个值"
-                        fi
-                        break
-                    fi
-                done
-            fi
-            ARGUMENTS_INDEX=${#ARGUMENTS[@]}
-        elif ((${#ARGUMENTS[@]} > 0 && $ARGUMENTS_INDEX < ${#ARGUMENTS[@]})); then
-            NAME=${ARGUMENTS[$ARGUMENTS_INDEX]}
-            VALUE="$ITEM"
-            ((ARGUMENTS_INDEX+=1))
-        fi
-        if [ -z "$NAME" ];then
-            echo "未知参数: "$ITEM
-        else
-            ARG_NAME="ARGV_"`printf '%s' "$NAME"|sed -r "s/^-{1,2}//"|sed "s/-/_/g"`
-            eval "$ARG_NAME=\$VALUE"
-        fi
-    done
-}
-# 输出错误并退出
-# @command error_exit $error_str
-# @param $error_str     错误内容
-# return 1
-error_exit(){
-    echo "[ERROR] $1"
-    exit 1;
-}
+# 参数信息配置
+SHELL_RUN_DESCRIPTION='监听系统常规硬件资源信息'
+SHELL_RUN_HELP='
+此脚本只用监听系统常规硬件资源信息，可以通过脚本监听做一些报警功能。
+可以放到定时器中执行，但必需指定持久监听否则。
+各数据主要来源命令：ps、free、netstat、iostat、sar、df、lsblk
+
+监听各资源名有：
+    CPU（CPU）、物理内存（MEM）、虚拟内存（SWAP）、磁盘分区（PART）、
+    进程（PROC）、网络（NET）、网卡（NETC）
+CPU专用信息名：
+    use         CPU总使用量占比
+    user        用户进程CPU使用量占比
+    system      内核进程CPU使用量占比
+    wait        IO等待占比
+    free        CPU空闲占比
+    interrupt   每秒中断数，包括时钟中断占比
+    switch      每秒上下文切换占比
+内存专用信息名：
+    use         内存使用量占比
+    free        内存剩余量占比
+    total       内存总量 KB
+磁盘分区专用信息名：
+    use         分区使用量
+    free        分区剩余量
+    total       分区总量
+    write       分区写入速度 KB
+    read        分区读取速度 KB
+进程专用信息名：
+    total       总进程数
+    user.name   指定用户名进程数，name 替换为对应的用户名
+网络专用信息名：
+    total       总连接数
+    CLOSED      套接字没有被使用。
+    ESTABLISED  已经建立连接的状态。
+    SYN_SENT    SYN 发起包，就是主动发起连接的数据包。
+    SYN_RECV    接收到主动连接的数据包。
+    FIN_WAIT1   正在中断的连接。
+    FIN_WAIT2   已经中断的连接，但是正在等待对方主机进行确认。
+    LISTEN      监听状态，只有 TCP 协议需要监听，而 UDP 协议不需要监听。
+    CLOSING     等待远程TCP对连接中断的确认。
+    TIME_WAIT   连接已经中断，但是套接字依然在网络中等待结束。
+    LAST_ACK    等待原来发向远程TCP的连接中断请求的确认。
+网卡信息名：
+    rxpck       每秒钟接受的数据包
+    txpck       每秒钟发送的数据包
+    rxKB        每秒钟接受的数据包大小 KB
+    txKB        每秒钟发送的数据包大小 KB
+    rxcmp       每秒钟接受的压缩数据包
+    txcmp       每秒钟发送的压缩包
+    rxmcst      每秒钟接收的多播数据包   
+    rxerr       每秒钟接收到的损坏的数据包
+    txerr       每秒钟发送的数据包错误数
+    coll        当发送数据包时候，每秒钟发生的冲撞（collisions）数
+                这个是在半双工模式下才有
+    rxdrop      当由于缓冲区满的时候，网卡设备接收端每秒钟丢掉的网络包的数目
+    txdrop      当由于缓冲区满的时候，网络设备发送端每秒钟丢掉的网络包的数目
+    txcarr      当发送数据包的时候，每秒钟载波错误发生的次数
+    rxfram      在接收数据包的时候，每秒钟发生的帧对其错误的次数
+    rxfifo      在接收数据包的时候，每秒钟缓冲区溢出的错误发生的次数
+    txfifo      在发送数据包 的时候，每秒钟缓冲区溢出的错误发生的次数
+'
+DEFINE_TOOL_PARAMS='
+[-d, --debug]调试模式，将输出相关信息用于调试
+[-f, --warn-conf=":etc/resource-monitor.conf"]监听配置文件，方便使用更复杂的监听条件
+#配置文件格式：（块不分先后）
+#   [condition]
+#   别名=资源名:资源路径:时长(报警规则)
+#   [msg]
+#   别名=报警内容
+#   [exec]
+#   别名=报警调用命令
+#   别名是对应各块的标识，不限制重名，所的重名均有效
+[-l, --loop-time=0]循环监听时长，以秒为单位，大于0有效定时。
+#定时器中不建议使用此参数。
+[--cache-file=":temp/.resource-monitor.cache"] 持续数据缓存文件，主要用来记录异常的开始时间，用来判断异常时长。
+#多个进程同时执行时建议指定不同的缓存文件以免干扰
+'
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../includes/tool.sh || exit
 # 解析各资源数据
 # @command parse_resources
 # return 0|1
@@ -210,7 +221,7 @@ in_options(){
 resources_warn(){
     local INDEX MAX_INDEX _AS WARN_NAME WARN_TIME WARN_COND WARN_PATH=$1
     if [ "$ARGV_debug" = '1' ];then
-        echo "资源：${@:2} 可用变量集："
+        info_msg "资源：${@:2} 可用变量集："
         declare -l|grep -oP '[A-Z]+_.*$'
     fi
     for WARN_NAME in ${@:2}; do
@@ -223,7 +234,6 @@ resources_warn(){
             eval _AS=\${CONDITION_ITEMS_$WARN_NAME[$INDEX]}
             eval WARN_TIME=\${CONDITION_ITEMS_$WARN_NAME[$((INDEX+2))]}
             eval WARN_COND=\${CONDITION_ITEMS_$WARN_NAME[$((INDEX+3))]}
-            echo "$WARN_COND"
             if [ $(( $WARN_COND )) != '0' ];then
                 debug_show "资源名：$WARN_NAME ，资源路径：$WARN_PATH ，持续时长：$WARN_TIME ，条件表达式：$WARN_COND ，触发报警处理"
                 if ! persist_warn WARN_TIME "$WARN_PATH($WARN_COND)" "$WARN_TIME";then
@@ -313,12 +323,11 @@ duration_format(){
 # return 0|1
 debug_show(){
     if [ "$ARGV_debug" = '1' ];then
-        echo -e "$@"
+        info_msg "$@"
         printf '[debug] 请回车继续：'
         read
     fi
 }
-
 # 解析配置文件
 # @command parse_conf $file
 # @param $file       要解析的配置文件
@@ -367,148 +376,23 @@ EOF
 EOF
     done
     if [ "$ARGV_debug" = '1' ];then
-        echo "配置解析数据集："
+        info_msg "配置解析数据集："
         declare -a|grep -oP '\s(CONDITION|MSG|EXEC)_ITEMS_\w+=.*$'
     fi
 }
-# 定义参数
-ARGUMENTS=()
-# 定义有值选项
-OPTIONS=('-f, --warn-conf' '-l, --loop-time' '--cache-file')
-# 定义无值选项
-OPTIONALS=('-h,--help' '-d, --debug' '-i, --auto-install')
-# 提取安装参数
-CALL_INPUT_ARGVS=()
-for ((INDEX=1;INDEX<=$#;INDEX++));do
-    CALL_INPUT_ARGVS[${#CALL_INPUT_ARGVS[@]}]=${@:$INDEX:1}
-done
-unset INDEX
-# 参数默认值
-ARGV_warn_conf="resource-monitor.conf"
-ARGV_cache_file=".resource-monitor.tmp"
-# 解析参数
-parse_command_param
-if [ -n "$ARGV_help" ];then
-    echo -e "Description:
-    监听系统常规硬件资源信息
-Usage:
-    bash $0.sh [Options ...]
-
-Options:
-    -h, --help              显示脚本帮助信息
-    -d, --debug             调试模式，将输出相关信息用于调试
-    -i, --auto-install      自动安装依赖工具：sysstat
-                            如果已经安装此参数无效，使用此参数需要在root账号下运行
-    -f, --warn-conf [='$ARGV_warn_conf']
-                            监听配置文件，方便使用更复杂的监听条件
-                            配置文件格式：（块不分先后）
-                                [condition]
-                                别名=资源名:资源路径:时长(报警规则)
-                                [msg]
-                                别名=报警内容
-                                [exec]
-                                别名=报警调用命令
-                            别名是对应各块的标识，不限制重名，所的重名均有效
-    -l, --loop-time [=0]    循环监听时长，以秒为单位，大于0有效定时。
-                            定时器中不建议使用此参数。
-    --cache-file [='$ARGV_cache_file']
-                            持续数据缓存文件，主要用来记录异常的开始时间，用来判断异常时长。
-                            多个进程同时执行时建议指定不同的缓存文件以免干扰
-
-Help:
-    此脚本只用监听系统常规硬件资源信息，可以通过脚本监听做一些报警功能。
-    可以放到定时器中执行，但必需指定持久监听否则。
-    各数据主要来源命令：ps、free、netstat、iostat、sar、df、lsblk
-    
-    监听各资源名有：
-        CPU（CPU）、物理内存（MEM）、虚拟内存（SWAP）、磁盘分区（PART）、
-        进程（PROC）、网络（NET）、网卡（NETC）
-    CPU专用信息名：
-        use         CPU总使用量占比
-        user        用户进程CPU使用量占比
-        system      内核进程CPU使用量占比
-        wait        IO等待占比
-        free        CPU空闲占比
-        interrupt   每秒中断数，包括时钟中断占比
-        switch      每秒上下文切换占比
-    内存专用信息名：
-        use         内存使用量占比
-        free        内存剩余量占比
-        total       内存总量 KB
-    磁盘分区专用信息名：
-        use         分区使用量
-        free        分区剩余量
-        total       分区总量
-        write       分区写入速度 KB
-        read        分区读取速度 KB
-    进程专用信息名：
-        total       总进程数
-        user.name   指定用户名进程数，name 替换为对应的用户名
-    网络专用信息名：
-        total       总连接数
-        CLOSED      套接字没有被使用。
-        ESTABLISED  已经建立连接的状态。
-        SYN_SENT    SYN 发起包，就是主动发起连接的数据包。
-        SYN_RECV    接收到主动连接的数据包。
-        FIN_WAIT1   正在中断的连接。
-        FIN_WAIT2   已经中断的连接，但是正在等待对方主机进行确认。
-        LISTEN      监听状态，只有 TCP 协议需要监听，而 UDP 协议不需要监听。
-        CLOSING     等待远程TCP对连接中断的确认。
-        TIME_WAIT   连接已经中断，但是套接字依然在网络中等待结束。
-        LAST_ACK    等待原来发向远程TCP的连接中断请求的确认。
-    网卡信息名：
-        rxpck       每秒钟接受的数据包
-        txpck       每秒钟发送的数据包
-        rxKB        每秒钟接受的数据包大小 KB
-        txKB        每秒钟发送的数据包大小 KB
-        rxcmp       每秒钟接受的压缩数据包
-        txcmp       每秒钟发送的压缩包
-        rxmcst      每秒钟接收的多播数据包   
-        rxerr       每秒钟接收到的损坏的数据包
-        txerr       每秒钟发送的数据包错误数
-        coll        当发送数据包时候，每秒钟发生的冲撞（collisions）数
-                    这个是在半双工模式下才有
-        rxdrop      当由于缓冲区满的时候，网卡设备接收端每秒钟丢掉的网络包的数目
-        txdrop      当由于缓冲区满的时候，网络设备发送端每秒钟丢掉的网络包的数目
-        txcarr      当发送数据包的时候，每秒钟载波错误发生的次数
-        rxfram      在接收数据包的时候，每秒钟发生的帧对其错误的次数
-        rxfifo      在接收数据包的时候，每秒钟缓冲区溢出的错误发生的次数
-        txfifo      在发送数据包 的时候，每秒钟缓冲区溢出的错误发生的次数
-";
-    exit 0
-fi
-# 必要命令判断
-for COMMAND_NAME in sar iostat; do
-    if ! which $COMMAND_NAME 2>&1 >/dev/null;then
-        if [ -n "$ARGV_auto_install" ];then
-            if [ `whoami` != 'root' ];then
-                echo '当前执行用户非 root 可能会无法正常安装！' >&2;
-            fi
-            for INSTALL_COMMAND_NAME in yum apt dnf; do
-                if which $INSTALL_COMMAND_NAME 2>&1 >/dev/null;then
-                    if $INSTALL_COMMAND_NAME install -y sysstat;then
-                        if [ -e '/etc/default/sysstat' ];then
-                            sed -i -r 's/^ENABLED="false"/ENABLED="true"/' /etc/default/sysstat
-                            service sysstat restart
-                        fi
-                        break 2
-                    fi
-                fi
-            done
-            echo '当前系统安装没有找到支持的安装工具，需要手动安装！'
-        fi
-        echo '安装命令可参考：[yum|apt|dnf] install sysstat'
-        echo '或者使用 --auto-install 参数自动安装，自动安装只支持 yum|apt|dnf'
-        error_exit "当前系统没有安装 $COMMAND_NAME 工具，请安装后再使用！";
-    fi
-done
-# 参数验证处理
-if [ -n "$ARGV_warn_conf" -a -e "$ARGV_warn_conf" ];then
-    debug_show "配置文件处理：$ARGV_warn_conf"
-    parse_conf "$ARGV_warn_conf"
-else
+# 提取配置文件路径
+if ! get_file_path $ARGV_warn_conf ARGV_warn_conf 1;then
     error_exit "--warn-conf 未指定有效配置文件：$ARGV_warn_conf"
 fi
+# 必要命令判断
+if ! if_command sar || ! if_command iostat;then
+    packge_manager_run install sysstat
+    if [ -e '/etc/default/sysstat' ];then
+        sed -i -r 's/^ENABLED="false"/ENABLED="true"/' /etc/default/sysstat
+        service sysstat restart
+    fi
+fi
+parse_conf "$ARGV_warn_conf"
 if [ -n "$ARGV_loop_time" ];then
     if [[ "$ARGV_loop_time" =~ ^[1-9][0-9]+$ ]];then
         debug_show "循环间隔时长：$ARGV_loop_time"
@@ -516,9 +400,11 @@ if [ -n "$ARGV_loop_time" ];then
         error_exit "--loop-time 未指定有效循环监听时长：$ARGV_loop_time"
     fi
 fi
-if [ ! -e "$ARGV_cache_file" ] && ! touch "$ARGV_cache_file";then
+# 提取缓存文件
+if ! get_file_path $ARGV_cache_file ARGV_cache_file || ([ ! -e "$ARGV_cache_file" ] && ! touch "$ARGV_cache_file");then
     error_exit "--cache-file 缓存文件无效：$ARGV_cache_file"
 fi
+
 # 执行监听
 while true;do
     parse_resources

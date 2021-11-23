@@ -22,7 +22,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source basic.sh
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
 # 初始化安装
 init_install '6.1' "https://www.postgresql.org/ftp/source/" 'v\d+\.\d+(\.\d+)?' '\d+\.\d+(\.\d+)?'
 memory_require 4 # 内存最少G

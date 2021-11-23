@@ -27,7 +27,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source basic.sh
+source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
 # 初始化安装
 init_install '2.0.50' "http://archive.apache.org/dist/httpd/" '(apache|httpd)-\d+\.\d+\.\d+\.tar\.gz'
 memory_require 4 # 内存最少G
@@ -45,7 +45,7 @@ download_software http://archive.apache.org/dist/httpd/httpd-$APACHE_VERSION.tar
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 安装依赖
 info_msg "安装相关已知依赖"
-APACHE_CURRENT_PATH=`pwd`
+APACHE_SHELL_WROK_TEMP_PATH=`pwd`
 # 开启ssl
 if in_options ssl $CONFIGURE_OPTIONS;then
     # 安装openssl-dev
@@ -71,7 +71,7 @@ if in_options ssl $CONFIGURE_OPTIONS;then
         # fi
         # # 编译安装
         # configure_install no-asm -fPIC --prefix=$OPENSSL_PATH
-        cd $APACHE_CURRENT_PATH
+        cd $APACHE_SHELL_WROK_TEMP_PATH
         parse_options CONFIGURE_OPTIONS "?--with-ssl=$OPENSSL_PATH ?--with-openssl=$OPENSSL_PATH"
     fi
 fi
@@ -89,26 +89,26 @@ fi
 if [ -n "$APR_MIN_VERSION" ];then
     # 下载apr
     VERSION_MATCH=`echo $APR_MIN_VERSION'.\d+.\d+.\d+'|awk -F '.' '{print $1,$2,$NF}' OFS='\\\.'`
-    if [ ! -d "$APACHE_CURRENT_PATH/srclib/apr" ];then
+    if [ ! -d "$APACHE_SHELL_WROK_TEMP_PATH/srclib/apr" ];then
         # 获取最新版
         get_version APR_VERSION https://archive.apache.org/dist/apr/ "apr-$VERSION_MATCH\.tar\.gz"
         info_msg "下载：apr-$APR_VERSION"
         # 下载
         download_software https://archive.apache.org/dist/apr/apr-$APR_VERSION.tar.gz
         # 复制到编译目录
-        mv `pwd` $APACHE_CURRENT_PATH/srclib/apr
+        mv `pwd` $APACHE_SHELL_WROK_TEMP_PATH/srclib/apr
     fi
     # 下载apr-util
-    if [ ! -d "$APACHE_CURRENT_PATH/srclib/apr-util" ]; then
+    if [ ! -d "$APACHE_SHELL_WROK_TEMP_PATH/srclib/apr-util" ]; then
         # 获取最新版
         get_version APR_UTIL_VERSION https://archive.apache.org/dist/apr/ "apr-util-$VERSION_MATCH\.tar\.gz"
         info_msg "下载：apr-util-$APR_UTIL_VERSION"
         # 下载
         download_software https://archive.apache.org/dist/apr/apr-util-$APR_UTIL_VERSION.tar.gz
         # 复制到编译目录
-        mv `pwd` $APACHE_CURRENT_PATH/srclib/apr-util
+        mv `pwd` $APACHE_SHELL_WROK_TEMP_PATH/srclib/apr-util
     fi
-    cd $APACHE_CURRENT_PATH
+    cd $APACHE_SHELL_WROK_TEMP_PATH
     if [ -d './srclib/apr' ] || [ -d './srclib/apr-util' ];then
         CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS"--with-included-apr"
     fi
