@@ -288,8 +288,90 @@ cat >> $MY_CNF <<MY_CONF
 # 启动用户
 user=mysql
 
-# 模式配置
-sql_mode=NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+# SQL处理模式配置，不同版本有对应默认模式
+# MySQL的SQL模式不同版本会有些变化，以下部分弃用模式未列出。
+# 默认均为严格模式，在生产环境建议使用严格模式，兼容模式容易造成数据写入丢失或转换。
+# 写数据时注意：数据类型、字符集、值合法性、值范围等
+#
+# MySQL8.0默认：ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION。
+# MySQL5.7默认：ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION。
+#
+# 组合模式值：
+#   ANSI
+#       相当于： REAL_AS_FLOAT, PIPES_AS_CONCAT, ANSI_QUOTES, IGNORE_SPACE, ONLY_FULL_GROUP_BY（MySQL5.7.5开始增加）
+#
+#   TRADITIONAL
+#       MySQL8.0相当于：STRICT_TRANS_TABLES, STRICT_ALL_TABLES, NO_ZERO_IN_DATE, NO_ZERO_DATE, ERROR_FOR_DIVISION_BY_ZERO, NO_ENGINE_SUBSTITUTION
+#
+# 标准模式值：
+#   ALLOW_INVALID_DATES
+#       不要对日期进行全面检查，仅验证月份和日期是否在范围内（比如月份只有1~12，日期段是每月不尽相同），
+#       此模式针对date和datetime类型字段，验证失败会变成：0000-00-00，严格模式产生错误失败写入。
+#
+#   ANSI_QUOTES
+#       将双引号解析为标识符引号，即双引号功能类似反引号。
+#
+#   ERROR_FOR_DIVISION_BY_ZERO
+#       除0报错（一般程序除数为0均异常）。mysql除0操作将等于NULL。此模式已经弃用。
+#       如果不指定此选项不会产生警告，指定会产生警告如果还启用严格模式将报错。在SQL中还可以指定IGNORE关键字忽略。
+#
+#   HIGH_NOT_PRECEDENCE
+#       提升not运算优先级，默认not运算优先级不尽相同，指定后not将先于其它运算。
+#
+#   IGNORE_SPACE
+#       允许内置函数名与左括号之间有空格（默认内置函数使用时函数后与左括号不能间隔）。
+#       启用后内置函数将被视为保留字。自定义的函数或存储允许有空格且不受此模式影响。
+#
+#   NO_AUTO_CREATE_USER
+#       禁止GRANT创建空密码账号。此模式已经弃用
+#
+#   NO_AUTO_VALUE_ON_ZERO
+#       此模式影响指定auto_increment字段处理。当指定auto_increment字段写入0后，MYSQL通常会在遇到0后生成新序列号，启用后禁止自动生成新序列号。
+#
+#   NO_BACKSLASH_ESCAPES
+#       禁用反斜杠字符作为字符串和标识符中的转义字符，指定后反斜杠将视为普通字符串处理，即没有转义字符。
+#
+#   NO_DIR_IN_CREATE
+#       创建表时，忽略所有INDEX DIRECTORY和DATA DIRECTORY指令。此选项在副本服务器上很有用。
+#
+#   NO_ENGINE_SUBSTITUTION
+#       当使用CREATE TABLE或ALTER TABLE之类的语句时指定禁用或未编译的存储引擎时，自动替换为默认存储引擎。不指定SQL中不可用的存储引擎将报错。
+#
+#   NO_UNSIGNED_SUBTRACTION
+#       无符号字段允许写入有符号数值，当为负数时会转为0并写入。不指定将报错。
+#
+#   NO_ZERO_DATE
+#       允许0000-00-00作为有效日期，从8.0开始弃用
+#
+#   NO_ZERO_IN_DATE
+#       允许日期在年的部分是非零但当月或日部分可为0，比如：2010-00-01或2010-01-00，不会自动转为0000-00-00。从8.0开始弃用
+#
+#   ONLY_FULL_GROUP_BY
+#       禁止
+#
+#   PAD_CHAR_TO_FULL_LENGTH
+#       禁止查询时去掉char类型字段后面空格，char定长字段写入长度未满时后面是会补空格填满。从8.0.13开始弃用
+#       默认会自动去掉后面的空格字符，指定此参数后保留后面的空格字符并返回.
+#
+#   PIPES_AS_CONCAT
+#       将||视为字符串连接符（类似使用concat函数）而不是 or 运算符。
+#
+#   REAL_AS_FLOAT
+#       将REAL作为FLOAT别名，不指定则REAL是DOUBLE的别名。
+#
+#   STRICT_ALL_TABLES
+#       为所有存储引擎启用严格的SQL模式。无效的数据值被拒绝执行。
+#
+#   STRICT_TRANS_TABLES
+#       为事务存储引擎启用严格的SQL模式，并在可能的情况下为非事务存储引擎启用
+#
+#   TIME_TRUNCATE_FRACTIONAL
+#       当写入TIME、DATE、TIMESTAMP类型字段时有小数秒且小数位数超过限定位数时使用截断而不是四舍五入。默认不指定时是四舍五入。截断可以理解为字符串截取。从8.0起增加。
+#
+# 兼容模式
+# sql_mode=NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+# 严格模式
+sql_mode=ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO
 
 # 配置慢查询
 #log-slow-queries=
