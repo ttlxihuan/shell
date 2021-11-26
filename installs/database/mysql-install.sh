@@ -94,6 +94,8 @@
 DEFINE_INSTALL_PARAMS="
 [-p, --password='']安装成功后修改的新密码，默认或为空时随机生成25位密码
 [-t, --type='']主从配置 main|slave  ，默认是无主从配置
+[-g, --gtid]使用GTID事务唯一标识符进行自动定位复制
+# 只有 5.7+ 版本有效
 [-H, --master-host='']主从配置地址  user@host 
 #配置主服务器时这里指定从服务器连接的账号和地址
 #配置从服务器时这里指定主服务器的连接账号和地址
@@ -136,6 +138,10 @@ if [ -n "$ARGV_type" ]; then
     fi
 else
     MYSQL_SYNC_BIN=''
+fi
+# GTID处理
+if [ "$ARGV_gtid" = '1' ] && if_version "$MYSQL_VERSION" "<" "5.7.0"; then
+    warn_msg "mysql 必需是 5.7+ 才可以使用GTID复制，--gtid 选项无效。"
 fi
 # ************** 编译安装 ******************
 # 下载mysql包
@@ -283,6 +289,15 @@ sed -i "s/^datadir.*=.*data.*/datadir=database/" $MY_CNF
 sed -i "s#^socket.*=.*#socket=$MYSQL_RUN_PATH/mysql.sock#" $MY_CNF
 sed -i "s#^log-error.*=.*#log-error=$MYSQL_RUN_PATH/mysqld.log#" $MY_CNF
 sed -i "s#^pid-file.*=.*#pid-file=$MYSQL_RUN_PATH/mysqld.pid#" $MY_CNF
+# 获取系统可用内存空间配置缓冲区
+if grep -q '^MemAvailable:' /proc/meminfo;then
+    BUFFER_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{printf "%d",count/2}')
+else
+    BUFFER_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|Buffers|Cached):'|awk '{count+=$2} END{printf "%d",count/2}')
+fi
+if ((BUFFER_MEMORY <= 0));then
+    BUFFER_MEMORY=134217728
+fi
 # 默认模式配置
 cat >> $MY_CNF <<MY_CONF
 # 启动用户
@@ -388,6 +403,13 @@ max_connections=16384
 # 单个用户最大连接数据，为0不限制，默认为0
 #max_user_connections=0
 
+# 配置缓冲区容量，如果独享服务器可配置到物理内存的80%左右，如果是共享可配置在50%~70%左右。
+# 建议超过1G以上，默认是128M，需要配置整数，最大值=2**(CPU位数64或32)-1。可动态SQL修改
+innodb_buffer_pool_size=${BUFFER_MEMORY}
+
+# 配置线程数，线程数过多会在并发时产生过多的线程切换，导致性能不升反降
+# 可动态SQL修改
+innodb_thread_concurrency=$((TOTAL_THREAD_NUM * 2))
 MY_CONF
 
 # 8.0以上，默认的字符集是utf8mb4，php7.0及以前的连接会报未知字符集错
@@ -409,9 +431,21 @@ log-bin=mysql-bin-sync
 # 配置主从唯一ID
 server-id=$SERVER_ID
 MY_CONF
-
+    if if_version "$MYSQL_VERSION" ">=" "5.7.0"; then
+        USE_GTID_COPY='# '
+        if [ "$ARGV_gtid" = '1' ];then
+            USE_GTID_COPY=''
+        fi
+        cat >> $MY_CNF <<MY_CONF
+# 5.7+ 可以开启GTID复制，避免使用二进制文件+位置复制
+# GTID是事务唯一标识符，每个事务都有唯一的标识，且这个标识符允许 2**63-1 ，差不多有92亿亿次的数量限制。超将无法进行事务处理。
+${USE_GTID_COPY}gtid_mode=ON
+${USE_GTID_COPY}enforce-gtid-consistency=ON
+MY_CONF
+    fi
     if [[ "$MYSQL_SYNC_BIN" == 'main' ]]; then
         cat >> $MY_CNF <<MY_CONF
+# 日志在每次事务提交时写入并刷新到磁盘
 innodb_flush_log_at_trx_commit=1
 
 #事务特性,最好设为1
@@ -543,19 +577,26 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
         mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -h127.0.0.1 -e "create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;"
     elif [ "$MYSQL_SYNC_BIN" = 'slave' ]; then
         info_msg '主从配置，当前服务为：slave';
-        MASTER_USER=`echo $MYSQL_SYNC_BIN_HOST|grep -P '^[^@]+' -o`
-        MASTER_HOST=`echo $MYSQL_SYNC_BIN_HOST|grep -P '[^@]+$' -o`
-        # 读取主服务器上的同步起始值
-        run_msg "mysql -h$MASTER_HOST -u$MASTER_USER --password=\"$MYSQL_SYNC_BIN_PASSWORD\" -e 'SHOW MASTER STATUS' -X 2>&1"
-        SQL_RESULT=`mysql -h$MASTER_HOST -u$MASTER_USER --password="$MYSQL_SYNC_BIN_PASSWORD" -e 'SHOW MASTER STATUS' -X 2>&1`
-        MASTER_LOG_FILE=`echo $SQL_RESULT|grep -P 'File[^<]+' -o|grep -P '[^>]+$' -o`
-        MASTER_LOG_POS=`echo $SQL_RESULT|grep -P 'Position[^<]+' -o|grep -P '\d+$' -o`
-        if [ -n "$MASTER_LOG_FILE" ] && [ -n "$MASTER_LOG_POS" ]; then
-            run_msg "mysql -uroot --password='$MYSQL_ROOT_PASSWORD' -h127.0.0.1 -e \"change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS; start slave; show slave status \G\""
-            mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -h127.0.0.1 -e "stop slave;change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS;start slave;show slave status \G "
+        if [ "$ARGV_gtid" = '1' ] && if_version "$MYSQL_VERSION" ">=" "5.7.0"; then
+            info_msg '配置GTID事务标识二进制日志自动定位复制'
+            run_msg "mysql -uroot --password='$MYSQL_ROOT_PASSWORD' -h127.0.0.1 -e \"change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_AUTO_POSITION=1; start slave; show slave status \G\""
+            mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -h127.0.0.1 -e "stop slave;change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_AUTO_POSITION=1;start slave;show slave status \G "
         else
-            info_msg $SQL_RESULT;
-            info_msg '主从配置失败';
+            info_msg '配置二进制日志指定日志文件和位置复制'
+            MASTER_USER=`echo $MYSQL_SYNC_BIN_HOST|grep -P '^[^@]+' -o`
+            MASTER_HOST=`echo $MYSQL_SYNC_BIN_HOST|grep -P '[^@]+$' -o`
+            # 读取主服务器上的同步起始值
+            run_msg "mysql -h$MASTER_HOST -u$MASTER_USER --password=\"$MYSQL_SYNC_BIN_PASSWORD\" -e 'SHOW MASTER STATUS' -X 2>&1"
+            SQL_RESULT=`mysql -h$MASTER_HOST -u$MASTER_USER --password="$MYSQL_SYNC_BIN_PASSWORD" -e 'SHOW MASTER STATUS' -X 2>&1`
+            MASTER_LOG_FILE=`echo $SQL_RESULT|grep -P 'File[^<]+' -o|grep -P '[^>]+$' -o`
+            MASTER_LOG_POS=`echo $SQL_RESULT|grep -P 'Position[^<]+' -o|grep -P '\d+$' -o`
+            if [ -n "$MASTER_LOG_FILE" ] && [ -n "$MASTER_LOG_POS" ]; then
+                run_msg "mysql -uroot --password='$MYSQL_ROOT_PASSWORD' -h127.0.0.1 -e \"change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS; start slave; show slave status \G\""
+                mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -h127.0.0.1 -e "stop slave;change master to master_host='$MASTER_HOST',master_user='$MASTER_USER',master_password='$MYSQL_SYNC_BIN_PASSWORD',MASTER_LOG_FILE='$MASTER_LOG_FILE',MASTER_LOG_POS=$MASTER_LOG_POS;start slave;show slave status \G "
+            else
+                info_msg $SQL_RESULT;
+                info_msg '主从配置失败';
+            fi
         fi
     else
         info_msg '没有指定主从配置';
