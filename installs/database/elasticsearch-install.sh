@@ -242,8 +242,7 @@ if grep -q '^-Xmx' ./config/jvm.options;then
         JVM_XM_MEMORY=$((JVM_XM_MEMORY > 30 ? 30 : JVM_XM_MEMORY))
         info_msg "JVM 堆内存大小设置为：${JVM_XM_MEMORY}g"
         info_msg "启动后注意日志中打印的实际堆内存大小：heap size [看这里的大小], compressed ordinary object pointers [true]。如果小于配置就修改配置重启"
-        sed -i -r "s/^\s*(-Xms)[0-9]+[mgt]/\1${JVM_XM_MEMORY}g/" ./config/jvm.options
-        sed -i -r "s/^\s*(-Xmx)[0-9]+[mgt]/\1${JVM_XM_MEMORY}g/" ./config/jvm.options
+        sed -i -r "s/^\s*(-Xm[sx])[0-9]+[mgt]/\1${JVM_XM_MEMORY}g/g" ./config/jvm.options
     else
         warn_msg "当前系统可用物理内存不足1G，跳过修改JVM堆内存大小"
     fi
