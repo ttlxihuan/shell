@@ -63,8 +63,7 @@ nginx 1.15.0
 不建议向低版本安装，比如原来已经安装高版本再安装低版本，容易造成部分依赖包版本要求而导致找不到
 如果命令运行出错可能是换行符的问题可以运行命令
 ```
-find ./ -maxdepth 1 -type f -name '*.sh' -exec sed -i 's/\r//' {} \;
-find ./installs ./tools ./includes ./etc -type f -name '*.sh' -o -name '*.conf'|xargs sed -i 's/\r//'
+find ./ ! -path ./temp -type f -name '*.sh' -exec sed -i 's/\r//' {} \;
 ```
 
 ### 快速使用
@@ -82,11 +81,14 @@ if ! which wget 2>&1 &>/dev/null || ! which unzip 2>&1 &>/dev/null ;then
 fi
 if [ ! -d "shell-master" ];then
     wget --no-check-certificate -O master.zip https://github.com/ttlxihuan/shell/archive/master.zip
+    if [ $? != '0' ];then
+        echo '下载脚本包失败！'
+        exit 1
+    fi
     unzip master.zip
 fi
 cd shell-master
-find ./ -maxdepth 1 -type f -name '*.sh' -exec sed -i 's/\r//' {} \;
-find ./installs ./tools ./includes ./etc -type f -name '*.sh' -o -name '*.conf'|xargs sed -i 's/\r//'
+find ./ ! -path ./temp -type f -name '*.sh' -exec sed -i 's/\r//' {} \;
 for NAME in ${@:1}; do
     if [ -e "$NAME-install.sh" ];then
         echo "运行：$NAME"
