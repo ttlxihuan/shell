@@ -112,7 +112,7 @@ else
     cd $GCC_CONFIGURE_PATH
 fi
 # 64位系统需要禁用multilib
-if [ -n "`uname -a|grep -P 'el\d+\.x\d+_\d+' -o|grep x86_64 -o`" ]; then
+if uname -a|grep -q x86_64; then
     GCC_CONFIGURE_WITH=$GCC_CONFIGURE_WITH' --disable-multilib'
 fi
 # 编译安装
