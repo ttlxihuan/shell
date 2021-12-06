@@ -146,6 +146,8 @@ get_version(){
 # return 1|0
 download_file(){
     FILE_NAME=${2-`base $1|sed 's/[\?#].*$//'`}
+    chdir $INSTALL_NAME
+    info_msg '下载保存目录：'`pwd`
     if [ ! -e "$FILE_NAME" ];then
         if ! wget --no-check-certificate -T 7200 -O $FILE_NAME $1; then
             curl -OLkN --connect-timeout 7200 -o $FILE_NAME $1
