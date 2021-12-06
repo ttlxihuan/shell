@@ -29,6 +29,10 @@ DEFINE_INSTALL_PARAMS="
 #多个使用逗号分开，最少三个含当前服务器，当前IP可以不传创建时自动补充
 #只有5.0及以上的版本有效
 [-R, --cluster-replicas=1]指定集群副本数
+[-m, --max-memory=-1]指定配置最大内存字节数，如果不设置可能会导致内存不足机器死机。
+#< 0 或空为即可用内存的70%，
+#= 0 即不配置
+#> 0 即配置指定大小
 "
 # 加载基本处理
 source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
@@ -52,6 +56,9 @@ if [ -n "$ARGV_cluster_hosts" ];then
 fi
 if [ -n "$ARGV_save" ] && printf '%s' "$ARGV_save"|grep -qP '^\s*([1-9]\d*|\d)\s+([1-9]\d*|\d)\s*$';then
     error_exit '--save 开启自动保存到硬盘参数错误'
+fi
+if [ -n "$ARGV_max_memory" ] && printf '%s' "$ARGV_max_memory"|grep -qP '^-?[1-9]\d*$';then
+    error_exit '--max-memory 指定配置最大内存字节数错误'
 fi
 memory_require 4 # 内存最少G
 work_path_require 1 # 安装编译目录最少G
@@ -81,7 +88,20 @@ cd $INSTALL_PATH$REDIS_VERSION
 # redis conf set
 info_msg 'redis 配置文件修改'
 sed -i -r 's/^(daemonize )no/\1yes/' redis.conf # 后台运行
-
+# 最大内存，如果不设置可能会导致内存不足机器死机，默认配置为可用内存的70%
+if (( ARGV_max_memory > 0 ));then
+    REDIS_MAX_MEMORY=ARGV_max_memory
+else
+    # 内核3.14的上有MemAvailable
+    if grep -q '^MemAvailable:' /proc/meminfo;then
+        REDIS_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{printf "%d",count * 0.7}')
+    else
+        REDIS_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|Buffers|Cached):'|awk '{count+=$2} END{printf "%d",count * 0.7}')
+    fi
+fi
+sed -i -r "s/^(\s*#)?\s*(maxmemory )/\2${REDIS_MAX_MEMORY}/" redis.conf
+# 最大连接数据
+# sed -i -r "s/^(\s*#)?\s*(maxclients )/\220000/" redis.conf
 # 开启自动保存到硬盘持久化配置
 if [ -n "$ARGV_save" ];then
     sed -i -r "s/^#\s*(save )\s*\d+.*/\1 $ARGV_save/" redis.conf # 开启60秒内有50次修改自动保存到硬盘

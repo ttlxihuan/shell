@@ -372,6 +372,7 @@ cp -f etc/php-fpm.conf.default etc/php-fpm.conf
 cp -f etc/php-fpm.d/www.conf.default etc/php-fpm.d/www.conf
 
 # 修改配置参数
+info_msg '修改php-fpm配置'
 math_compute MAX_CHILDREN "$TOTAL_THREAD_NUM * 10"
 math_compute MIN_SPARE "$MAX_CHILDREN * 0.1"
 math_compute MAX_SPARE "$MAX_CHILDREN * 0.5"
@@ -385,21 +386,40 @@ sed -i -r "s/^;?(pm\.max_requests\s*=\s*)[0-9]+/\1$MAX_CHILDREN/" etc/php-fpm.d/
 if [ -z "`cat lib/php.ini|grep zend_extension=opcache.so`" ]; then
     echo "zend_extension=opcache.so" >> lib/php.ini
 fi
-# 修改配置
-sed -i -r 's/^;?(opcache\.enable=)[0-1]/\11/' lib/php.ini
-# CLI环境下，PHP启用OPcache
-sed -i -r 's/^;?(opcache\.enable_cli=)[0-1]/\11/' lib/php.ini
-# OPcache共享内存存储大小,单位MB
-sed -i -r 's/^;?(opcache.memory_consumption=)[0-9]+/\1512/' lib/php.ini
-# 缓存多少个PHP文件
-sed -i -r 's/^;?(opcache.max_accelerated_files=)[0-9]+/\120000/' lib/php.ini
-# 打开快速关闭, 在PHP Request Shutdown的时候回收内存的速度会提高
-sed -i -r 's/^;?(opcache.fast_shutdown=)[0-9]+/\11/' lib/php.ini
-# 设置的间隔秒数去检测文件的时间戳（timestamp）检查脚本是否更新
-sed -i -r 's/^;?(opcache.validate_timestamps=)[0-9]+/\10/' lib/php.ini
+if $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP '^Zend OPcache$';then
+    info_msg '开启opcache'
+    # 修改配置
+    sed -i -r 's/^;?(opcache\.enable=)[0-1]/\11/' lib/php.ini
+    # CLI环境下，PHP启用OPcache
+    sed -i -r 's/^;?(opcache\.enable_cli=)[0-1]/\11/' lib/php.ini
+    # OPcache共享内存存储大小,单位MB
+    sed -i -r 's/^;?(opcache.memory_consumption=)[0-9]+/\1512/' lib/php.ini
+    # 缓存多少个PHP文件
+    sed -i -r 's/^;?(opcache.max_accelerated_files=)[0-9]+/\120000/' lib/php.ini
+    # 打开快速关闭, 在PHP Request Shutdown的时候回收内存的速度会提高
+    sed -i -r 's/^;?(opcache.fast_shutdown=)[0-9]+/\11/' lib/php.ini
+    # 设置的间隔秒数去检测文件的时间戳（timestamp）检查脚本是否更新
+    sed -i -r 's/^;?(opcache.validate_timestamps=)[0-9]+/\10/' lib/php.ini
+    if if_version $PHP_VERSION '>=' '8.0.0';then
+        info_msg '开启opcache-jit'
+        if grep -qP ';?(opcache\.jit=)' lib/php.ini;then
+            # 存在配置直接修改
+            sed -i -r 's/^;?(opcache\.jit=)[0-1]/\11/' lib/php.ini
+            sed -i -r 's/^;?(opcache\.jit_buffer_size=)[0-1]/\11/' lib/php.ini
+        else
+            # 不存在配置添加
+            OPCACHE_LINE_NUM=$(grep -qP ';?(opcache\.enable=)' lib/php.ini|grep -oP '^\d+')
+            sed -i "${OPCACHE_LINE_NUM}iopcache.jit_buffer_size: 128M" lib/php.ini
+            # 注意，此配置有多种可选值，在官方文档中有详细说明
+            sed -i "${OPCACHE_LINE_NUM}iopcache.jit: 1205" lib/php.ini
+        fi
+    fi
+fi
+
 # 设置缓存的过期时间（单位是秒）,为0的话每次都要检查，当opcache.validate_timestamps=0此配置无效
 # sed -i -r 's/^;?(opcache.revalidate_freq=)[0-9]+/\160/' lib/php.ini
 # 上传配置
+info_msg '修改php上传文件大小为8M'
 sed -i -r 's/^;?(upload_max_filesize\s+=\s+)[0-9]+M/\18M/' lib/php.ini
 
 # 解析处理pecl扩展
@@ -410,7 +430,7 @@ do
         EXT_VERSION="`echo $EXT_OPTIONS|awk '{print $1}'`"
         EXT_ADD_OPTIONS="`echo $EXT_OPTIONS|awk '{$1=""; print}'`"
     fi
-    if in_add_options $EXT_NAME $ADD_OPTIONS && $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "$EXT_NAME";then
+    if in_add_options $EXT_NAME $ADD_OPTIONS && $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "^$EXT_NAME\$";then
         info_msg "安装pecl扩展：$EXT_NAME"
         # 最低PHP版本处理
         get_version MIN_PHP_VERSION "https://pecl.php.net/package/$EXT_NAME" "PHP Version: PHP \d+\.\d+\.\d+ or newer" "\d+\.\d+\.\d+"
