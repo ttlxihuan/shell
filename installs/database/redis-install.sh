@@ -54,7 +54,7 @@ if [ -n "$ARGV_cluster_hosts" ];then
         error_exit '--cluster-replicas 集群副本数必需是正整数'
     fi
 fi
-if [ -n "$ARGV_save" ] && printf '%s' "$ARGV_save"|grep -qP '^\s*([1-9]\d*|\d)\s+([1-9]\d*|\d)\s*$';then
+if [ -n "$ARGV_save" ] && ! printf '%s' "$ARGV_save"|grep -qP '^\s*([1-9]\d*|\d)\s+([1-9]\d*|\d)\s*$';then
     error_exit '--save 开启自动保存到硬盘参数错误'
 fi
 if [ -n "$ARGV_max_memory" ] && printf '%s' "$ARGV_max_memory"|grep -qP '^-?[1-9]\d*$';then
