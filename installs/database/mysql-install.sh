@@ -250,33 +250,25 @@ if [ ! -d "./etc" ];then
             cp $SHELL_WROK_TEMP_PATH/mysql/mysql-$MYSQL_VERSION/packaging/rpm-common/my.cnf ./etc/my.cnf
         else
             cat > $MY_CNF <<MY_CONF
-# For advice on how to change settings please see
-# http://dev.mysql.com/doc/refman/8.0/en/server-configuration-defaults.html
+# mysql配置文件，更多可查看官方文档
+# https://dev.mysql.com/doc/refman/8.0/en/server-system-variables.html
 
 [mysqld]
-#
-# Remove leading # and set to the amount of RAM for the most important data
-# cache in MySQL. Start at 70% of total RAM for dedicated server, else 10%.
-# innodb_buffer_pool_size = 128M
-#
-# Remove the leading "# " to disable binary logging
-# Binary logging captures changes between backups and is enabled by
-# default. It's default setting is log_bin=binlog
-# disable_log_bin
-#
-# Remove leading # to set options mainly useful for reporting servers.
-# The server defaults are faster for transactions and fast SELECTs.
-# Adjust sizes as needed, experiment to find the optimal values.
-# join_buffer_size = 128M
-# sort_buffer_size = 2M
-# read_rnd_buffer_size = 2M
-#
+# 需要开启的增加将前面的注释符号 # 去掉即可
+# 此文件是安装脚本自动生成的，并会自动增加一些常规配置
 
+# 数据库保存目录
 datadir=database
+
+# socket连接文件
 socket=$INSTALL_PATH$MYSQL_VERSION/run/mysql.sock
 
+# 错误目录路径
 log-error=$INSTALL_PATH$MYSQL_VERSION/run/mysqld.log
+
+# 进程PID保证文件路径
 pid-file=$INSTALL_PATH$MYSQL_VERSION/run/mysqld.pid
+
 MY_CONF
         fi
     fi
@@ -297,6 +289,22 @@ else
 fi
 if ((BUFFER_MEMORY <= 0));then
     BUFFER_MEMORY=134217728
+fi
+# 生成服务编号
+get_ip
+SERVER_ID=`echo "$SERVER_IP"|sed 's/\.//g'|grep -P '\d{6}$' -o`
+if [ "$MYSQL_SYNC_BIN" = 'slave' ]; then
+    SLAVE_PARALLEL=''
+else
+    SLAVE_PARALLEL='# '
+fi
+# 版本专用配置
+if if_version "$MYSQL_VERSION" "<" "8.0.26"; then
+    # 8.0.26之前
+    LOG_UPDATES='log_slave_updates'
+else
+    # 8.0.26起改名
+    LOG_UPDATES='log_replica_updates'
 fi
 # 默认模式配置
 cat >> $MY_CNF <<MY_CONF
@@ -403,58 +411,77 @@ max_connections=16384
 # 单个用户最大连接数据，为0不限制，默认为0
 #max_user_connections=0
 
+# 配置线程数，线程数过多会在并发时产生过多的线程切换，导致性能不升反降
+# 可动态SQL修改
+innodb_thread_concurrency=$((TOTAL_THREAD_NUM * 2))
+
+# mysql 缓冲区配置项很多，具体可以SQL：show global variables like '%buffer%';
+
 # 配置缓冲区容量，如果独享服务器可配置到物理内存的80%左右，如果是共享可配置在50%~70%左右。
 # 建议超过1G以上，默认是128M，需要配置整数，最大值=2**(CPU位数64或32)-1。可动态SQL修改
 innodb_buffer_pool_size=${BUFFER_MEMORY}
 
-# 配置线程数，线程数过多会在并发时产生过多的线程切换，导致性能不升反降
-# 可动态SQL修改
-innodb_thread_concurrency=$((TOTAL_THREAD_NUM * 2))
-MY_CONF
+# 普通索引、范围索引或不使用索引联接缓冲区大小，最大4G-1
+# 可以动态配置，默认256KB
+# join_buffer_size=128M
 
-# 8.0以上，默认的字符集是utf8mb4，php7.0及以前的连接会报未知字符集错
-if if_version "$MYSQL_VERSION" ">=" "8.0.0"; then
-cat >> $MY_CNF <<MY_CONF
-# 8.0以上，默认的字符集是utf8mb4，php7.0及以前的连接会报未知字符集错
-character-set-server = utf8
-MY_CONF
-fi
+# 设置必需排序缓冲区大小，最大4G-1
+# 可以动态配置，默认256KB
+# sort_buffer_size=2M
 
-# 主从配置
-if [ -n "$MYSQL_SYNC_BIN" ]; then
-    get_ip
-    SERVER_ID=`echo "$SERVER_IP"|sed 's/\.//g'|grep -P '\d{6}$' -o`
-    cat >> $MY_CNF <<MY_CONF
+# 使用加密连接，复制时源和副本均需要配置
+# 证书颁发机构 (CA) 证书文件的路径名，即根证书
+# ssl_ca=cacert.pem
+
+# 服务器公钥证书文件的路径名，通信公钥（服务器和客户端）
+# ssl_cert=server-cert.pem
+
+# 服务器私钥文件的路径名，通信私钥（仅服务器）
+# ssl_key=server-key.pem
+
 # 开启二进制日志
 log-bin=mysql-bin-sync
 
+# 配置自动删除几天前历史二进制日志
+# 为0即禁止自动删除，此配置早期不建议使用
+# expire_logs_days=7
+
+# 配置自动删除几秒前历史二进制日志。默认2592000，即30天前。
+# 为0即禁止自动删除，此配置为新增并建议使用
+# 二进制日志可用于复制和恢复等操作，但占用空间
+binlog_expire_logs_seconds=2592000
+
 # 配置主从唯一ID
 server-id=$SERVER_ID
-MY_CONF
-    if if_version "$MYSQL_VERSION" ">=" "5.7.0"; then
-        USE_GTID_COPY='# '
-        if [ "$ARGV_gtid" = '1' ];then
-            USE_GTID_COPY=''
-        fi
-        cat >> $MY_CNF <<MY_CONF
-# 5.7+ 可以开启GTID复制，避免使用二进制文件+位置复制
-# GTID是事务唯一标识符，每个事务都有唯一的标识，且这个标识符允许 2**63-1 ，差不多有92亿亿次的数量限制。超将无法进行事务处理。
-${USE_GTID_COPY}gtid_mode=ON
-${USE_GTID_COPY}enforce-gtid-consistency=ON
-MY_CONF
-    fi
-    if [[ "$MYSQL_SYNC_BIN" == 'main' ]]; then
-        cat >> $MY_CNF <<MY_CONF
+
 # 日志在每次事务提交时写入并刷新到磁盘
 innodb_flush_log_at_trx_commit=1
 
-#事务特性,最好设为1
+# 启用事务同步组数，多组同步可以减少同步到磁盘次数来提升性能，但异常时也容易丢失未同步数据
+# 最安全的是每组同步一次（每组可以理解为每个事务），为0即关闭
 sync_binlog=1
 
-#作为从服务器时的中继日志
+# 二进制格式，已经指定后不建议修改
+# ROW       按每行动态记录，复制安全可靠，占用空间大，默认格式
+# STATEMENT 按语句记录，复制对不确定性SQL产生复制警告，占用空间小
+# MIXED     按行或语句记录，影响语句异常的按行记录否则按语句记录，占用空间适中，且安全可靠
+#           混合模式使用临时表在8.0以前会强制不安全使用行记录直到临时表删除
+#           innodb支持语句记录事务等级必需是可重读和串行
+binlog_format=ROW
+
+# 二进制日志记录模式
+# full      记录所有列数据，即使有的列未修改，默认选项
+# minimal   只记录要修改的列，可以减少二进制日志体量
+# noblob    记录所有列数据，但blod或text之类列未修改不记录，其它列未修改仍记录
+binlog_row_image=minimal
+
+# 作为从服务器时的中继日志
+# 中继日志是副本复制时创建产生，与二进制日志格式一样。
+# 中继日志是当复制I/O线程、刷新日志、文件过大时会创建。创建规则与二进制日志类似。
+# 中继文件会在复制完成后自动删除
 #relay_log=school-relay-bin
 
-#可以被从服务器复制的库。二进制需要同步的数据库名
+#可以被复制的库。二进制需要同步的数据库名
 #binlog-do-db=
 
 #不可以被从服务器复制的库
@@ -466,23 +493,65 @@ auto_increment_increment=1
 # 多主复制时需要配置自增开始值，避开自增值相同
 auto_increment_offset=1
 
-# 版本要求mysql5.7+ 设置数据提交延时长度，默认为0无延时，有延时会减少提交次数，减少同步队列数（微秒单位）
+# 版本要求mysql5.7+ 设置数据提交延时长度，默认为0无延时
+# 有延时会减少提交次数，减少同步队列数（微秒单位）,即集中写二进制日志到磁盘
+# 增加延时提交在服务器异常时可能导致数据丢失
 #binlog_group_commit_sync_delay=10
 
-MY_CONF
-    elif [[ "$MYSQL_SYNC_BIN" == 'slave' ]]; then
-        PROCESSOR_NUM=`grep 'processor' /proc/cpuinfo|sort -u|wc -l`
-        cat >> $MY_CNF <<MY_CONF
 # 并行复制，默认为DATABASE（MYSQL5.6兼容值），版本要求MYSQL5.6+
-slave_parallel_type=LOGICAL_CLOCK
+${SLAVE_PARALLEL}slave_parallel_type=LOGICAL_CLOCK
 # 并行复制线程数
-slave_parallel_workers=$PROCESSOR_NUM
+${SLAVE_PARALLEL}slave_parallel_workers=$TOTAL_THREAD_NUM
 
-master_info_repository=TABLE
-relay_log_info_repository=TABLE
+# 启用自动中继日志恢复
 relay_log_recovery=ON
+
+# 复制的二进制数据写入到自己的二进制日志中，默认：ON
+# 当使用链复制时使用此项，比如：C复制B，而B复制A
+# 当需要切换为主数据库时建议关闭，这样就可以保证切换后的二进制日志不会混合
+# 组复制时需要开启
+# $LOG_UPDATES=OFF
+
 MY_CONF
+# mysql-5.7起支持GTID事务标识自动定位同步
+if if_version "$MYSQL_VERSION" ">=" "5.7.0"; then
+    USE_GTID_COPY='# '
+    if [ "$ARGV_gtid" = '1' ];then
+        USE_GTID_COPY=''
     fi
+    cat >> $MY_CNF <<MY_CONF
+# 5.7+ 可以开启GTID复制，避免使用二进制文件+位置复制
+# GTID是事务唯一标识符，每个事务都有唯一的标识，且这个标识符允许 2**63-1 ，差不多有92亿亿次的数量限制。超将无法进行事务处理。
+${USE_GTID_COPY}gtid_mode=ON
+# 开启只允许使用事务安全的GTID限制SQL执行
+# 如果使用GTID则最好开启，否则影响一致性的事务执行将无法进行复制
+${USE_GTID_COPY}enforce-gtid-consistency=ON
+MY_CONF
+fi
+
+# 客户端配置
+cat >> $MY_CNF <<MY_CONF
+[client]
+# 使用加密连接，复制时副本需要配置
+# 要使用加密复制时，配置SQL需要增加：MASTER_SSL=1 或 SOURCE_SSL=1
+# 例如：CHANGE MASTER TO ... MASTER_SSL=1
+# 例如：CHANGE REPLICATION SOURCE TO ... SOURCE_SSL=1
+# 证书颁发机构 (CA) 证书文件的路径名，即根证书
+# ssl_ca=cacert.pem
+
+# 服务器公钥证书文件的路径名，通信公钥（服务器和客户端）
+# ssl_cert=client-cert.pem
+
+# 服务器私钥文件的路径名，通信私钥（仅服务器）
+# ssl_key=client-key.pem
+MY_CONF
+
+# 8.0以上，默认的字符集是utf8mb4，php7.0及以前的连接会报未知字符集错
+if if_version "$MYSQL_VERSION" ">=" "8.0.0"; then
+    cat >> $MY_CNF <<MY_CONF
+# 8.0以上，默认的字符集是utf8mb4，php7.0及以前的连接会报未知字符集错
+# character-set-server=utf8
+MY_CONF
 fi
 
 # 初始化处理
@@ -576,6 +645,10 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
         run_msg "mysql -uroot --password=\"$MYSQL_ROOT_PASSWORD\" -h127.0.0.1 -e \"create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;\""
         mysql -uroot --password="$MYSQL_ROOT_PASSWORD" -h127.0.0.1 -e "create user '$MASTER_USER'@'$MASTER_HOST' IDENTIFIED BY '$MYSQL_SYNC_BIN_PASSWORD'; grant File, Replication Client, Replication Slave on *.* to '$MASTER_USER'@'$MASTER_HOST'; flush privileges;"
     elif [ "$MYSQL_SYNC_BIN" = 'slave' ]; then
+    # 从8.0.23开始使用 CHANGE REPLICATION SOURCE TO
+    # 8.0.23之前使用 CHANGE MASTER TO
+    
+    
         info_msg '主从配置，当前服务为：slave';
         if [ "$ARGV_gtid" = '1' ] && if_version "$MYSQL_VERSION" ">=" "5.7.0"; then
             info_msg '配置GTID事务标识二进制日志自动定位复制'
