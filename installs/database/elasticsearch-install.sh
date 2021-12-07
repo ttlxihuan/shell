@@ -124,13 +124,23 @@ DEFINE_INSTALL_PARAMS="
 [-m, --master-hosts='']指定主节点集用逗号分开，没有指定集群名此参数无效，仅支持IP地址，如果包含当前节点则自动过滤
 [-d, --data-hosts='']指定数据节点集用逗号分开，没有指定集群名此参数无效，仅支持IP地址，如果包含当前节点则自动过滤
 [-T, --tool='kibana']安装管理工具，目前支持 kibana
+[-m, --jvm-memory='']指定配置服务运行JVM最大占用内存（整数）
+#为空即默认可用内存的50%
+#指定可用内存占比，比如：70%
+#指定对应的大小，单位（B,K,M,G,T），比如：4G
+#不指定单位为B，最大空间30G，超过将截断
+#指定为0时即不配置内存
 "
 # 加载基本处理
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
-init_install 5.0.0 "https://www.elastic.co/downloads/elasticsearch" 'elasticsearch-\d+\.\d+\.\d+'
+init_install 5.0.0 "https://www.elastic.co/downloads/elasticsearch" 'elasticsearch-\d+\.\d+\.\d+-linux'
 if [ -n "$ARGV_tool" ] && ! [[ "$ARGV_tool" =~ ^kibana$ ]]; then
     error_exit "--tool 只支持kibana，现在是：$ARGV_tool"
+fi
+# 解析最大运行内存参数处理
+if ! parse_use_memory JVM_XM_MEMORY "${ARGV_jvm_memory:-50%}" G;then
+    error_exit '--jvm-memory 指定错误值'
 fi
 get_ip
 if [ -n "$ARGV_cluster_name" ];then
@@ -230,22 +240,12 @@ info_msg "elasticsearch 配置文件修改"
 # 为合理处理堆内存使用物理可用内存的1/2并向下取整为G，当不足1G时此参数不变
 # es实际使用内存将可能超过JVM堆内存，因为es运行本身需要内存、还依赖缓冲区、文件系统缓存等
 # es-8启支持自动配置-Xmx，即可以不指定
-if grep -q '^-Xmx' ./config/jvm.options;then
-    # 内核3.14的上有MemAvailable
-    if grep -q '^MemAvailable:' /proc/meminfo;then
-        JVM_XM_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{printf "%d",count/1048576/2}')
-    else
-        JVM_XM_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|Buffers|Cached):'|awk '{count+=$2} END{printf "%d",count/1048576/2}')
-    fi
-    if [ -n "$JVM_XM_MEMORY" ] && ((JVM_XM_MEMORY > 0));then
-        # 设置大小不建议超过30G，同时启动后注意：heap size [实际有效大小], compressed ordinary object pointers [true]
-        JVM_XM_MEMORY=$((JVM_XM_MEMORY > 30 ? 30 : JVM_XM_MEMORY))
-        info_msg "JVM 堆内存大小设置为：${JVM_XM_MEMORY}g"
-        info_msg "启动后注意日志中打印的实际堆内存大小：heap size [看这里的大小], compressed ordinary object pointers [true]。如果小于配置就修改配置重启"
-        sed -i -r "s/^\s*(-Xm[sx])[0-9]+[mgt]/\1${JVM_XM_MEMORY}g/g" ./config/jvm.options
-    else
-        warn_msg "当前系统可用物理内存不足1G，跳过修改JVM堆内存大小"
-    fi
+if ((JVM_XM_MEMORY > 0));then
+    # 设置大小不建议超过30G，同时启动后注意：heap size [实际有效大小], compressed ordinary object pointers [true]
+    JVM_XM_MEMORY=$((JVM_XM_MEMORY > 30 ? 30 : JVM_XM_MEMORY))
+    info_msg "JVM 堆内存大小设置为：${JVM_XM_MEMORY}g"
+    info_msg "启动后注意日志中打印的实际堆内存大小：heap size [看这里的大小], compressed ordinary object pointers [true]。如果小于配置就修改配置重启"
+    sed -i -r "s/^\s*#*\s*(-Xm[sx])[0-9]+[mgt]/\1${JVM_XM_MEMORY}g/g" ./config/jvm.options
 fi
 # 调整内存交换，内存交换即将物理内存数据转移到磁盘上，用来回收物理内存
 # 转移原则是访问频次底的内存页面优先转移，当应用使用时再转移到物理内存中，期间可能会导致应用卡顿等待内存读取

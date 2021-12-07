@@ -92,7 +92,10 @@
 ####################################################################################
 # 定义安装参数
 DEFINE_INSTALL_PARAMS="
-[-p, --password='']安装成功后修改的新密码，默认或为空时随机生成25位密码
+[-p, --password='']安装成功后修改的新密码
+#默认或为空时随机生成25位密码
+#随机生成密码 %num，比如：%10
+#指定固定密码，比如：123456
 [-t, --type='']主从配置 main|slave  ，默认是无主从配置
 [-g, --gtid]使用GTID事务唯一标识符进行自动定位复制
 # 只有 5.7+ 版本有效
@@ -102,11 +105,17 @@ DEFINE_INSTALL_PARAMS="
 [-P, --master-password='']主从配置密码  password 
 #配置主服务器时这里指定从服务器连接的密码
 #配置从服务器时这里指定连接主服务器的密码
+[-m, --buffer-memory='']指定配置服务运行缓冲区最大占用内存（整数）
+#为空即默认可用内存的80%
+#指定可用内存占比，比如：70%
+#指定对应的大小，单位（B,K,M,G,T），比如：4G
+#不指定单位为B，最大空间30G，超过将截断
+#指定为0时即不配置内存
 "
 # 定义安装类型
 DEFINE_INSTALL_TYPE='cmake'
 # 加载基本处理
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '5.0.0' "https://dev.mysql.com/downloads/mysql/" 'mysql-\d+\.\d+\.\d+'
 memory_require 16 # 内存最少G
@@ -114,12 +123,7 @@ work_path_require 30 # 安装编译目录最少G
 install_path_require 4 # 安装目录最少G
 # ************** 参数解析 ******************
 # 密码处理
-if [ -n "$ARGV_password" ]; then
-    MYSQL_ROOT_PASSWORD="$ARGV_password"
-else
-    # 生成随机密码
-    random_password MYSQL_ROOT_PASSWORD 25
-fi
+parse_use_password MYSQL_ROOT_PASSWORD "${ARGV_password:-%25}"
 # 配置主从
 if [ -n "$ARGV_type" ]; then
     if ! [[ $ARGV_type =~ ^(main|slave)$ ]];then
@@ -142,6 +146,10 @@ fi
 # GTID处理
 if [ "$ARGV_gtid" = '1' ] && if_version "$MYSQL_VERSION" "<" "5.7.0"; then
     warn_msg "mysql 必需是 5.7+ 才可以使用GTID复制，--gtid 选项无效。"
+fi
+# 解析最大运行内存参数处理
+if ! parse_use_memory BUFFER_MEMORY "${ARGV_buffer_memory:-80%}";then
+    error_exit '--buffer-memory 指定错误值'
 fi
 # ************** 编译安装 ******************
 # 下载mysql包
@@ -204,7 +212,7 @@ for ITEM in `which -a gcc`; do
     fi
 done
 if ! if_command gcc || if_version $GCC_MIN_VERSION '>' $GCC_CURRENT_VERSION;then
-    run_install_shell gcc-install.sh $GCC_MIN_VERSION
+    run_install_shell gcc $GCC_MIN_VERSION
     if_error '安装失败：gcc-$GCC_MIN_VERSION'
     CMAKE_CONFIG="-DCMAKE_C_COMPILER=/usr/local/gcc/$GCC_MIN_VERSION/bin/gcc -DCMAKE_CXX_COMPILER=/usr/local/gcc/$GCC_MIN_VERSION/bin/g++ $CMAKE_CONFIG"
 fi
@@ -281,14 +289,8 @@ sed -i "s/^datadir.*=.*data.*/datadir=database/" $MY_CNF
 sed -i "s#^socket.*=.*#socket=$MYSQL_RUN_PATH/mysql.sock#" $MY_CNF
 sed -i "s#^log-error.*=.*#log-error=$MYSQL_RUN_PATH/mysqld.log#" $MY_CNF
 sed -i "s#^pid-file.*=.*#pid-file=$MYSQL_RUN_PATH/mysqld.pid#" $MY_CNF
-# 获取系统可用内存空间配置缓冲区
-if grep -q '^MemAvailable:' /proc/meminfo;then
-    BUFFER_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{printf "%d",count/2}')
-else
-    BUFFER_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|Buffers|Cached):'|awk '{count+=$2} END{printf "%d",count/2}')
-fi
 if ((BUFFER_MEMORY <= 0));then
-    BUFFER_MEMORY=134217728
+    BUFFER_MEMORY=''
 fi
 # 生成服务编号
 get_ip
@@ -419,7 +421,7 @@ innodb_thread_concurrency=$((TOTAL_THREAD_NUM * 2))
 
 # 配置缓冲区容量，如果独享服务器可配置到物理内存的80%左右，如果是共享可配置在50%~70%左右。
 # 建议超过1G以上，默认是128M，需要配置整数，最大值=2**(CPU位数64或32)-1。可动态SQL修改
-innodb_buffer_pool_size=${BUFFER_MEMORY}
+${BUFFER_MEMORY:+#}innodb_buffer_pool_size=${BUFFER_MEMORY:-128M}
 
 # 普通索引、范围索引或不使用索引联接缓冲区大小，最大4G-1
 # 可以动态配置，默认256KB
