@@ -20,7 +20,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '3.0.0' "http://varnish-cache.org/releases/index.html" 'varnish-\d+\.\d+\.\d+.tgz'
 memory_require 4 # 内存最少G
@@ -90,7 +90,7 @@ if if_version "$VARNISH_VERSION" ">=" "6.2.0"; then
     packge_manager_run install -PYTHON3_DOCUTILS_PACKGE_NAMES -PYTHON3_SPHINX_PACKGE_NAMES
     if ! if_command pip3 || ! pip3 show sphinx -q; then
         if ! if_command python3;then
-            run_install_shell python-install.sh new
+            run_install_shell python new
         fi
         if if_command pip3;then
             pip3 install sphinx

@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # Nginx快速编译安装shell脚本
+# 官方文档：https://nginx.org/en/docs/
 #
 # 安装命令
 # bash nginx-install.sh new
@@ -39,6 +40,13 @@
 #
 # ==============================================================
 #
+# nginx 可以支持lua和njs（一种专用js）
+# lua 是三方提供的模块，可以使用 openresty（集成nginx和lua包） 或 tengine（淘宝开源基于nginx集成包）。集成包提供了很多高级功能，可以说是nginx的延申。
+#     openresty 下载地址： http://openresty.org/cn/download.html  版本与官方同步
+#     tengine 下载地址：http://tengine.taobao.org/download.html  版本未与官方同步
+# njs 是官方提供非绑定模块，此功能出来比较晚且没有lua应用多成熟
+#       官方文档：http://nginx.org/en/docs/njs/index.html
+#
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
@@ -47,7 +55,7 @@ NGINX_HOST='nginx.org'
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '1.0.0' "http://$NGINX_HOST/en/download.html" 'Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz'
 memory_require 4 # 内存最少G
