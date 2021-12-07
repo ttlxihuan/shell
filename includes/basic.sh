@@ -497,7 +497,7 @@ EOF
         if [ -n "$SHELL_RUN_HELP" ];then
             INFO_SHOW_STR=$INFO_SHOW_STR"Help: \n"$(echo -e "$SHELL_RUN_HELP"|sed -r 's/^(\s*\S)/    \1/g');
         fi
-        local RUN_SHOW_STR="    bash $0 ${PARAMS_NAME[@]}\n"
+        local RUN_SHOW_STR="    bash $(echo -n $0|sed "s,^`pwd`/,,") ${PARAMS_NAME[@]}\n"
         if [ $(basename $0) != 'run.sh' -a -e $SHELL_WROK_BASH_PATH/run.sh ];then
             RUN_SHOW_STR="$RUN_SHOW_STR\n    bash "$(echo -n $SHELL_WROK_BASH_PATH/|sed "s,^`pwd`/,,")"run.sh $(basename $0 '.sh') ${PARAMS_NAME[@]}\n"
         fi
