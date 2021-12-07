@@ -23,9 +23,9 @@ parse_use_memory(){
         # 不配置处理
         FREE_MAX_MEMORY=0
     else
-        if [[ "$2" =~ ^[1-9]\d*%$ ]];then
+        if [[ "$2" =~ ^[1-9][0-9]*%$ ]];then
             # 比率配置处理
-            local RATIO_VALUE=${2/%/}
+            local RATIO_VALUE=${2//%/}
             # 内核3.14的上有MemAvailable
             if grep -q '^MemAvailable:' /proc/meminfo;then
                 FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{print count}')
@@ -130,7 +130,7 @@ random_password(){
 # @param $group             生成密码组合，默认全部类型
 # return 1|0
 parse_use_password(){
-    if [ "$2" =~ ^%[1-9][0-9]{0,2}^ ];then
+    if [[ "$2" =~ ^%[1-9][0-9]{0,2}$ ]];then
         random_password $1 ${2:1} $3
     else
         eval "$1=\$2"
