@@ -2,11 +2,12 @@
 # 所有调用脚本公共运行入口
 
 # 搜索所有脚本
-CURRENT_SHELL_BASH=$(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')
+CURRENT_SHELL_BASH=$(cd $(dirname ${BASH_SOURCE[0]}); pwd)
 RUN_SHELL_CACHE_FILE="$CURRENT_SHELL_BASH/temp/.run.cache"
 search_shell_set(){
     local SHELL_FILE SHELL_FILE_NAME SPACE_NUM=20 RUN_SHELL_LISTS=''
-    for SHELL_FILE in $(find $CURRENT_SHELL_BASH/$1 -name '*.sh' -exec realpath {} \;);do
+    for SHELL_FILE in $(find $CURRENT_SHELL_BASH/$1 -name '*.sh');do
+        SHELL_FILE=$(cd $(dirname $SHELL_FILE); pwd)/$(basename $SHELL_FILE)
         SHELL_FILE_NAME=$(basename $SHELL_FILE '.sh')
         NAME_LENGTH=$(echo -n $SHELL_FILE_NAME|wc -m)
         RUN_SHELL_LISTS="$RUN_SHELL_LISTS$SHELL_FILE_NAME"
@@ -55,7 +56,7 @@ if (( $# == 0 ));then
     ARGV_help=1
 fi
 
-source ${CURRENT_SHELL_BASH}includes/tool.sh $1 || exit
+source ${CURRENT_SHELL_BASH}/includes/tool.sh $1 || exit
 
 if [ "$ARGV_update" = '1' ];then
     info_msg '更新脚本信息'
@@ -63,8 +64,9 @@ if [ "$ARGV_update" = '1' ];then
     bash $0 >/dev/null
     info_msg '脚本信息更新完成'
 else
-    RUN_SHELL_FILE=$(find $CURRENT_SHELL_BASH/installs $CURRENT_SHELL_BASH/tools -name $ARGU_name'.sh' -exec realpath {} \;)
+    RUN_SHELL_FILE=$(find $CURRENT_SHELL_BASH/installs $CURRENT_SHELL_BASH/tools -name $ARGU_name'.sh')    
     if [ -n "$RUN_SHELL_FILE" ];then
+        RUN_SHELL_FILE=$(cd $(dirname $RUN_SHELL_FILE); pwd)/$(basename $RUN_SHELL_FILE)
         run_msg "bash $RUN_SHELL_FILE ${@:2}"
         bash $RUN_SHELL_FILE ${@:2}
     else

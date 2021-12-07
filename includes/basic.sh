@@ -4,7 +4,7 @@
 # 此脚本不可单独运行，需要在其它脚本中引用执行
 ############################################################################
 if [ $(basename "$0") = $(basename "${BASH_SOURCE[0]}") ];then
-    error_exit "$(realpath "${BASH_SOURCE[0]}") 脚本是共用文件必需使用source调用"
+    error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
 fi
 # 全局版本号
 readonly SHELL_RUN_VERSION='1.0.1'
@@ -30,36 +30,6 @@ mkdirs(){
         chown -R $2:$2 "$1"
     fi
     return 0
-}
-# 随机生成密码
-# @command random_password $password_val [$size] [$group]
-# @param $password_val      生成密码写入变量名
-# @param $size              密码长度，默认20
-# @param $group             密码组合正则
-#                           包含：数字、字母大小写、~!@#$%^&*()_-=+,.;:?/\|
-#                           默认全部组合
-# return 1|0
-random_password(){
-    local PASSWORD_CHARS_STR='qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM~!@#$%^&*()_-=+,.;:?/\|'
-    if [ -n "$3" ];then
-        PASSWORD_CHARS_STR=`echo "$PASSWORD_CHARS_STR"|grep -oP "$3+"`
-        if_error "密码包含的字符无效: $3"
-    fi
-    local PASSWORD_CHATS_LENGTH=`echo $PASSWORD_CHARS_STR|wc -m` PASSWORD_STR='' PASSWORD_INDEX_START='' PASSWORD_SIZE=25
-    if [ -n "$2" ]; then
-        if ! [[ "$2" =~ ^[1-9][0-9]*$ ]];then
-            error_exit "生成密码位数必需是整数，现在是：$2"
-        fi
-        if (($2 < 0 || $2 > 100));then
-            error_exit "生成密码位数范围是：1~99，现在是：$2"
-        fi
-        PASSWORD_SIZE=$2
-    fi
-    for ((I=0; I<$PASSWORD_SIZE; I++)); do
-         PASSWORD_INDEX_START=`expr $RANDOM % $PASSWORD_CHATS_LENGTH`
-         PASSWORD_STR=$PASSWORD_STR${PASSWORD_CHARS_STR:$PASSWORD_INDEX_START:1}
-    done
-    eval "$1='$PASSWORD_STR'"
 }
 # 常规高精度公式计算
 # @command math_compute $result $formula [$scale]
@@ -514,7 +484,7 @@ EOF
             eval "$ARG_NAME`printf '%s' "$NAME"|sed -r "s/^-{1,2}//"|sed "s/-/_/g"`=\$VALUE"
         fi
     done
-    if [ "$ARGU_help" = '1' ];then
+    if [ "$ARGV_help" = '1' ];then
         local PARAMS_NAME=() INFO_SHOW_STR=""
         if [ -n "$COMMENT_SHOW_ARGUMENTS" ];then
             PARAMS_NAME[${#PARAMS_NAME[@]}]='[Arguments]'
@@ -607,7 +577,7 @@ find_project_file(){
     if [ ${#FIND_LISTS[@]} = '0' ];then
         error_exit "搜索类型 $1 在 $FIND_DIR 目录下搜索不到 $2"
     elif [ ${#FIND_LISTS[@]} = '1' ];then
-        eval "$3='$(realpath ${FIND_LISTS[0]})'"
+        eval "$3=$(cd $(dirname ${FIND_LISTS[0]});pwd)/$(basename ${FIND_LISTS[0]})"
     else
         error_exit "搜索类型 $1 在 $FIND_DIR 目录下搜索到 ${#FIND_LISTS[@]} 个匹配项"
     fi
@@ -616,7 +586,7 @@ if [ `whoami` != 'root' ];then
     warn_msg '当前执行用户非 root 可能会影响脚本正常运行！'
 fi
 # 提取工作目录
-SHELL_WROK_BASH_PATH=$(cd $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../;pwd)
+SHELL_WROK_BASH_PATH=$(cd $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../;pwd)
 SHELL_WROK_INCLUDES_PATH=${SHELL_WROK_BASH_PATH}/includes
 SHELL_WROK_INSTALLS_PATH=${SHELL_WROK_BASH_PATH}/installs
 SHELL_WROK_TOOLS_PATH=${SHELL_WROK_BASH_PATH}/tools
