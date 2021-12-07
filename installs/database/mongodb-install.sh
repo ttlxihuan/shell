@@ -37,7 +37,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='scons'
 # 加载基本处理
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '3.0.0' "http://downloads.mongodb.org.s3.amazonaws.com/current.json" 'mongodb-src-r\d+\.\d+\.\d+\.tar\.gz'
 memory_require 16 # 内存最少G
@@ -76,7 +76,7 @@ if ! echo "$GCC_VERSION"|grep -qP '^\d+\.\d+\.\d+$';then
 fi
 # 注意GCC不建议安装过高的版本，否则容易造成编译异常
 if if_version "$GCC_VERSION" '>' "$GCC_CURRENT_VERSION" || ( if_version "${GCC_VERSION%%.*}" '<' "${GCC_CURRENT_VERSION%%.*}" && (ask_select ASK_INPUT "安装要求GCC版本是 $GCC_VERSION 已安装 $GCC_CURRENT_VERSION ，版本偏高可能导致编译失败，是否安装 GCC-$GCC_VERSION 再编译？"  || [ "$ASK_INPUT" = 'y' ]) ); then
-    run_install_shell gcc-install.sh $GCC_VERSION
+    run_install_shell gcc $GCC_VERSION
     if_error '安装失败：gcc'
 else
     info_msg 'GCC OK'
@@ -98,7 +98,7 @@ else
 fi
 if if_version $PYTHON_VERSION '>' "$PYTHON_CURRENT_VERSION"; then
     # 安装对应的新版本
-    run_install_shell python-install.sh $PYTHON_VERSION
+    run_install_shell python $PYTHON_VERSION
     if_error '安装失败：python'
 else
     info_msg 'python OK'
