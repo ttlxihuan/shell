@@ -15,7 +15,7 @@ SHELL_RUN_HELP='
 DEFINE_TOOL_PARAMS="$DEFINE_TOOL_PARAMS
 [-f, --config=':etc/install-batch.conf'] 指定配置文件
 "
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../includes/tool.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../includes/tool.sh || exit
 # 提取配置文件路径
 if ! get_file_path $ARGV_config ARGV_config 1;then
     error_exit "--config 未指定有效配置文件：$ARGV_config"

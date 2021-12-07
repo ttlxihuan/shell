@@ -19,7 +19,7 @@ SHELL_RUN_HELP='
 5、证书不建议设置密码，否则证书使用意义不大
 6、使用远程安装时不可另外执行本地批量安装并行操作，会影响远程安装复制文件导致安装失败
 '
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')install-batch.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/install-batch.sh || exit
 if [ -z "$ARGV_skip_local" ];then
     info_msg '本机批量安装'
     read_config install install_server
