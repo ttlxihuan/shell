@@ -64,13 +64,17 @@
 DEFINE_INSTALL_PARAMS="
 [-t, --tool='']安装管理工具，目前支持 gitolite 和 gitlab
 [-d, --tool-path='']管理工具工作目录，最好是绝对路径，默认安装在/home/git
-[-p, --ssh-password='']指定ssh账号密码，不指定则不生成。默认会创建git账号用于 ssh://git@ip/path 访问，但需要通过证书或密码访问。
+[-p, --ssh-password='']指定ssh账号密码。
+#为空即无密码
+#随机生成密码 %num，比如：%10
+#指定固定密码，比如：123456
+默认会创建git账号用于 ssh://git@ip/path 访问，但需要通过证书或密码访问。
 [-P, --random-ssh-password='']随机生成指定长度ssh账号密码，长度范围是1~99位。如果已经指定密码此参数无效。
 "
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '1.9.0' "https://mirrors.edge.kernel.org/pub/software/scm/git/" 'git-\d+\.\d+\.\d+\.tar\.gz'
 # 安装参数处理
@@ -86,14 +90,7 @@ if [ -n "$ARGV_tool" ];then
     fi
 fi
 # 密码处理
-if [ -n "$ARGV_ssh_password" ]; then
-    GIT_SSH_PASSWORD="$ARGV_ssh_password"
-elif [ -n "$ARGV_random_ssh_password" ]; then
-    # 生成随机密码
-    random_password GIT_SSH_PASSWORD $ARGV_random_ssh_password
-else
-    GIT_SSH_PASSWORD=''
-fi
+parse_use_password GIT_SSH_PASSWORD "${ARGV_ssh_password}"
 memory_require 8 # 内存最少G
 work_path_require 4 # 安装编译目录最少G
 install_path_require 1 # 安装目录最少G
@@ -137,7 +134,7 @@ fi
 configure_install $CONFIGURE_OPTIONS
 
 # 创建用户组
-add_user git $INSTALL_PATH$GIT_VERSION/bin/git-shell $GIT_SSH_PASSWORD
+add_user git $INSTALL_PATH$GIT_VERSION/bin/git-shell "$GIT_SSH_PASSWORD"
 
 # 添加执行文件连接
 add_local_run $INSTALL_PATH$GIT_VERSION/bin/ 'git' 'git-receive-*' 'git-upload-*'
