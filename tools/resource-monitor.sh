@@ -89,7 +89,7 @@ DEFINE_TOOL_PARAMS='
 [--cache-file=":temp/.resource-monitor.cache"] 持续数据缓存文件，主要用来记录异常的开始时间，用来判断异常时长。
 #多个进程同时执行时建议指定不同的缓存文件以免干扰
 '
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../includes/tool.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../includes/tool.sh || exit
 # 解析各资源数据
 # @command parse_resources
 # return 0|1
@@ -146,7 +146,7 @@ parse_part_resources(){
     debug_show "开始获取分区信息"
     local ITEM INFOS=()
     while read ITEM; do
-        INFOS=(`df -k $ITEM|tail -n 1`)
+        INFOS=(`df_awk -k $ITEM|tail -n 1`)
         declare -l PART_total=${INFOS[1]} PART_use=$((${INFOS[2]} * 100 / ${INFOS[1]})) PART_free=$((${INFOS[3]} * 100 / ${INFOS[1]})) # 分区信息
         INFOS=(`iostat -k $ITEM|grep -iP '[\w-]+(\s+[\d\.]+)+$'`)
         declare -l PART_write=`printf '%.0f' ${INFOS[2]}` PART_read=`printf '%.0f' ${INFOS[3]}` # 分区IO信息，此处有小数

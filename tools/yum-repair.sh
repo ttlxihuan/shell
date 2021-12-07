@@ -6,7 +6,7 @@
 # 参数信息配置
 SHELL_RUN_DESCRIPTION='yum工具修复'
 SHELL_RUN_HELP='修复目录只针对https访问异常，其它异常修复不能保证可用性'
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../includes/tool.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../includes/tool.sh || exit
 
 if ! which yum 2>&1 >/dev/null;then
     error_exit '当前系统没有安装 yum 工具';
@@ -14,7 +14,7 @@ fi
 # 判断空间余量
 YUM_CACHE_PATH=$(cat /etc/yum.conf|grep -P '^cachedir\s*=\s*'|sed -r 's/.*?=\s*//'|sed -r 's/\$[^\/]+\/?//g')
 if [ -n "$YUM_CACHE_PATH" -a -d "$YUM_CACHE_PATH" ];then
-    YUM_CACHE_PATH_USE=(`df -ha $YUM_CACHE_PATH|tail -n 1|awk '{print $1,$5,$6}'`)
+    YUM_CACHE_PATH_USE=(`df_awk -ha $YUM_CACHE_PATH|tail -n 1|awk '{print $1,$5,$6}'`)
     if [ "${YUM_CACHE_PATH_USE[1]}" = '100%' ];then
         error_exit "yum 缓存目录 $YUM_CACHE_PATH 所在挂载目录 ${YUM_CACHE_PATH_USE[2]} 使用率已经是 ${YUM_CACHE_PATH_USE[1]} ，请清理分区 ${YUM_CACHE_PATH_USE[0]}"
     fi

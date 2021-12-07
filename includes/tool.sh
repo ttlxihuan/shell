@@ -9,10 +9,10 @@
 # 所有脚本会强制增加两个参数 --help、--version 用来展示信息
 ############################################################################
 if [ $(basename "$0") = $(basename "${BASH_SOURCE[0]}") ];then
-    error_exit "$(realpath "${BASH_SOURCE[0]}") 脚本是共用文件必需使用source调用"
+    error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
 fi
 # 引用公共文件
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')basic.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/basic.sh || exit
 # 获取文件全路径
 # @command get_file_path $path $var_name $exist
 # @param $path              文件名
@@ -28,7 +28,6 @@ get_file_path(){
     else
         REALPATH_STR=$1
     fi
-    REALPATH_STR=$(realpath $REALPATH_STR)
     if [ -n "$3" -a ! -e "$REALPATH_STR" ];then
         return 1
     fi
