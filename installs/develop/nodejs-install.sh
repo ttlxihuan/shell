@@ -19,7 +19,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '8.0.0' "https://nodejs.org/zh-cn/download/" 'v\d+\.\d+\.\d+/'
 memory_require 4 # 内存最少G
@@ -51,7 +51,7 @@ if [ -n "$GCC_MIN_VERSION" ];then
         fi
     done
     if ! if_command gcc || if_version $GCC_MIN_VERSION '>' $GCC_CURRENT_VERSION;then
-        run_install_shell gcc-install.sh $GCC_MIN_VERSION
+        run_install_shell gcc $GCC_MIN_VERSION
         if_error '安装失败：gcc-$GCC_MIN_VERSION'
     fi
     info_msg "gcc-$GCC_MIN_VERSION ok"
@@ -76,7 +76,7 @@ if [ -n "$PYTHON_MIN_VERSION" ];then
         PYTHON_NAME="python"
     fi
     if ! if_command $PYTHON_NAME || if_version $PYTHON_MIN_VERSION '>' "`eval "$PYTHON_NAME -V 2>&1 | grep -oP '\d+(\.\d+)+'"`";then
-        run_install_shell python-install.sh $PYTHON_MIN_VERSION
+        run_install_shell python $PYTHON_MIN_VERSION
         if_error 'install $PYTHON_NAME fail'
     fi
     info_msg "python-$PYTHON_MIN_VERSION ok"

@@ -31,7 +31,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 镜像地址，如果地址不可用可去 https://gcc.gnu.org/mirrors.html 找合适的地址
 MIRRORS_URL="https://bigsearcher.com/mirrors/gcc/"
 # 判断默认镜像是否好用

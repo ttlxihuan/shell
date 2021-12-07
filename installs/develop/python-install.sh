@@ -23,7 +23,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '2.6.0' "https://www.python.org/downloads/source/" 'Python-\d+\.\d+\.\d+\.tgz'
 memory_require 4 # 内存最少G
