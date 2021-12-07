@@ -19,7 +19,7 @@
 ##################################### 安装处理 #####################################
 ####################################################################################
 # 加载基本处理
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')../../includes/install.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '1.19.1' "https://kubernetes.io/releases/" '>\d+\.\d+\.\d+'
 memory_require 4 # 内存最少G
@@ -28,10 +28,8 @@ install_path_require 1 # 安装目录最少G
 # ************** 编译安装 ******************
 chdir $INSTALL_NAME
 # 下载kubernetes包
-curl -LO "https://dl.k8s.io/release/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl"
-if_error '下载失败: kubectl'
-curl -LO "https://dl.k8s.io/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl.sha256"
-if_error '下载失败: kubectl.sha256'
+download_file https://dl.k8s.io/release/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl
+download_file https://dl.k8s.io/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl.sha256
 echo "$(<kubectl.sha256) kubectl" | sha256sum --check
 if_error 'sha256sum 验证失败'
 # 复制安装包
