@@ -4,10 +4,54 @@
 # 此脚本不可单独运行，需要在其它脚本中引用执行
 ############################################################################
 if [ $(basename "$0") = $(basename "${BASH_SOURCE[0]}") ];then
-    error_exit "$(realpath "${BASH_SOURCE[0]}") 脚本是共用文件必需使用source调用"
+    error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
 fi
 # 引用公共文件
-source $(realpath ${BASH_SOURCE[0]}|sed -r 's/[^\/]+$//')basic.sh || exit
+source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/basic.sh || exit
+# 解析使用内存
+# @command parse_use_memory $var_name $ratio $unit
+# @param $var_name          写入变量名
+# @param $ratio             可用内存比率值，默认为 100
+# @param $unit              转换内存单位，可选值：B、K、M、G，默认B
+# return 1|0
+parse_use_memory(){
+    if ! [[ "$2" =~ ^([0-9]|[1-9][0-9]*)[BKMG%]?$ ]];then
+        return 1
+    fi
+    local FREE_MAX_MEMORY USE_UNIT=${3:-B} CURRENT_UNIT='B'
+    if [[ "$2" =~ ^0[BKMGT%]?$ ]];then
+        # 不配置处理
+        FREE_MAX_MEMORY=0
+    else
+        if [[ "$2" =~ ^[1-9]\d*%$ ]];then
+            # 比率配置处理
+            local RATIO_VALUE=${2/%/}
+            # 内核3.14的上有MemAvailable
+            if grep -q '^MemAvailable:' /proc/meminfo;then
+                FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{print count}')
+            else
+                FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|Buffers|Cached):'|awk '{count+=$2} END{print count}')
+            fi
+            if (( FREE_MAX_MEMORY > 0 && RATIO_VALUE > 0 && RATIO_VALUE < 100 ));then
+                FREE_MAX_MEMORY=$((FREE_MAX_MEMORY * RATIO_VALUE / 100))
+            fi
+            if (( FREE_MAX_MEMORY <= 0 ));then
+                warn_msg "当前系统可用物理内存不足1${USE_UNIT}，跳过配置处理"
+            fi
+        else
+            # 指定配置处理
+            FREE_MAX_MEMORY=${2/[BKMGT%]/}
+            CURRENT_UNIT=${2:${#2}-2}
+        fi
+        if (( FREE_MAX_MEMORY > 0 )) && [ "$CURRENT_UNIT" != "$USE_UNIT" ];then
+            local CURRENT_UNIT_VAL USE_UNIT_VAL UNIT_B=1 UNIT_K=1024 UNIT_M=1048576 UNIT_G=1073741824 UNIT_T=1099511627776
+            eval 'CURRENT_UNIT_VAL=$UNIT_'$CURRENT_UNIT
+            eval 'USE_UNIT_VAL=$UNIT_'$USE_UNIT
+            FREE_MAX_MEMORY=$((FREE_MAX_MEMORY * CURRENT_UNIT_VAL / USE_UNIT_VAL))
+        fi
+    fi
+    eval "$1=\$FREE_MAX_MEMORY"
+}
 # 当前安装内存空间要求，不够将添加虚拟内存扩充
 # @command memory_require $min_size
 # @param $min_size          安装脚本最低内存大小，G为单位
@@ -50,6 +94,48 @@ memory_require(){
         info_msg "可以执行命令：swapoff $SWAP_PATH && rm -f $SWAP_PATH && sed -i -r '/^${SWAP_PATH//\//\\/}\s+/d' /etc/fstab"
     fi
 }
+# 随机生成密码
+# @command random_password $password_val [$size] [$group]
+# @param $password_val      生成密码写入变量名
+# @param $size              密码长度，默认20
+# @param $group             密码组合，默认包含：数字、字母大小写、~!@#$%^&*()_-=+,.;:?/\|
+# return 1|0
+random_password(){
+    local PASSWORD_CHARS_STR='qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM~!@#$%^&*_-=+,.;:?|'
+    if [ -n "$3" ];then
+        PASSWORD_CHARS_STR=`echo "$PASSWORD_CHARS_STR"|grep -oP "$3+"`
+        if_error "密码包含的字符无效: $3"
+    fi
+    local PASSWORD_CHATS_LENGTH=`echo $PASSWORD_CHARS_STR|wc -m` PASSWORD_STR='' PASSWORD_INDEX_START='' PASSWORD_SIZE=25
+    if [ -n "$2" ]; then
+        if ! [[ "$2" =~ ^[1-9][0-9]*$ ]];then
+            error_exit "生成密码位数必需是整数，现在是：$2"
+        fi
+        if (($2 < 0 || $2 > 100));then
+            error_exit "生成密码位数范围是：1~99，现在是：$2"
+        fi
+        PASSWORD_SIZE=$2
+    fi
+    for ((I=0; I<$PASSWORD_SIZE; I++)); do
+         PASSWORD_INDEX_START=`expr $RANDOM % $PASSWORD_CHATS_LENGTH`
+         PASSWORD_STR=$PASSWORD_STR${PASSWORD_CHARS_STR:$PASSWORD_INDEX_START:1}
+    done
+    eval "$1='$PASSWORD_STR'"
+}
+# 解析使用密码
+# @command parse_use_password $password_val [$size|$password] [$group]
+# @param $password_val      生成密码写入变量名
+# @param $size              生成密码长度：%num，比如生成10位密码：%10
+# @param $password          指定密码
+# @param $group             生成密码组合，默认全部类型
+# return 1|0
+parse_use_password(){
+    if [ "$2" =~ ^%[1-9][0-9]{0,2}^ ];then
+        random_password $1 ${2:1} $3
+    else
+        eval "$1=\$2"
+    fi
+}
 # 安装编译工作目录剩余空间要求
 # @command work_path_require $min_size
 # @param $min_size          安装编译工作目录最低磁盘剩余空间大小，G为单位
@@ -63,7 +149,7 @@ work_path_require(){
     if ((MIN_SIZE > 0));then
         path_require $MIN_SIZE $SHELL_WROK_TEMP_PATH BASE_PATH;
         # 有匹配的工作目录，直接转移工作目录
-        if [ -n "$BASE_PATH" ];then
+        if [ -n "$BASE_PATH" -a "$BASE_PATH" != "$SHELL_WROK_TEMP_PATH" ];then
             mkdirs $BASE_PATH/shell-install
             SHELL_WROK_TEMP_PATH="$BASE_PATH/shell-install"
         fi
@@ -75,8 +161,8 @@ work_path_require(){
 # @param $path              要判断的目录，默认安装根目录
 # return 1|0
 install_path_require(){
-    if ((`df ${2-$INSTALL_BASE_PATH}|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
-        info_msg "安装目录 $2 所在硬盘 `df ./|awk '{print $1}'|tail -1` 剩余空间不足：${1}G ，无法进行安装！"
+    if ((`df_awk ${2-$INSTALL_BASE_PATH}|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
+        info_msg "安装目录 $2 所在硬盘 `df_awk $2|awk '{print $1}'|tail -1` 剩余空间不足：${1}G ，无法进行安装！"
         if [ "$ARGV_data_free" = 'ignore' ];then
             warn_msg '忽略空间不足'
             return 0
@@ -91,8 +177,8 @@ install_path_require(){
 # @param $path_name         有空余的目录写入变量名
 # return 1|0
 path_require(){
-    if ((`df $2|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
-        info_msg "目录 $2 所在硬盘 `df ./|awk '{print $1}'|tail -1` 剩余空间不足：${1}G"
+    if ((`df_awk $2|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
+        info_msg "目录 $2 所在硬盘 `df_awk $2|awk '{print $1}'|tail -1` 剩余空间不足：${1}G"
         if [ "$ARGV_data_free" = 'ignore' ];then
             warn_msg '忽略空间不足'
         else
@@ -116,9 +202,18 @@ search_free_path(){
             return 0
         fi
     done <<EOF
-`df -T|awk 'NR >1 && $5 > '$2' && $2 !~ "/*tmpfs/" && $4/$3 < 0.9 {$5=$5/1048576; print $1,$7,$5}'`
+`df_awk -T|awk 'NR >1 && $5 > '$2' && $2 !~ "/*tmpfs/" && $4/$3 < 0.9 {$5=$5/1048576; print $1,$7,$5}'`
 EOF
     error_exit "没有合适空间，终止执行！"
+}
+# 获取文件系统的信息
+# 此命令主要是处理很长的存储名可能会换行导致awk处理错位
+# 虚拟机常见，通过修正可以让存储名与对应的信息保持在一行中
+# @command df_awk $options
+# @param $options         选项参数
+# return 1|0
+df_awk(){
+    df $@|awk '{if(NF==1){prev=$1}else{{print prev,$1,$2,$3,$4,$5,$6,$7}prev=""}}'
 }
 # 获取版本
 # @command get_version $var_name $url $version_path_rule [$version_rule]
@@ -142,22 +237,22 @@ get_version(){
 # 下载文件
 # @command download_file $url $save_name
 # @param $url           下载包的绝对URL地址
-# @param $save_name     下载后解压的目录,默认以版本号结构
+# @param $save_name     保存文件名，默认提取URL地址
 # return 1|0
 download_file(){
     FILE_NAME=${2-`base $1|sed 's/[\?#].*$//'`}
-    chdir $INSTALL_NAME
+    chdir shell-install
     info_msg '下载保存目录：'`pwd`
     if [ ! -e "$FILE_NAME" ];then
         if ! wget --no-check-certificate -T 7200 -O $FILE_NAME $1; then
             curl -OLkN --connect-timeout 7200 -o $FILE_NAME $1
         fi
-        if [ $? -ne 0 ];then
+        if [ $? != '0' ];then
             local TEMP_FILENAME=`date +'%Y_%m_%d_%H_%M_%S'`_error_$FILE_NAME
             mv $FILE_NAME $TEMP_FILENAME
             error_exit "下载失败: $1 ，保存文件名：$TEMP_FILENAME，终止继续执行"
         fi
-        info_msg '下载文件成功，保存目录：'`realpath $FILE_NAME`
+        info_msg '下载文件成功，保存目录：'`pwd`/$FILE_NAME
     else
         info_msg '已经存在下载文件：'$FILE_NAME
     fi
@@ -178,7 +273,7 @@ download_software(){
     if [ -z "$DIR_NAME" ];then
         error_exit "下载目录找不到"
     fi
-    chdir $INSTALL_NAME
+    chdir shell-install
     # 重新下载再安装
     if [ "$ARGV_reset" = '3' -a -e "$FILE_NAME" ];then
         info_msg "删除下载文件重新下载：$FILE_NAME"
@@ -228,11 +323,15 @@ download_software(){
             if [ $? = '0' ];then
                 info_msg "下载文件的sha256: "`sha256sum $FILE_NAME`
                 break
-            elif ((ATTEMPT <= 3));then
-                warn_msg "解压文件失败: $FILE_NAME，正在第 $ATTEMPT 次尝试重新下载解压"
-                rm -f $FILE_NAME
             else
-                error_exit "解压文件失败: $FILE_NAME ，请确认下载地址：$1"
+                warn_msg "下载解压 $FILE_NAME 失败，即将删除解压和下载产生文件与目录"
+                [ -e "$FILE_NAME" ] && rm -f $FILE_NAME
+                [ -d "$DIR_NAME" ] && rm -rf $DIR_NAME
+                if ((ATTEMPT <= 3));then
+                    warn_msg "正在第 $ATTEMPT 次尝试重新下载解压"
+                else
+                    error_exit "已经尝试 $((ATTEMPT - 1)) 次下载解压失败 ，请确认是否可访问下载地址：$1"
+                fi
             fi
         fi
     done
@@ -381,8 +480,8 @@ cmake_install(){
     make_install "`echo "$*"|grep -oP "\-DCMAKE_INSTALL_PREFIX=\S+"`"
 }
 # 运行安装脚本
-# @command run_install_shell $shell_file $version_num [$other ...]
-# @param $shell_file        安装脚本名
+# @command run_install_shell $name $version_num [$other ...]
+# @param $name              安装脚本名，比如：gcc
 # @param $version_num       安装版本号
 # @param $other             其它安装参数集
 # return 1|0
@@ -490,7 +589,7 @@ add_user(){
 # return 1|0
 init_install(){
     if [ -z "$INSTALL_NAME" ];then
-        error_exit "安装名为空，应该在安装脚本中指定 INSTALL_NAME 或脚本名是: \w+-install\.sh"
+        error_exit "获取安装名失败"
     fi
     if (($# < 3));then
         error_exit "安装初始化参数错误"
@@ -529,7 +628,7 @@ init_install(){
         fi
     fi
     info_msg "即将安装：$INSTALL_NAME-$INSTALL_VERSION"
-    info_msg "工作目录: "`pwd`
+    info_msg "工作目录: $SHELL_WROK_TEMP_PATH"
     info_msg "安装目录: $INSTALL_PATH"
     # 安装必需工具
     tools_install gcc make
@@ -549,10 +648,16 @@ INSTALL_NAME=$(basename "$0" '-install.sh')
 # 安装通用参数信息配置
 SHELL_RUN_DESCRIPTION="安装${INSTALL_NAME}脚本"
 DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
-[version]指定安装版本，不传则是获取最新稳定版本号，传new安装最新版，传指定版本号则安装指定版本
-[--install-path='/usr/local'] 安装根目录，各软件服务安装最终目录是 安装根目录/软件名/版本号
+[version]指定安装版本，不传则是获取最新稳定版本号
+#传new安装最新版
+#传指定版本号则安装指定版本
+[--install-path='/usr/local'] 安装根目录，规则：安装根目录/软件名/版本号
 #没有特殊要求建议安装根目录不设置到非系统所在硬盘目录下
-[-r, --reset=0]重新安装：0 标准安装，1 重新安装 2 重新解压再安装 3 重新下载解压再安装，默认0
+[-r, --reset=0]重新安装，默认0
+# 0 标准安装
+# 1 重新安装
+# 2 重新解压再安装
+# 3 重新下载解压再安装
 [--data-free=ask]数据空间不够用时处理
 #   auto    自动选择，空间不足时搜索空间够用的硬盘使用
 #   save    保存自动选择，主要是保存虚拟内存变化，保存重启仍然有效
@@ -577,7 +682,8 @@ if [ -n "$DEFINE_INSTALL_TYPE" ];then
 #   max 当前CPU数
 #   avg 当前CPU半数+1
 #   number 是指定的数值。
-#任务多编译快且资源消耗也大（不建议超过CPU核数），当编译因进程被系统杀掉时可减少此值重试。
+#任务多编译快且资源消耗也大（不建议超过CPU核数）
+#当编译因进程被系统杀掉时可减少此值重试。
 [-o, --options='']添加${DEFINE_INSTALL_TYPE}选项，使用前请核对选项信息。
 "
 if [ "$DEFINE_INSTALL_TYPE" = 'configure' ];then
@@ -588,7 +694,7 @@ if [ "$DEFINE_INSTALL_TYPE" = 'configure' ];then
 #   3、禁用选项 !xx 或 ?!xx 解析后是 --disable-xx
 #选项前面的?是在编译选项时会查找选项是否存在，如果不存在则丢弃，存在则附加
 #选项前面的!是禁用某个选项，解析后会存在该选项则附加
-#选项多数是有依赖要求，在增选项前需要确认依赖是否满足，否则容易造成安装失败。
+#选项多数有依赖要求，在增选项前需要确认依赖是否满足，否则容易造成安装失败。
 "
     SHELL_RUN_HELP=$SHELL_RUN_HELP"
 安装最新稳定版本${INSTALL_NAME}且指定安装选项:
@@ -597,7 +703,7 @@ if [ "$DEFINE_INSTALL_TYPE" = 'configure' ];then
 elif [ -n "$DEFINE_INSTALL_TYPE" ];then
     DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
 #增加${DEFINE_INSTALL_TYPE}原样选项，选项按${DEFINE_INSTALL_TYPE}标准即可。
-#选项部分是有依赖要求，在增选项前需要确认依赖是否满足，否则容易造成安装失败。
+#选项部分有依赖要求，在增选项前需要确认依赖是否满足，否则容易造成安装失败。
 "
     SHELL_RUN_HELP=$SHELL_RUN_HELP"
 安装最新稳定版本${INSTALL_NAME}且指定安装选项:
