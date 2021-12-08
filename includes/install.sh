@@ -28,9 +28,9 @@ parse_use_memory(){
             local RATIO_VALUE=${2//%/}
             # 内核3.14的上有MemAvailable
             if grep -q '^MemAvailable:' /proc/meminfo;then
-                FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{print count}')
+                FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{print count*1024}')
             else
-                FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|Buffers|Cached):'|awk '{count+=$2} END{print count}')
+                FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|Buffers|Cached):'|awk '{count+=$2} END{print count*1024}')
             fi
             if (( FREE_MAX_MEMORY > 0 && RATIO_VALUE > 0 && RATIO_VALUE < 100 ));then
                 FREE_MAX_MEMORY=$((FREE_MAX_MEMORY * RATIO_VALUE / 100))
@@ -47,6 +47,7 @@ parse_use_memory(){
             local CURRENT_UNIT_VAL USE_UNIT_VAL UNIT_B=1 UNIT_K=1024 UNIT_M=1048576 UNIT_G=1073741824 UNIT_T=1099511627776
             eval 'CURRENT_UNIT_VAL=$UNIT_'$CURRENT_UNIT
             eval 'USE_UNIT_VAL=$UNIT_'$USE_UNIT
+            info_msg "(($FREE_MAX_MEMORY * $CURRENT_UNIT_VAL / $USE_UNIT_VAL))"
             FREE_MAX_MEMORY=$((FREE_MAX_MEMORY * CURRENT_UNIT_VAL / USE_UNIT_VAL))
         fi
     fi
@@ -545,7 +546,7 @@ add_local_run(){
 # return 1|0
 add_pkg_config(){
     # 设置了环境变量
-    local PATH_INFO=`find $1/lib* -name '*.pc'|head -n 1` PKG_FILENAME
+    local PATH_INFO=`find $1 -path */lib* -name '*.pc'|head -n 1` PKG_FILENAME
     if [ -n "$PATH_INFO" ];then
         PKG_FILENAME=${PATH_INFO#*/}
         PKG_FILENAME=${PKG_FILENAME%/.pc}
