@@ -118,6 +118,7 @@
 ####################################################################################
 # 定义安装参数
 DEFINE_INSTALL_PARAMS="
+[-s, --swapoff]禁用虚拟内存，开启后会自动关闭虚拟内存相关配置
 [-n, --cluster-name='']指定集群名，注意在主或数据节点中必需包含当前地址
 [-t, --node-type='auto']指定当前节点类型：
 #master 主节点
@@ -258,13 +259,14 @@ fi
 # 转移不仅会造成应用等待，还有可能是应用即将回收的数据来回转移拖慢性能（比如java的FullGC回收空间时会造成严重卡顿）
 # 对于操作需要内存数据时尽量设置此配置为0，即优先清理page cache数据。
 # 以下有修改待验证
-info_msg '禁用虚拟内存，并修改相关配置'
-run_msg "echo '0' > /proc/sys/vm/swappiness"
-echo '0' > /proc/sys/vm/swappiness
-# 禁用所有swap，即无法进行物理数据转移到磁盘虚拟内存
-run_msg "swapoff -a"
-swapoff -a
-
+if [ "$ARGV_swapoff" = '1' ];then
+    info_msg '禁用虚拟内存，并修改相关配置'
+    run_msg "echo '0' > /proc/sys/vm/swappiness"
+    echo '0' > /proc/sys/vm/swappiness
+    # 禁用所有swap，即无法进行物理数据转移到磁盘虚拟内存
+    run_msg "swapoff -a"
+    swapoff -a
+fi
 # 系统不支持SecComp处理
 if [ -e "/proc/$$/status" ] && ! cat /proc/$$/status|grep -qP '^Seccomp:';then
     info_msg "当前系统不支持SecComp，即将配置 bootstrap.system_call_filter: false"
