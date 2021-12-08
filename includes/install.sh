@@ -47,7 +47,6 @@ parse_use_memory(){
             local CURRENT_UNIT_VAL USE_UNIT_VAL UNIT_B=1 UNIT_K=1024 UNIT_M=1048576 UNIT_G=1073741824 UNIT_T=1099511627776
             eval 'CURRENT_UNIT_VAL=$UNIT_'$CURRENT_UNIT
             eval 'USE_UNIT_VAL=$UNIT_'$USE_UNIT
-            info_msg "(($FREE_MAX_MEMORY * $CURRENT_UNIT_VAL / $USE_UNIT_VAL))"
             FREE_MAX_MEMORY=$((FREE_MAX_MEMORY * CURRENT_UNIT_VAL / USE_UNIT_VAL))
         fi
     fi
@@ -447,7 +446,6 @@ make_install(){
         if [[ "$1" =~ "=" ]];then
             PREFIX_PATH=${1#*=}
         fi
-        info_msg "添加环境变量PATH: $PREFIX_PATH"
         # 添加动态库地址
         add_pkg_config $PREFIX_PATH
         # 添加环境目录
@@ -508,7 +506,7 @@ add_path(){
         ENV_NAME='PATH'
     fi
     if ! grep -qP "^export\s+$ENV_NAME=(.*:)?$1/?$" /etc/profile && ! eval echo '$'$ENV_NAME|grep -qP "^(.*:)?$1(:.*)?$"; then
-        # add environment variable
+        info_msg "添加环境变量${ENV_NAME}： $1"
         echo "export $ENV_NAME=\$$ENV_NAME:$1" >> /etc/profile
         export "$ENV_NAME"=`eval echo '$'$ENV_NAME`:"$1"
     fi
@@ -536,6 +534,7 @@ add_local_run(){
             SET_ALLOW=1
         fi
         if (($SET_ALLOW > 0));then
+            info_msg "添加执行文件连接：$RUN_FILE -> /usr/local/bin/$(basename $RUN_FILE)"
             ln -svf $RUN_FILE /usr/local/bin/${RUN_FILE##*/}
         fi
     done
@@ -546,16 +545,10 @@ add_local_run(){
 # return 1|0
 add_pkg_config(){
     # 设置了环境变量
-    local PATH_INFO=`find $1 -path */lib* -name '*.pc'|head -n 1` PKG_FILENAME
-    if [ -n "$PATH_INFO" ];then
-        PKG_FILENAME=${PATH_INFO#*/}
-        PKG_FILENAME=${PKG_FILENAME%/.pc}
-        if ! if_lib "$PKG_FILENAME"; then
-            add_path ${PATH_INFO%/*} PKG_CONFIG_PATH
-            return 0;
-        fi
-    fi
-    return 1;
+    local PATH_INFO
+    for PATH_INFO in $(find $1 -path '*/lib*' -name '*.pc' -exec dirname {} \;|uniq);do
+        add_path $PATH_INFO PKG_CONFIG_PATH
+    done
 }
 
 # 创建用户（包含用户组、可执行shell、密码）

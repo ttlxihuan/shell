@@ -72,11 +72,13 @@ if ! if_lib libevent '>' '2.0.0';then
     # 编译安装
     configure_install --prefix=$INSTALL_BASE_PATH/libevent/$LIBEVENT_VERSION
     cd $MEMCACHED_CONFIGURE_PATH
-fi
-# 获取libevent安装目录
-LIBEVENT_INSTALL_PATH=$(pkg-config --libs-only-L libevent|grep -oP '/([^/]+/)+')
-if [ -n "$LIBEVENT_INSTALL_PATH" ];then
-    CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS" --with-libevent=$LIBEVENT_INSTALL_PATH"
+    CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS" --with-libevent=$INSTALL_BASE_PATH/libevent/$LIBEVENT_VERSION "
+else
+    # 获取libevent安装目录
+    LIBEVENT_INSTALL_PATH=$(pkg-config --libs-only-L libevent|grep -oP '/([^/]+/)+')
+    if [ -n "$LIBEVENT_INSTALL_PATH" ];then
+        CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS" --with-libevent=$LIBEVENT_INSTALL_PATH "
+    fi
 fi
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
