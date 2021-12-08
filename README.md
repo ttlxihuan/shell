@@ -63,7 +63,7 @@ nginx 1.15.0
 不建议向低版本安装，比如原来已经安装高版本再安装低版本，容易造成部分依赖包版本要求而导致找不到
 如果命令运行出错可能是换行符的问题可以运行命令
 ```
-find ./ ! -path ./temp -type f -name '*.sh' -exec sed -i 's/\r//' {} \;
+find ./ ! -path '*/temp/*' -type f -name '*.sh' -exec sed -i 's/\r//' {} \;
 ```
 
 ### 快速使用
@@ -88,7 +88,7 @@ if [ ! -d "shell-master" ];then
     unzip master.zip
 fi
 cd shell-master
-find ./ ! -path ./temp -type f -name '*.sh' -exec sed -i 's/\r//' {} \;
+find ./ ! -path '*/temp/*' -type f -name '*.sh' -exec sed -i 's/\r//' {} \;
 for NAME in ${@:1}; do
     if [ -e "$NAME-install.sh" ];then
         echo "运行：$NAME"

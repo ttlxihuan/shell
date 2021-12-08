@@ -67,7 +67,6 @@ else
     RUN_SHELL_FILE=$(find $CURRENT_SHELL_BASH/installs $CURRENT_SHELL_BASH/tools -name $ARGU_name'.sh')    
     if [ -n "$RUN_SHELL_FILE" ];then
         RUN_SHELL_FILE=$(cd $(dirname $RUN_SHELL_FILE); pwd)/$(basename $RUN_SHELL_FILE)
-        run_msg "bash $RUN_SHELL_FILE ${@:2}"
         bash $RUN_SHELL_FILE ${@:2}
     else
         error_exit "脚本 $ARGU_name 不存在，查看可以通过运行：bash $0 -h"
