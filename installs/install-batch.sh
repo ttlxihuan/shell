@@ -8,9 +8,7 @@ if [ $(basename "$0") = $(basename "${BASH_SOURCE[0]}") ];then
 fi
 SHELL_RUN_HELP='
 批量安装仅限支持的脚本，多个安装并行操作
-
-1、批量安装会强制空间处理（增加安装脚本参数 --data-free=save）。
-2、内存空间不足会增加虚拟内存，磁盘空间不够将停止安装，安装前多了解下。
+批量安装会忽略磁盘空间，自动适配虚拟内存进行安装。
 '$SHELL_RUN_HELP
 DEFINE_TOOL_PARAMS="$DEFINE_TOOL_PARAMS
 [-f, --config=':etc/install-batch.conf'] 指定配置文件
@@ -32,8 +30,7 @@ install_server(){
         warn_msg "$1 已经在安装运行中"
     else
         info_msg "安装：$1 ，安装信息保存在：$SHELL_WROK_TEMP_PATH/$1-install.log"
-        run_msg "nohup bash $INSTALL_FILE_PATH ${@:2} --data-free=save >> $SHELL_WROK_TEMP_PATH/$1-install.log 2>/dev/null &"
-        nohup bash $INSTALL_FILE_PATH ${@:2} --data-free=save >> $SHELL_WROK_TEMP_PATH/$1-install.log 2>/dev/null &
+        run_msg "nohup bash $INSTALL_FILE_PATH ${@:2} --disk-space=ignore --memory-space=swap >> $SHELL_WROK_TEMP_PATH/$1-install.log 2>/dev/null &"
     fi
 }
 # 读取配置文件

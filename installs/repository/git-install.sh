@@ -91,11 +91,11 @@ if [ -n "$ARGV_tool" ];then
 fi
 # 密码处理
 parse_use_password GIT_SSH_PASSWORD "${ARGV_ssh_password}"
-memory_require 8 # 内存最少G
-work_path_require 4 # 安装编译目录最少G
-install_path_require 1 # 安装目录最少G
+#  限制空间大小（G）：编译目录、安装目录、内存
+install_storage_require 4 1 8
 if [ "$ARGV_tool" = "gitlab" ]; then
-    install_path_require 3 /opt # gitlab安装目录最少G
+    # gitlab安装目录最少G
+    path_require /opt 3
 fi
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
@@ -161,12 +161,10 @@ if [ "$ARGV_tool" = "gitolite" ]; then
     ln -sv $INSTALL_BASE$GIT_VERSION/bin/git /bin/git
     mkdirs "$TOOL_WORK_PATH/gitolite" git
     packge_manager_run install 'perl(Data::Dumper)'
-    run_msg "sudo -u git ./install -to $TOOL_WORK_PATH/gitolite"
-    sudo -u git ./install -to $TOOL_WORK_PATH/gitolite
+    run_msg sudo -u git ./install -to $TOOL_WORK_PATH/gitolite
     if_error "gitolite install fail!"
     cd $TOOL_WORK_PATH/gitolite
-    run_msg "sudo -u git ./gitolite setup -pk $TOOL_WORK_PATH/gitolite-admin.pub"
-    sudo -u git ./gitolite setup -pk $TOOL_WORK_PATH/gitolite-admin.pub
+    run_msg sudo -u git ./gitolite setup -pk $TOOL_WORK_PATH/gitolite-admin.pub
     if [ -d "$TOOL_WORK_PATH/repositories" ]; then
         get_ip
         info_msg '管理仓库地址：'
@@ -197,8 +195,7 @@ elif [ "$ARGV_tool" = "gitlab" ]; then
     # 配置处理
     gitlab-ctl reconfigure
     # 启动服务
-    run_msg 'gitlab-ctl start'
-    gitlab-ctl start
+    run_msg gitlab-ctl start
     info_msg 'gitlab 工作目录：/opt/gitlab/'
     info_msg 'gitlab 配置文件：/etc/gitlab/gitlab.rb'
     info_msg 'gitlab 地址: http://127.0.0.1'

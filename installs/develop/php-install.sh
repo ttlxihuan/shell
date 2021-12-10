@@ -59,9 +59,8 @@ DEFINE_INSTALL_TYPE='configure'
 source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '5.0.0' "https://$PHP_HOST/supported-versions.php" '#v\d+\.\d+\.\d+'
-memory_require 6 # 内存最少G
-work_path_require 1 # 安装编译目录最少G
-install_path_require 1 # 安装目录最少G
+#  限制空间大小（G）：编译目录、安装目录、内存
+install_storage_require 1 1 6
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
@@ -459,8 +458,8 @@ do
 done
 
 # 启动服务
-run_msg './sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid'
-./sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid
+run_msg ./sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid
+
 # 添加执行文件连接
 add_local_run $INSTALL_PATH$PHP_VERSION/bin/ php
 

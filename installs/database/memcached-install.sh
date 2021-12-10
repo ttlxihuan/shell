@@ -39,9 +39,8 @@ fi
 # 初始化安装
 # memcached-1.4.6以前版本GCC版本低，高版本编译失败
 init_install 1.4.6 "http://memcached.org/downloads" 'memcached-\d+(\.\d+){2}\.tar.gz'
-memory_require 1 # 内存最少G
-work_path_require 1 # 安装编译目录最少G
-install_path_require 1 # 安装目录最少G
+#  限制空间大小（G）：编译目录、安装目录、内存
+install_storage_require 1 1 1
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MEMCACHED_VERSION "
@@ -92,8 +91,7 @@ RUN_OPTIONS='-d -u memcached -l 127.0.0.1 -p 11211 -c 10000 -P ./run/memcached.p
 if ((MEMCACHED_MAX_MEMORY > 0));then
     RUN_OPTIONS=$RUN_OPTIONS" -m ${MEMCACHED_MAX_MEMORY}M"
 fi
-run_msg "./bin/memcached $RUN_OPTIONS"
-./bin/memcached $RUN_OPTIONS
+run_msg ./bin/memcached $RUN_OPTIONS
 
 info_msg "安装成功：$INSTALL_NAME-$MEMCACHED_VERSION"
 

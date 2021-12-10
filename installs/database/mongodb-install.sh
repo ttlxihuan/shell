@@ -40,9 +40,8 @@ DEFINE_INSTALL_TYPE='scons'
 source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '3.0.0' "http://downloads.mongodb.org.s3.amazonaws.com/current.json" 'mongodb-src-r\d+\.\d+\.\d+\.tar\.gz'
-memory_require 16 # 内存最少G
-work_path_require 15 # 安装编译目录最少G
-install_path_require 5 # 安装目录最少G
+#  限制空间大小（G）：编译目录、安装目录、内存
+install_storage_require 15 15 16
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MONGODB_VERSION $ARGV_options"
@@ -129,11 +128,9 @@ if [ -e "etc/pip/compile-requirements.txt" ];then
     fi
     info_msg '$PYTHON_NAME 编译安装 mongobd'
     if grep -q '\-\-prefix' docs/building.md;then
-        run_msg "$PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $INSTALL_THREAD_NUM"
-        $PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $INSTALL_THREAD_NUM
+        run_msg $PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $INSTALL_THREAD_NUM
     else
-        run_msg "$PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $INSTALL_THREAD_NUM"
-        $PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $INSTALL_THREAD_NUM
+        run_msg $PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $INSTALL_THREAD_NUM
     fi
     if_error '安装失败：mongodb'
 else
@@ -159,13 +156,10 @@ else
             info_msg 'Scons OK'
         fi
         info_msg 'scons 编译安装 mongobd'
-        run_msg "scons all -j $INSTALL_THREAD_NUM"
-        scons all -j $INSTALL_THREAD_NUM
-        run_msg "scons $CONFIGURE_OPTIONS install"
-        scons $CONFIGURE_OPTIONS install
+        run_msg scons all -j $INSTALL_THREAD_NUM
+        run_msg scons $CONFIGURE_OPTIONS install
     else
-        run_msg "$PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $INSTALL_THREAD_NUM"
-        $PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $INSTALL_THREAD_NUM
+        run_msg $PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $INSTALL_THREAD_NUM
     fi
     if_error '安装失败：mongodb'
 fi
@@ -884,8 +878,7 @@ mkdirs logs
 chown -R mongodb:mongodb ./*
 
 # 启动服务器
-run_msg 'sudo -u mongodb ./bin/mongod -f ./etc/mongod.conf'
-sudo -u mongodb ./bin/mongod -f ./etc/mongod.conf
+run_msg sudo -u mongodb ./bin/mongod -f ./etc/mongod.conf
 
 # 安装成功
 info_msg "安装成功：mongodb-$MONGODB_VERSION";

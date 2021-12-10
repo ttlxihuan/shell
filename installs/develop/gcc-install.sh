@@ -61,9 +61,8 @@ if [ -z "`curl --connect-timeout 20 -I -X HEAD $MIRRORS_URL/releases/ 2>&1| grep
 fi
 # 初始化安装
 init_install '4.0.0' "$MIRRORS_URL/releases/" 'gcc-\d+\.\d+\.\d+'
-memory_require 8 # 内存最少G
-work_path_require 4 # 安装编译目录最少G
-install_path_require 3 # 安装目录最少G
+#  限制空间大小（G）：编译目录、安装目录、内存
+install_storage_require 4 3 8
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 GCC_CONFIGURE_WITH=""
@@ -124,8 +123,7 @@ info_msg "移动文件 lib64/*.py"
 for PY_FILE in `find $INSTALL_PATH$GCC_VERSION/lib64/ -name "*.py"`
 do
     if [ -n "$PY_FILE" ] && [ -e "$PY_FILE" ];then
-        run_msg "mv $PY_FILE $INSTALL_PATH$GCC_VERSION"
-        mv $PY_FILE $INSTALL_PATH$GCC_VERSION
+        run_msg mv $PY_FILE $INSTALL_PATH$GCC_VERSION
     fi
 done
 ldconfig

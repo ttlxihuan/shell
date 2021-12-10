@@ -189,9 +189,8 @@ if [ -n "$ARGV_cluster_name" ];then
 elif [ -n "$ARGV_master_hosts$ARGV_data_hosts" ];then
     error_exit "--cluster-name 未指定，无法配置集群，请核对安装参数"
 fi
-memory_require 4 # 内存最少G
-work_path_require 3 # 安装编译目录最少G
-install_path_require 4 # 安装目录最少G
+#  限制空间大小（G）：编译目录、安装目录、内存
+install_storage_require 3 4 4
 # ************** 安装 ******************
 # 下载elasticsearch包
 LINUX_BIT=`uname -a|grep -P 'x\d+_\d+' -o|tail -n 1`
@@ -262,10 +261,8 @@ fi
 if [ "$ARGV_swapoff" = '1' ];then
     info_msg '禁用虚拟内存，并修改相关配置'
     run_msg "echo '0' > /proc/sys/vm/swappiness"
-    echo '0' > /proc/sys/vm/swappiness
     # 禁用所有swap，即无法进行物理数据转移到磁盘虚拟内存
     run_msg "swapoff -a"
-    swapoff -a
 fi
 # 系统不支持SecComp处理
 if [ -e "/proc/$$/status" ] && ! cat /proc/$$/status|grep -qP '^Seccomp:';then
@@ -325,7 +322,6 @@ fi
 
 # 启动服务
 run_msg 'sudo -u elasticsearch ./bin/elasticsearch -d'
-sudo -u elasticsearch ./bin/elasticsearch -d
 
 # 安装 kibana
 if [ "$ARGV_tool" = 'kibana' ];then
@@ -347,7 +343,6 @@ if [ "$ARGV_tool" = 'kibana' ];then
     chown -R kibana:kibana ./*
     # 启动kibana
     run_msg 'nohup sudo -u kibana bin/kibana & 2>&1 >/dev/null'
-    nohup sudo -u kibana bin/kibana & 2>&1 >/dev/null
     info_msg "kibana 管理地址：http://$SERVER_IP:5601"
 fi
 

@@ -26,9 +26,8 @@ DEFINE_INSTALL_TYPE='configure'
 source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '2.6.0' "https://www.python.org/downloads/source/" 'Python-\d+\.\d+\.\d+\.tgz'
-memory_require 4 # 内存最少G
-work_path_require 1 # 安装编译目录最少G
-install_path_require 1 # 安装目录最少G
+#  限制空间大小（G）：编译目录、安装目录、内存
+install_storage_require 1 1 4
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PYTHON_VERSION "

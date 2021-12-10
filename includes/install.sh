@@ -8,6 +8,48 @@ if [ $(basename "$0") = $(basename "${BASH_SOURCE[0]}") ];then
 fi
 # 引用公共文件
 source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/basic.sh || exit
+# 随机生成密码
+# @command random_password $password_val [$size] [$group]
+# @param $password_val      生成密码写入变量名
+# @param $size              密码长度，默认20
+# @param $group             密码组合，默认包含：数字、字母大小写、~!@#$%^&*()_-=+,.;:?/\|
+# return 1|0
+random_password(){
+    local PASSWORD_CHARS_STR='qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM~!@#$%^&*_-=+,.;:?|'
+    if [ -n "$3" ];then
+        PASSWORD_CHARS_STR=`echo "$PASSWORD_CHARS_STR"|grep -oP "$3+"`
+        if_error "密码包含的字符无效: $3"
+    fi
+    local PASSWORD_CHATS_LENGTH=`echo $PASSWORD_CHARS_STR|wc -m` PASSWORD_STR='' PASSWORD_INDEX_START='' PASSWORD_SIZE=25
+    if [ -n "$2" ]; then
+        if ! [[ "$2" =~ ^[1-9][0-9]*$ ]];then
+            error_exit "生成密码位数必需是整数，现在是：$2"
+        fi
+        if (($2 < 0 || $2 > 100));then
+            error_exit "生成密码位数范围是：1~99，现在是：$2"
+        fi
+        PASSWORD_SIZE=$2
+    fi
+    for ((I=0; I<$PASSWORD_SIZE; I++)); do
+         PASSWORD_INDEX_START=`expr $RANDOM % $PASSWORD_CHATS_LENGTH`
+         PASSWORD_STR=$PASSWORD_STR${PASSWORD_CHARS_STR:$PASSWORD_INDEX_START:1}
+    done
+    eval "$1='$PASSWORD_STR'"
+}
+# 解析使用密码
+# @command parse_use_password $password_val [$size|$password] [$group]
+# @param $password_val      生成密码写入变量名
+# @param $size              生成密码长度：%num，比如生成10位密码：%10
+# @param $password          指定密码
+# @param $group             生成密码组合，默认全部类型
+# return 1|0
+parse_use_password(){
+    if [[ "$2" =~ ^%[1-9][0-9]{0,2}$ ]];then
+        random_password $1 ${2:1} $3
+    else
+        eval "$1=\$2"
+    fi
+}
 # 解析使用内存
 # @command parse_use_memory $var_name $ratio $unit
 # @param $var_name          写入变量名
@@ -59,13 +101,19 @@ parse_use_memory(){
 memory_require(){
     local ASK_INPUT CURRENT_MEMORY DIFF_SIZE
     # 总内存G
-    CURRENT_MEMORY=`cat /proc/meminfo|grep -P '^(MemTotal|SwapTotal):'|awk '{count+=$2} END{print count/1048576}'`
+    CURRENT_MEMORY=`cat /proc/meminfo|grep -P '^(MemTotal|SwapTotal):'|awk '{count+=$2} END{printf "%.2f", count/1048576}'`
     # 剩余内存G
     # CURRENT_MEMORY=cat /proc/meminfo|grep -P '^(MemFree|SwapFree):'|awk '{count+=$2} END{print count/1048576}'
     math_compute DIFF_SIZE "$1 - $CURRENT_MEMORY"
-    if ((DIFF_SIZE > 0)) && ([ "$ARGV_data_free" != 'ask' ] || ask_permit "内存最少 ${1}G，现在只有 ${CURRENT_MEMORY}G，是否增加虚拟内存 ${DIFF_SIZE}G：");then
-        local BASE_PATH SWAP_PATH SWAP_NUM
-        path_require $DIFF_SIZE / BASE_PATH;
+    if ((DIFF_SIZE > 0));then
+        warn_msg "内存不足：${1}G，当前只有：${CURRENT_MEMORY}G"
+        if [ "$ARGV_memory_space" = 'ignore' ] || ([ "$ARGV_memory_space" = 'ask' ] && ! ask_permit "是否增加虚拟内存 ${DIFF_SIZE}G ？");then
+            warn_msg '忽略内存不足'
+            return
+        fi
+        local SWAP_PATH SWAP_NUM BASE_PATH='/'
+        info_msg '即将在根目录下创建虚拟内存空间'
+        path_require $BASE_PATH $DIFF_SIZE;
         SWAP_PATH=${BASE_PATH%/*}/swap
         SWAP_NUM=$(find $BASE_PATH -maxdepth 1 -name swap*|grep -oP 'swap\d+$'|sort -r|head -1|grep -oP '\d+$')
         if [ -n "$SWAP_NUM" ];then
@@ -82,129 +130,71 @@ memory_require(){
         chmod 0600 $SWAP_PATH
         # 开启/swap目录交换空间，开启后系统将建立虚拟内存，大小为 bs * count
         swapon $SWAP_PATH
-        if [ "$ARGV_data_free" = 'save' -o "$ARGV_data_free" != 'ask' ] || ask_permit '虚拟内存交换是否写入系统配置用于重启后自动生效：';then
+        if [ "$ARGV_memory_space" != 'ask' ] || ask_permit '虚拟内存是否写入/etc/fstab文件用于重启后自动生效？';then
             # 写入配置文件，重启系统自动开启/swap目录交换空间
             if grep -qP "^$SWAP_PATH " /etc/fstab;then
                 sed -i -r "s,^$SWAP_PATH .*$,$SWAP_PATH swap swap defaults 0 0," /etc/fstab
             else
                 echo "$SWAP_PATH swap swap defaults 0 0" >> /etc/fstab
             fi
+        else
+            warn_msg '虚拟内存未写入/etc/fstab文件中，重启不会自动加载此虚拟内存'
         fi
         info_msg "如果需要删除虚拟内存，先关闭交换区 ，然后删除文件，再去掉/etc/fstab文件中的配置行。"
         info_msg "可以执行命令：swapoff $SWAP_PATH && rm -f $SWAP_PATH && sed -i -r '/^${SWAP_PATH//\//\\/}\s+/d' /etc/fstab"
-    fi
-}
-# 随机生成密码
-# @command random_password $password_val [$size] [$group]
-# @param $password_val      生成密码写入变量名
-# @param $size              密码长度，默认20
-# @param $group             密码组合，默认包含：数字、字母大小写、~!@#$%^&*()_-=+,.;:?/\|
-# return 1|0
-random_password(){
-    local PASSWORD_CHARS_STR='qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM~!@#$%^&*_-=+,.;:?|'
-    if [ -n "$3" ];then
-        PASSWORD_CHARS_STR=`echo "$PASSWORD_CHARS_STR"|grep -oP "$3+"`
-        if_error "密码包含的字符无效: $3"
-    fi
-    local PASSWORD_CHATS_LENGTH=`echo $PASSWORD_CHARS_STR|wc -m` PASSWORD_STR='' PASSWORD_INDEX_START='' PASSWORD_SIZE=25
-    if [ -n "$2" ]; then
-        if ! [[ "$2" =~ ^[1-9][0-9]*$ ]];then
-            error_exit "生成密码位数必需是整数，现在是：$2"
-        fi
-        if (($2 < 0 || $2 > 100));then
-            error_exit "生成密码位数范围是：1~99，现在是：$2"
-        fi
-        PASSWORD_SIZE=$2
-    fi
-    for ((I=0; I<$PASSWORD_SIZE; I++)); do
-         PASSWORD_INDEX_START=`expr $RANDOM % $PASSWORD_CHATS_LENGTH`
-         PASSWORD_STR=$PASSWORD_STR${PASSWORD_CHARS_STR:$PASSWORD_INDEX_START:1}
-    done
-    eval "$1='$PASSWORD_STR'"
-}
-# 解析使用密码
-# @command parse_use_password $password_val [$size|$password] [$group]
-# @param $password_val      生成密码写入变量名
-# @param $size              生成密码长度：%num，比如生成10位密码：%10
-# @param $password          指定密码
-# @param $group             生成密码组合，默认全部类型
-# return 1|0
-parse_use_password(){
-    if [[ "$2" =~ ^%[1-9][0-9]{0,2}$ ]];then
-        random_password $1 ${2:1} $3
     else
-        eval "$1=\$2"
-    fi
-}
-# 安装编译工作目录剩余空间要求
-# @command work_path_require $min_size
-# @param $min_size          安装编译工作目录最低磁盘剩余空间大小，G为单位
-# return 1|0
-work_path_require(){
-    local BASE_PATH MIN_SIZE=0
-    # 如果目录已经存在文件则需要获取当前目录的空间再剥除，这块操作比较耗时间
-    if [ -d $SHELL_WROK_TEMP_PATH/$INSTALL_NAME ];then
-        math_compute MIN_SIZE "$1-`du --max-depth=1 $SHELL_WROK_TEMP_PATH/$INSTALL_NAME|tail -1|awk '{print$1}'`/1048576"
-    fi
-    if ((MIN_SIZE > 0));then
-        path_require $MIN_SIZE $SHELL_WROK_TEMP_PATH BASE_PATH;
-        # 有匹配的工作目录，直接转移工作目录
-        if [ -n "$BASE_PATH" -a "$BASE_PATH" != "$SHELL_WROK_TEMP_PATH" ];then
-            mkdirs $BASE_PATH/shell-install
-            SHELL_WROK_TEMP_PATH="$BASE_PATH/shell-install"
-        fi
-    fi
-}
-# 安装目录剩余空间要求
-# @command install_path_require $min_size $path
-# @param $min_size          安装目录最低磁盘剩余空间大小，G为单位
-# @param $path              要判断的目录，默认安装根目录
-# return 1|0
-install_path_require(){
-    if ((`df_awk ${2-$INSTALL_BASE_PATH}|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
-        info_msg "安装目录 $2 所在硬盘 `df_awk $2|awk '{print $1}'|tail -1` 剩余空间不足：${1}G ，无法进行安装！"
-        if [ "$ARGV_data_free" = 'ignore' ];then
-            warn_msg '忽略空间不足'
-            return 0
-        fi
-        exit 1
+        info_msg "内存容量：${CURRENT_MEMORY}G"
     fi
 }
 # 获取指定目录对应挂载磁盘剩余空间要求
 # @command path_require $min_size $path $path_name
-# @param $min_size          安装脚本最低磁盘剩余空间大小，G为单位
-# @param $path              要判断的目录
-# @param $path_name         有空余的目录写入变量名
+# @param $path              判断的目录
+# @param $min_size          要求目录挂载分区剩余空间G为单位
+# @param $path_name         允许空间不足自动搜索空间够用目录，且将最终目录写入变量中
 # return 1|0
 path_require(){
-    if ((`df_awk $2|awk '{print $4}'|tail -1` / 1048576 < $1 ));then
-        info_msg "目录 $2 所在硬盘 `df_awk $2|awk '{print $1}'|tail -1` 剩余空间不足：${1}G"
-        if [ "$ARGV_data_free" = 'ignore' ];then
+    local PART_INFO=(`df_awk -k $1|awk '{print $1,$4}'|tail -1`)
+    if ((${PART_INFO[1]} / 1048576 < $2 ));then
+        warn_msg "目录 $1 所在分区 ${PART_INFO[0]} 剩余空间不足：${2}G"
+        if [ "$ARGV_disk_space" = 'ignore' ] || ([ "$ARGV_disk_space" = 'ask' ] && ask_permit "是否继续安装？");then
             warn_msg '忽略空间不足'
-        else
-            search_free_path $3 $(($1 * 1048576))
+            return
         fi
+        error_exit '空间不足无法进行安装，退出安装'
     else
-        eval "$3=\$2"
+        info_msg "目录 $1 所在分区 ${PART_INFO[0]} 可用空间：$((${PART_INFO[1]} / 1048576))G"
     fi
 }
-# 获取可用空间达到的硬盘绑定目录
-# @command search_free_path $path_name $min_size
-# @param $path_name         获取有效目录写入变量名
-# @param $min_size          最低磁盘剩余空间大小，K为单位
+# 安装存储空间要求，单位G
+# @command install_storage_require $work_path_size $install_path_size $memory_size
+# @param $work_path_size       安装编译暂时目录空间要求
+# @param $install_path_size    安装目标目录空间要求
+# @param $memory_size          安装编译内存要求
 # return 1|0
-search_free_path(){
-    local ITEM ASK_INPUT
-    while read ITEM; do
-        if [ -n "$ITEM" ] && ([ "$ARGV_data_free" != 'ask' ] || ask_permit `printf "文件系统：%s 挂载目录：%s 可用空间：%s 是否选用：" $ITEM`);then
-            ITEM=$(echo "$ITEM"|awk '{print $2}')
-            eval "$1=\$ITEM"
-            return 0
-        fi
-    done <<EOF
-`df_awk -T|awk 'NR >1 && $5 > '$2' && $2 !~ "/*tmpfs/" && $4/$3 < 0.9 {$5=$5/1048576; print $1,$7,$5}'`
-EOF
-    error_exit "没有合适空间，终止执行！"
+install_storage_require(){
+    local EXIST_SIZE=0 MIN_SIZE=$1
+    info_msg "安装下载暂时目录空间要求：${1}G"
+    # 目标目录已经存在文件则自动减少要求空间
+    if [ -d $SHELL_WROK_TEMP_PATH/shell-install ];then
+        EXIST_SIZE=$(find $SHELL_WROK_TEMP_PATH/shell-install -maxdepth 1 -name $INSTALL_NAME-* -name *$INSTALL_VERSION* -exec du -k --max-depth=1 {} \;|awk 'BEGIN{total=0}{total+=$1}END{if(total>1048576){printf "%.0f",total/1048576}else{print 0}}')
+        MIN_SIZE=$(($1 - EXIST_SIZE))
+        info_msg "安装下载暂时目录已经存在相关文件或目录占用：${EXIST_SIZE}G，扣除后要求：${MIN_SIZE}G"
+    fi
+    #编译安装临时目录
+    path_require $SHELL_WROK_TEMP_PATH $MIN_SIZE
+    MIN_SIZE=$2
+    info_msg "安装目录空间要求：${2}G"
+    # 目标目录已经存在文件则自动减少要求空间
+    if [ -d $INSTALL_BASE_PATH/$INSTALL_NAME ];then
+        EXIST_SIZE=$(find $INSTALL_BASE_PATH/$INSTALL_NAME -maxdepth 1 -name $INSTALL_VERSION -exec du -k --max-depth=1 {} \;|awk 'BEGIN{total=0}{total+=$1}END{if(total>1048576){printf "%.0f",total/1048576}else{print 0}}')
+        MIN_SIZE=$(($1 - EXIST_SIZE))
+        info_msg "安装目录空间已经存在相关文件或目录占用：${EXIST_SIZE}G，扣除后要求：${MIN_SIZE}G"
+    fi
+    #安装目录
+    path_require $INSTALL_BASE_PATH $MIN_SIZE
+    #内存
+    info_msg "内存空间要求：${3}G"
+    memory_require $3
 }
 # 获取文件系统的信息
 # 此命令主要是处理很长的存储名可能会换行导致awk处理错位
@@ -213,7 +203,8 @@ EOF
 # @param $options         选项参数
 # return 1|0
 df_awk(){
-    df $@|awk '{if(NF==1){prev=$1}else{{print prev,$1,$2,$3,$4,$5,$6,$7}prev=""}}'
+    #去掉首行标题，合并截断行
+    df $@|awk '{if(NR > 1){if(NF==1){prev=$1}else{{print prev,$1,$2,$3,$4,$5,$6,$7}prev=""}}}'
 }
 # 获取版本
 # @command get_version $var_name $url $version_path_rule [$version_rule]
@@ -460,8 +451,7 @@ make_install(){
 # return 1|0
 configure_install(){
     make clean 2>&1
-    run_msg "./configure $*"
-    ./configure $* 2>&1
+    run_msg "./configure $* 2>&1"
     if_error "configure 编译配置失败"
     make_install "`echo "$*"|grep -oP "\--prefix=\S+"`"
 }
@@ -472,9 +462,8 @@ configure_install(){
 cmake_install(){
     mkdirs build-tmp
     cd build-tmp
-    make clean 2>&1
-    run_msg "$*"
-    $* 2>&1
+    run_msg "make clean 2>&1"
+    run_msg "$* 2>&1"
     if_error "cmake 编译安装失败"
     make_install "`echo "$*"|grep -oP "\-DCMAKE_INSTALL_PREFIX=\S+"`"
 }
@@ -490,8 +479,7 @@ run_install_shell (){
     if [ -z "$2" ]; then
         error_exit "安装shell脚本必需指定的安装的版本号参数"
     fi
-    run_msg "bash $INSTALL_FILE_PATH ${@:2} --data-free=${ARGV_data_free} --install-path=${INSTALL_BASE_PATH}"
-    bash $INSTALL_FILE_PATH ${@:2} --data-free=${ARGV_data_free} --install-path=${INSTALL_BASE_PATH}
+    run_msg bash $INSTALL_FILE_PATH ${@:2} --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH}
     if_error "安装shell脚本失败：$1"
     source /etc/profile
 }
@@ -601,7 +589,8 @@ init_install(){
     else
         error_exit "安装版本号参数格式错误：$ARGU_version"
     fi
-    local INSTALL_VERSION=`eval "echo \$"$INSTALL_VERSION_NAME` INSTALL_VERSION_MIN=$1
+    INSTALL_VERSION=`eval "echo \$"$INSTALL_VERSION_NAME`
+    local INSTALL_VERSION_MIN=$1
     if [ -n "$INSTALL_VERSION_MIN" ] && if_version "$INSTALL_VERSION" "<" "$INSTALL_VERSION_MIN"; then
         error_exit "最小安装版本号: $INSTALL_VERSION_MIN ，当前是：$INSTALL_VERSION"
     fi
@@ -652,11 +641,13 @@ DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
 # 1 重新安装
 # 2 重新解压再安装
 # 3 重新下载解压再安装
-[--data-free=ask]数据空间不够用时处理
-#   auto    自动选择，空间不足时搜索空间够用的硬盘使用
-#   save    保存自动选择，主要是保存虚拟内存变化，保存重启仍然有效
-#   ask     询问，可以选择性的允许空间处理
-#   ignore  忽略，空间不足时不能保证安装成功
+[--disk-space=ask]安装磁盘分区空间不够用时处理
+#   ask     空间不足时询问操作
+#   ignore  忽略空间不足
+[--memory-space=ask]内存空间不够用时处理
+#   swap    空间不足直接创建虚拟内存
+#   ask     空间不足时询问操作
+#   ignore  忽略空间不足
 #数据空间包括编译目录硬盘和内存大概最少剩余空间
 #处理操作有：编译目录转移，自动添加虚拟内存等
 "

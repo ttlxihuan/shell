@@ -30,9 +30,8 @@ DEFINE_INSTALL_TYPE='configure'
 source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '2.0.50' "http://archive.apache.org/dist/httpd/" '(apache|httpd)-\d+\.\d+\.\d+\.tar\.gz'
-memory_require 4 # 内存最少G
-work_path_require 3 # 安装编译目录最少G
-install_path_require 1 # 安装目录最少G
+#  限制空间大小（G）：编译目录、安装目录、内存
+install_storage_require 3 1 4
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$APACHE_VERSION "
@@ -116,8 +115,8 @@ fi
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 # 启动服务
-run_msg 'apachectl -k start'
-apachectl -k start
+run_msg apachectl -k start
+
 # 添加执行文件连接
 ln -svf $INSTALL_PATH$APACHE_VERSION/bin/apachectl /usr/local/bin/httpd
 info_msg "安装成功：apache-$APACHE_VERSION"

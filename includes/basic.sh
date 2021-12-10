@@ -109,6 +109,7 @@ warn_msg(){
 # return 1
 run_msg(){
     print_msg RUN "$@"
+    eval "$@"
 }
 # 输出信息
 # @command print_msg $type $msg
@@ -211,7 +212,7 @@ packge_manager_run(){
                 error_exit "找不到配置的安装包名: $NAME"
             fi
             PACKGE_NAME=`eval "echo $COMMAND_ARRAY_VAL"`
-            if [ "$PACKGE_NAME" = '-' ];then
+            if [ "$PACKGE_NAME" = '-' -o "$PACKGE_NAME" = '' ];then
                 continue;
             fi
         else
@@ -220,7 +221,10 @@ packge_manager_run(){
         if [ -z "$PACKGE_NAME" ];then
             error_exit "安装包名解析为空: $NAME"
         fi
-        $COMMAND_STR $PACKGE_NAME 2> /dev/null
+        run_msg "$COMMAND_STR $PACKGE_NAME 2>/dev/null"
+        if [ $? != '0' ];then
+            warn_msg "$COMMAND_STR $PACKGE_NAME 运行失败，可能会影响后续运行结果"
+        fi
     done
 }
 # 工具集安装

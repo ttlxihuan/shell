@@ -106,8 +106,7 @@ handle_service(){
                     fi
                 fi
                 if [[ "$PID_NUM" =~ ^[1-9][0-9]*$ ]];then
-                    run_msg "kill $PID_NUM"
-                    kill $PID_NUM
+                    run_msg kill $PID_NUM
                     info_msg "获取关闭结果："
                     local LOOP_NUM=30
                     # 循环获取关闭结果
@@ -116,8 +115,7 @@ handle_service(){
                         printf '.'
                         if [ "$LOOP_NUM" == '10' ];then
                             warn_msg "服务还在继续，尝试强制关闭"
-                            run_msg "kill -9 $PID_NUM"
-                            kill -9 $PID_NUM
+                            run_msg kill -9 $PID_NUM
                             info_msg "获取关闭结果："
                         elif [ "$LOOP_NUM" = '0' ];then
                             error_exit "服务关闭失败"

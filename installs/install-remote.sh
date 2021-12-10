@@ -32,7 +32,6 @@ fi
 # 生成证书
 if [ -z "$ARGV_disabled_sshkey" -a ! -e ~/.ssh/id_rsa.pub ];then
     info_msg '当前账号无证书，即将生成证书用于登录远程服务器'
-    run_msg "ssh-keygen -t rsa"
     ssh-keygen -t rsa <<EOF
 
 
@@ -90,9 +89,6 @@ CMD
     fi
     if [ -z "$ARGV_disabled_expect" -a "$KEYGEN_HAS" = '1' ];then
         info_msg "即将通过 expect 调用以下命令"
-        run_msg "ssh $SSH_USER@$1 -C 'mkdir -p $ARGV_remote_dir'"
-        run_msg "scp -r $SHELL_WROK_BASH_PATH $SSH_USER@$1:$ARGV_remote_dir"
-        run_msg "ssh $SSH_USER@$1 -C 'nohup bash $ARGV_remote_dir/installs/install-batch.sh &' &"
         expect <<CMD
 spawn ssh $SSH_USER@$1 -C 'mkdir -p $ARGV_remote_dir'
 expect "*password*" {send "$2\r"; exp_continue}
@@ -102,12 +98,9 @@ spawn ssh $SSH_USER@$1 -C 'nohup bash $ARGV_remote_dir/installs/install-batch.sh
 expect "*password*" {send "$2\r"; exp_continue}
 CMD
     else
-        run_msg "ssh $SSH_USER@$1 -C 'mkdir -p $ARGV_remote_dir'"
-        ssh $SSH_USER@$1 -C 'mkdir -p $ARGV_remote_dir'
-        run_msg "scp -r $SHELL_WROK_BASH_PATH $SSH_USER@$1:$ARGV_remote_dir"
-        scp -r $SHELL_WROK_BASH_PATH $SSH_USER@$1:$ARGV_remote_dir
-        run_msg "ssh $SSH_USER@$1 -C 'nohup bash $ARGV_remote_dir/installs/install-batch.sh &' &"
-        ssh $SSH_USER@$1 -C 'nohup bash $ARGV_remote_dir/installs/install-batch.sh &' &
+        run_msg ssh $SSH_USER@$1 -C 'mkdir -p $ARGV_remote_dir'
+        run_msg scp -r $SHELL_WROK_BASH_PATH $SSH_USER@$1:$ARGV_remote_dir
+        run_msg ssh $SSH_USER@$1 -C 'nohup bash $ARGV_remote_dir/installs/install-batch.sh &' &
     fi
     return $?
 }

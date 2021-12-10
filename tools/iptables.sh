@@ -232,8 +232,7 @@ if [ -n "$CONFIG_DIFF" ];then
             warn_msg "remove配置错误：${CONFIG[4]}";
             continue;
         fi
-        run_msg "iptables $SET_HANDLE INPUT -p tcp -m state --state NEW -m tcp$SET_IP$SET_PORT$SET_MAC$SET_SWITCH"
-        iptables $SET_HANDLE INPUT -p tcp -m state --state NEW -m tcp$SET_IP$SET_PORT$SET_MAC$SET_SWITCH
+        run_msg iptables $SET_HANDLE INPUT -p tcp -m state --state NEW -m tcp$SET_IP$SET_PORT$SET_MAC$SET_SWITCH
     done
 
     #保存需要的规则

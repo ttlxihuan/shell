@@ -22,9 +22,8 @@
 source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '1.19.1' "https://kubernetes.io/releases/" '>\d+\.\d+\.\d+'
-memory_require 4 # 内存最少G
-work_path_require 1 # 安装编译目录最少G
-install_path_require 1 # 安装目录最少G
+#  限制空间大小（G）：编译目录、安装目录、内存
+install_storage_require 1 1 1
 # ************** 编译安装 ******************
 chdir $INSTALL_NAME
 # 下载kubernetes包

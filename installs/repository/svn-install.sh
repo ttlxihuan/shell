@@ -33,9 +33,8 @@ DEFINE_INSTALL_TYPE='configure'
 source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '1.0.0' "https://downloads.apache.org/subversion/" 'subversion-\d+\.\d+\.\d+\.tar\.gz'
-memory_require 4 # 内存最少G
-work_path_require 1 # 安装编译目录最少G
-install_path_require 1 # 安装目录最少G
+#  限制空间大小（G）：编译目录、安装目录、内存
+install_storage_require 1 1 4
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$SVN_VERSION "
@@ -124,8 +123,7 @@ if [ -n "$ARGV_work_dir" ];then
     add_user svnserve
     chown -R svnserve:svnserve $ARGV_work_dir
     # 启动服务
-    run_msg "sudo -u svnserve ./bin/svnserve -d -r $ARGV_work_dir"
-    sudo -u svnserve ./bin/svnserve -d -r $ARGV_work_dir
+    run_msg sudo -u svnserve ./bin/svnserve -d -r $ARGV_work_dir
 fi
 
 info_msg "安装成功：svn-$SVN_VERSION"

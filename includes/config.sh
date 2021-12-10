@@ -95,3 +95,11 @@ LIBFFI_DEVEL_PACKGE_NAMES=('libffi-devel' 'libffi-dev')
 GETTEXT_DEVEL_PACKGE_NAMES=('gettext-devel' 'gettext-dev')
 # 安装java
 JAVA_PACKGE_NAMES=('java' 'default-jre')
+# 安装libnl3
+LIBNL3_DEVEL_PACKGE_NAMES=('libnl3-devel' 'libnl-genl-3-dev')
+# 安装libnl
+LIBNL_DEVEL_PACKGE_NAMES=('libnl-devel' 'libnlopt-dev')
+# 安装popt
+POPT_DEVEL_PACKGE_NAMES=('popt-devel' '-')
+# 安装popt-static
+POPT_STATIC_PACKGE_NAMES=('popt-static' '-')
