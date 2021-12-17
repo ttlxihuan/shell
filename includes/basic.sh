@@ -84,7 +84,7 @@ if_error(){
 # @param $error_str     错误内容
 # return 1
 error_exit(){
-    print_msg ERROR "$@"
+    print_msg ERROR "$@" >&2
     exit 1
 }
 # 输出常规信息
@@ -101,18 +101,18 @@ info_msg(){
 warn_msg(){
     print_msg WARN "$@"
 }
-# 输出运行信息
-# @command run_msg $msg
-# @param $msg       信息内容
+# 运行命令输出信息
+# @command run_msg $command
+# @param $command       执行命令
 # return 1
 run_msg(){
     print_msg RUN "$@"
-    eval "$@"
+    eval $@
 }
 # 输出信息
 # @command print_msg $type $msg
-# @param $type      打印类型
-# @param $msg       打印信息
+# @param $type          打印类型
+# @param $msg           打印信息
 # return 1
 print_msg(){
     if [ -f /dev/stdout ];then
@@ -369,13 +369,14 @@ if_version(){
 #                           =''         定义参数或选项的默认值，选项指定后为带值选项，默认值为空时可省略后面的引号
 #                                       默认值允许使用：字母、数字、减号、下划线、转义组合，或者使用单双引号
 #                                       转义符在无引号或有引号时均有效使用时需要注意
-#                           {validate}  选项或参数验证，验证支持参考函数：validate_shell_param
+#                           validate    选项或参数验证，验证支持参考函数 validate_shell_param
 # @param $options_name      命令参数数组名
 # return 1|0
 parse_shell_param() {
     local PARAM NAME SHORT_NAME DEFAULT_VALUE DEFAULT_VALUE_STR DEFAULT_VALIDATE_STR PARAM_STR PARAM_INFO_STR PARAM_NAME_STR PARAM_SHOW_DEFINE PARAM_SHOW_INFO ARG_NAME INDEX 
     local SPACE_NUM=22 ARGUMENTS=() OPTIONS=() OPTIONALS=() ARGVS=() VALIDATES_NAME_QUEUE=() VALIDATES_RULE_QUEUE=() COMMENT_SHOW_ARGUMENTS='' COMMENT_SHOW_OPTIONS=''
-    local REGEXP_ARGV='(-[a-z0-9]\s*,\s*)?--[a-z0-9][a-z0-9\-]+|[a-z0-9][a-z0-9\-]+' REGEXP_VALIDATE="\{\s*([,:\|]+|$REGEXP_QUOTE_STRING)*\s*\}"
+    local REGEXP_ARGU='[[:alnum:]][[:alnum:]\-]+' REGEXP_ARGV_SHORT='\-[[:alnum:]]' REGEXP_ARGV_LONG='\-\-[[:alnum:]][[:alnum:]\-]+'
+    local REGEXP_ARGV="($REGEXP_ARGV_SHORT\s*,\s*)?$REGEXP_ARGV_LONG|$REGEXP_ARGU" REGEXP_VALIDATE="\{\s*([,:\|]+|$REGEXP_QUOTE_STRING)*\s*\}"
     # 解析定义的参数
     while read -r PARAM; do
         if [ -z "$PARAM" ] || printf '%s' "$PARAM"|grep -qP '^\s*$'; then
@@ -393,7 +394,7 @@ parse_shell_param() {
             continue;
         fi
         # 提取匹配的定义参数语句结构
-        PARAM_STR=$(printf '%s' "$PARAM"|grep -oiP "^\s*\[\s*($REGEXP_ARGV)(\s*=\s*($REGEXP_QUOTE_STRING)?)?(\s*,\s*$REGEXP_VALIDATE)?\s*\]")
+        PARAM_STR=$(printf '%s' "$PARAM"|grep -oP "^\s*\[\s*($REGEXP_ARGV)(\s*=\s*($REGEXP_QUOTE_STRING)?)?(\s*,\s*$REGEXP_VALIDATE)?\s*\]")
         if [ -z "$PARAM_STR" ];then
             error_exit "定义参数解析失败：$PARAM"
         fi
@@ -407,8 +408,8 @@ parse_shell_param() {
         DEFAULT_VALIDATE_STR=$(printf '%s' "${PARAM_INFO_STR}"|grep -oP "$REGEXP_VALIDATE$"|sed -r "s/(^\s*\{\s*)|(\s*\}\s*$)//g")
         # 参数类型识别处理
         if [[ "$PARAM_NAME_STR" =~ ^-{1,2} ]];then
-            SHORT_NAME=`printf '%s' "$PARAM_NAME_STR"|grep -oiP '^-[a-z0-9]'`
-            NAME=`printf '%s' "$PARAM_NAME_STR"|grep -oiP '\-\-[a-z0-9][\w\-]+'`
+            SHORT_NAME=`printf '%s' "$PARAM_NAME_STR"|grep -oP "^$REGEXP_ARGV_SHORT"`
+            NAME=`printf '%s' "$PARAM_NAME_STR"|grep -oP "$REGEXP_ARGV_LONG"`
             PARAM_SHOW_DEFINE="$NAME"
             if [ -n "$SHORT_NAME" ];then
                 PARAM_SHOW_DEFINE="$SHORT_NAME, $PARAM_SHOW_DEFINE"
@@ -421,13 +422,13 @@ parse_shell_param() {
             ARG_NAME='ARGV_'
         else
             SHORT_NAME=''
-            NAME=`printf '%s' $PARAM_NAME_STR|grep -oiP '^[a-z0-9][\w\-]+'`
+            NAME=`printf '%s' $PARAM_NAME_STR|grep -oP "^$REGEXP_ARGU"`
             PARAM_SHOW_DEFINE="$NAME"
             ARG_NAME='ARGU_'
         fi
         # 重复参数校验
         for ((INDEX=0; INDEX < ${#ARGVS[@]}; INDEX++)); do
-            if test ${ARGVS[$INDEX]} = $NAME || test ${ARGVS[$INDEX]} = "$SHORT_NAME";then
+            if test ${ARGVS[$INDEX]} = "$NAME" || test ${ARGVS[$INDEX]} = "$SHORT_NAME";then
                 error_exit "不能定义重名参数: ${ARGVS[$INDEX]} , $PARAM"
             fi
         done
@@ -475,10 +476,10 @@ EOF
             continue
         fi
         NAME=''
-        if [[ "$ITEM" =~ ^(--[A-Za-z0-9][A-Za-z0-9\-]+=.*|-[A-Za-z0-9])$ ]]; then
+        if [[ "$ITEM" =~ ^(--[[:alnum:]][[:alnum:]\-]+(=.*)?|-[[:alnum:]])$ ]]; then
             # 有参数的选项处理
-            if [[ "$ITEM" =~ ^--[A-Za-z0-9][A-Za-z0-9\-]+=.*$ ]];then
-                NAME_TEMP=$(printf '%s' "$ITEM"|grep -oiP '^--[a-z0-9][\w\-]+')
+            if [[ "$ITEM" =~ ^--[[:alnum:]][[:alnum:]\-]+=.*$ ]];then
+                NAME_TEMP=$(printf '%s' "$ITEM"|grep -oP '^--[[:alnum:]][\w\-]+')
                 VALUE=$(printf '%s' "$ITEM"|sed -r "s/^[^=]+=//")
             else
                 NAME_TEMP="$ITEM"
@@ -753,6 +754,29 @@ parse_lists(){
     done
     return 0
 }
+# 是否正在运行指定脚本
+# @command has_run_shell $name $options
+# @param $name              脚本名，可使用正则，不包含 .sh 后缀
+# @param $options           脚本运行必需参数规则，可使用正则
+# return 1|0
+has_run_shell(){
+    local RUN_PID RUN_PARAMS="$2"
+    if [ -z "$RUN_PARAMS" ];then
+        if [[ "$1" == *-install ]];then
+            RUN_PARAMS="\s+(new|\d+(\.\d+)+)"
+        else
+            RUN_PARAMS="([\s&>;]+|$)"
+        fi
+    fi
+    while read RUN_PID;do
+        if [ -d "/proc/$RUN_PID/" ] && stat --printf='%N' /proc/$RUN_PID/exe 2>/dev/null|grep -qP "(/bash|/sh|${BASH})$";then
+            return 0
+        fi
+    done <<EOF
+$(ps aux|grep -qP "(bash|sh|source|${BASH})\s+$1\.sh$RUN_PARAMS"|awk '{print $2}')
+EOF
+    return 1
+}
 # 搜索项目中对应文件
 # @command find_project_file $type $name $var_name
 # @param $type              搜索类型
@@ -784,11 +808,11 @@ find_project_file(){
     esac
     local FIND_LISTS=(`find $FIND_DIR -name "$FIND_NAME"`)
     if [ ${#FIND_LISTS[@]} = '0' ];then
-        error_exit "搜索类型 $1 在 $FIND_DIR 目录下搜索不到 $2"
+        error_exit "在 $FIND_DIR 目录下搜索不到 $2"
     elif [ ${#FIND_LISTS[@]} = '1' ];then
         eval "$3=$(cd $(dirname ${FIND_LISTS[0]});pwd)/$(basename ${FIND_LISTS[0]})"
     else
-        error_exit "搜索类型 $1 在 $FIND_DIR 目录下搜索到 ${#FIND_LISTS[@]} 个匹配项"
+        error_exit "在 $FIND_DIR 目录下搜索到 ${#FIND_LISTS[@]} 个匹配项"
     fi
 }
 if [ `whoami` != 'root' ];then

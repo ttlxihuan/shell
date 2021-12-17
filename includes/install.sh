@@ -108,8 +108,10 @@ memory_require(){
     if ((DIFF_SIZE > 0));then
         warn_msg "内存不足：${1}G，当前只有：${CURRENT_MEMORY}G"
         if [ "$ARGV_memory_space" = 'ignore' ] || ([ "$ARGV_memory_space" = 'ask' ] && ! ask_permit "是否增加虚拟内存 ${DIFF_SIZE}G ？");then
-            warn_msg '忽略内存不足'
+            warn_msg '忽略内存不足，继续安装'
             return
+        elif [ "$ARGV_memory_space" = 'stop' ];then
+            error_exit '内存空间不足，退出安装'
         fi
         local SWAP_PATH SWAP_NUM BASE_PATH='/'
         info_msg '即将在根目录下创建虚拟内存空间'
@@ -157,10 +159,10 @@ path_require(){
     if ((${PART_INFO[1]} / 1048576 < $2 ));then
         warn_msg "目录 $1 所在分区 ${PART_INFO[0]} 剩余空间不足：${2}G"
         if [ "$ARGV_disk_space" = 'ignore' ] || ([ "$ARGV_disk_space" = 'ask' ] && ask_permit "是否继续安装？");then
-            warn_msg '忽略空间不足'
-            return
+            warn_msg '忽略磁盘空间不足，继续安装'
+        else
+            error_exit '磁盘空间不足，退出安装'
         fi
-        error_exit '空间不足无法进行安装，退出安装'
     else
         info_msg "目录 $1 所在分区 ${PART_INFO[0]} 可用空间：$((${PART_INFO[1]} / 1048576))G"
     fi
@@ -196,16 +198,6 @@ install_storage_require(){
     info_msg "内存空间要求：${3}G"
     memory_require $3
 }
-# 获取文件系统的信息
-# 此命令主要是处理很长的存储名可能会换行导致awk处理错位
-# 虚拟机常见，通过修正可以让存储名与对应的信息保持在一行中
-# @command df_awk $options
-# @param $options         选项参数
-# return 1|0
-df_awk(){
-    #去掉首行标题，合并截断行
-    df $@|awk '{if(NR > 1){if(NF==1){prev=$1}else{{print prev,$1,$2,$3,$4,$5,$6,$7}prev=""}}}'
-}
 # 获取版本
 # @command get_version $var_name $url $version_path_rule [$version_rule]
 # @param $var_name          获取版本号变量名
@@ -218,7 +210,7 @@ get_version(){
     if [ -z "$4" ];then
         VERSION_RULE='\d+(\.\d+){1,2}'
     fi
-    VERSION=`curl -LkN $2 2>/dev/null| grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
+    VERSION=`curl -LkN $2 2>/dev/null|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
     if [ -z "$VERSION" ];then
         error_exit "获取版本数据失败: $2"
     fi
@@ -479,7 +471,7 @@ run_install_shell (){
     if [ -z "$2" ]; then
         error_exit "安装shell脚本必需指定的安装的版本号参数"
     fi
-    run_msg bash $INSTALL_FILE_PATH ${@:2} --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH}
+    run_msg bash $INSTALL_FILE_PATH --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH} ${@:2}
     if_error "安装shell脚本失败：$1"
     source /etc/profile
 }
@@ -602,25 +594,26 @@ init_install(){
     fi
     # 安装目录
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
-    if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -type f -executable|grep -qP "$INSTALL_NAME|bin";then
-        warn_msg "$INSTALL_NAME-$INSTALL_VERSION 安装目录不是空的: $INSTALL_PATH$INSTALL_VERSION/"
-        if [ -z "$ARGV_reset" -o "$ARGV_reset" = '0' ];then
-            exit 0
-        else
-            warn_msg "强制重新安装：$INSTALL_NAME-$INSTALL_VERSION"
-        fi
-    fi
     info_msg "即将安装：$INSTALL_NAME-$INSTALL_VERSION"
     info_msg "工作目录: $SHELL_WROK_TEMP_PATH"
     info_msg "安装目录: $INSTALL_PATH"
-    # 安装必需工具
-    tools_install gcc make
-    if ! if_command ntpdate; then
-        packge_manager_run install ntpdate 2> /dev/null
+    if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -type f -executable|grep -qP "$INSTALL_NAME|bin";then
+        if [ -z "$ARGV_reset" -o "$ARGV_reset" = '0' ];then
+            error_exit "$INSTALL_PATH$INSTALL_VERSION/ 安装目录不是空的，终止安装"
+        else
+            warn_msg "$INSTALL_PATH$INSTALL_VERSION/ 安装目录不是空的，即将强制重新安装：$INSTALL_NAME-$INSTALL_VERSION"
+        fi
     fi
-    if ! if_command ntpdate; then
-        # 更新系统时间
-        ntpdate -u ntp.api.bz 2>&1 &>/dev/null &
+    if [ -n "$DEFINE_INSTALL_TYPE" ];then
+        # 有编译类型安装编译所需基本工具
+        tools_install gcc make
+        if ! if_command ntpdate; then
+            packge_manager_run install ntpdate 2> /dev/null
+        fi
+        if ! if_command ntpdate; then
+            # 更新系统时间
+            ntpdate -u ntp.api.bz 2>&1 &>/dev/null &
+        fi
     fi
     # 加载环境配置
     source /etc/profile
@@ -631,23 +624,25 @@ INSTALL_NAME=$(basename "$0" '-install.sh')
 # 安装通用参数信息配置
 SHELL_RUN_DESCRIPTION="安装${INSTALL_NAME}脚本"
 DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
-[version]指定安装版本，不传则是获取最新稳定版本号
+[version, {regexp:'^(new|[0-9](.[0-9]){1,4})$'}]指定安装版本，不传则是获取最新稳定版本号
 #传new安装最新版
 #传指定版本号则安装指定版本
-[--install-path='/usr/local'] 安装根目录，规则：安装根目录/软件名/版本号
+[--install-path='/usr/local', {required_with:ARGU_version|path}]安装根目录，规则：安装根目录/软件名/版本号
 #没有特殊要求建议安装根目录不设置到非系统所在硬盘目录下
-[-r, --reset=0]重新安装，默认0
+[-r, --reset=0, {required|in:0,1,2,3}]重新安装，默认0
 # 0 标准安装
 # 1 重新安装
 # 2 重新解压再安装
 # 3 重新下载解压再安装
-[--disk-space=ask]安装磁盘分区空间不够用时处理
+[--disk-space=ask, {required|in:ask,ignore,stop}]安装磁盘分区空间不够用时处理
 #   ask     空间不足时询问操作
 #   ignore  忽略空间不足
-[--memory-space=ask]内存空间不够用时处理
+#   stop    空间不足停止安装
+[--memory-space=ask, {required|in:swap,ask,ignore,stop}]内存空间不够用时处理
 #   swap    空间不足直接创建虚拟内存
 #   ask     空间不足时询问操作
 #   ignore  忽略空间不足
+#   stop    空间不足停止安装
 #数据空间包括编译目录硬盘和内存大概最少剩余空间
 #处理操作有：编译目录转移，自动添加虚拟内存等
 "
@@ -663,13 +658,13 @@ SHELL_RUN_HELP="安装脚本一般使用方式:
 "
 if [ -n "$DEFINE_INSTALL_TYPE" ];then
     DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
-[-j, --make-jobs=avg]编译同时允许N个任务，可选值有 max|avg|number 
+[-j, --make-jobs=avg, {required|in:max,avg,number}]编译同时允许N个任务，可选值有 max|avg|number 
 #   max 当前CPU数
 #   avg 当前CPU半数+1
 #   number 是指定的数值。
 #任务多编译快且资源消耗也大（不建议超过CPU核数）
 #当编译因进程被系统杀掉时可减少此值重试。
-[-o, --options='']添加${DEFINE_INSTALL_TYPE}选项，使用前请核对选项信息。
+[-o, --options=]添加${DEFINE_INSTALL_TYPE}选项，使用前请核对选项信息。
 "
 if [ "$DEFINE_INSTALL_TYPE" = 'configure' ];then
     DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
@@ -704,7 +699,14 @@ SHELL_RUN_HELP=$SHELL_RUN_HELP"
 5、安装后并未删除编译文件，需要手动删除。
 "
 # 解析安装参数
-parse_command_param DEFINE_INSTALL_PARAMS CALL_INPUT_ARGVS
+parse_shell_param DEFINE_INSTALL_PARAMS CALL_INPUT_ARGVS
+# 常规参数验证
+if ! [[ "$ARGV_memory_space" =~ ^(swap|ask|ignore|stop)$ ]];then
+    error_exit '--memory-space 传入参数错误，如果不了解参数要求可通过 -h 查看'
+fi
+if ! [[ "$ARGV_disk_space" =~ ^(ask|ignore|stop)$ ]];then
+    error_exit '--memory-space 传入参数错误，如果不了解参数要求可通过 -h 查看'
+fi
 # 获取总线程数
 TOTAL_THREAD_NUM=`lscpu |grep '^CPU(s)'|grep -oP '\d+$'`
 # 获取编译任务数
