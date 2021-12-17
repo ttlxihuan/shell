@@ -22,15 +22,22 @@ SHELL_RUN_HELP='
 
 注意：脚本强制每个磁盘会留下1M空间给EFI启动代码，所以当磁盘还有1M空间未使用时会自动过滤掉。
 '
+# 获取系统支持的分区格式
+MKFS_BIN_PATH=$(which mkfs)
+if [ $? = '0' ];then
+    MKFS_TYPES=$(echo $(find $(dirname $MKFS_BIN_PATH) -name mkfs.*|grep -oP '\w+$')|sort|sed -r 's/\s+/,/g')
+else
+    MKFS_TYPES='ext2,ext3,ext4'
+fi
 DEFINE_TOOL_PARAMS='
 [path]挂载目录，不指定则在挂载时需要手动输入挂载目录
 #指定挂载目录为单一模式，即目录挂载完成就结束
 #不指定为循环模式，即会循环掉所有未挂载或使用的磁盘引导去挂载
-[-t, --type=ext4]指定格式化类型
-[-d, --disk=""]指定硬盘或分区地址
-[--sector-size=512]创建分区扇区大小，可选值：512、1024、2048、4096
+[-t, --type=ext4, {required|in:'$MKFS_TYPES'}]指定格式化类型，以当前系统支持类型为准
+[-d, --disk=, {file}]指定硬盘或分区地址
+[--sector-size=512, {required|int|in:512,1024,2048,4096}]创建分区扇区大小，可选值：512、1024、2048、4096
 #没有特殊要求不需要修改
-[-p, --part-size=0]创建分区大小，此参数将限制创建分区的大小
+[-p, --part-size=0, {required|regexp:"^(0|[1-9][0-9]*)[BKMGT]?$"}]创建分区大小，此参数将限制创建分区的大小
 #需要指定单位，默认为B，可选单位：B、K、M、G、T
 #分区大小 = 扇区大小 * 扇区数。即分区大小必需是扇区大小的倍数
 #如果大小不够则自动跳过，为0则将硬盘剩余空间全部创建为一个分区
@@ -168,52 +175,45 @@ size_format(){
 # 参数验证
 SECTOR_NUM=''
 PART_SIZE=''
-if [ -z "$ARGV_sector_size" ] || ! [[ "$ARGV_sector_size" =~ ^(512|1024|2048|4096)$ ]];then
-    error_exit "--sector-size 扇区大小值错误，请核对：$ARGV_sector_size"
-fi
 if [ "$ARGV_part_size" != '0' ];then
-    if [ -z "$ARGV_part_size" ] || ! [[ "$ARGV_part_size" =~ ^[1-9][0-9]*[BKMGT]?$ ]];then
-        error_exit "--part-size 分区大小值错误，请核对：$ARGV_part_size"
+    case $ARGV_part_size in
+        *T)
+            SIZE_UNIT=1099511627776
+            ;;
+        *G)
+            SIZE_UNIT=1073741824
+            ;;
+        *M)
+            SIZE_UNIT=1048576
+            ;;
+        *K)
+            SIZE_UNIT=1024
+            ;;
+        *B)
+            SIZE_UNIT=1
+            ;;
+        *)
+            ARGV_part_size=$ARGV_part_size'B'
+            SIZE_UNIT=1
+            ;;
+    esac
+    PART_SIZE=$[ $SIZE_UNIT * ${ARGV_part_size/[BKMGT]/} ]
+    if (( $ARGV_sector_size > $PART_SIZE ));then
+        error_exit "--part-size 分区大小不能小于扇区大小"
     else
-        case $ARGV_part_size in
-            *T)
-                SIZE_UNIT=1099511627776
-                ;;
-            *G)
-                SIZE_UNIT=1073741824
-                ;;
-            *M)
-                SIZE_UNIT=1048576
-                ;;
-            *K)
-                SIZE_UNIT=1024
-                ;;
-            *B)
-                SIZE_UNIT=1
-                ;;
-            *)
-                ARGV_part_size=$ARGV_part_size'B'
-                SIZE_UNIT=1
-                ;;
-        esac
-        PART_SIZE=$[ $SIZE_UNIT * ${ARGV_part_size/[BKMGT]/} ]
-        if (( $ARGV_sector_size > $PART_SIZE ));then
-            error_exit "--part-size 分区大小不能小于扇区大小，请核对：$ARGV_part_size"
-        else
-            SECTOR_NUM=$(($PART_SIZE/$ARGV_sector_size + 1))
-        fi
+        SECTOR_NUM=$(($PART_SIZE/$ARGV_sector_size + 1))
     fi
 fi
-if [ -n "$ARGV_disk" -a -e "$ARGV_disk" ] && ! lsblk -n "$ARGV_disk" 2>&1 >/dev/null;then
-    error_exit "--disk 硬盘或分区不存在，请核对：$ARGV_disk"
-fi
-if [ -z "$ARGV_type" ] || ! which "mkfs.$ARGV_type" >/dev/null;then
-    error_exit "--type 分区错误，请核对：$ARGV_type"
+if [ -n "$ARGV_disk" ] && ! lsblk -n "$ARGV_disk" 2>&1 >/dev/null;then
+    error_exit "--disk 硬盘或分区不存在"
 fi
 # 搜索未挂载的分区
 DISKS_ARRAY=()
 while read ITEM;do
     BLOCK_ARRAY=($ITEM)
+    if [ ${#BLOCK_ARRAY[@]} = '0' ];then
+        continue
+    fi
     BLOCK_SIZE=(`lsblk -bna ${BLOCK_ARRAY[0]}|awk 'BEGIN{use=0;part=0}$6 != "disk" && $7 != ""{use += $4} $6 == "part"{part += $4}END{printf("%.0f %.0f",use,part)}'`)
     if (( ${BLOCK_ARRAY[3]} <= ${BLOCK_SIZE[0]} )) || ([ "${BLOCK_ARRAY[5]}" = 'part' ] && (( ${BLOCK_SIZE[0]} > 0 )));then
         continue
@@ -227,9 +227,8 @@ while read ITEM;do
 done <<EOF
 `lsblk -bnal $ARGV_disk|awk '$6 ~ "disk|part" && !$7 {$1=("/dev/"$1);print}'`
 EOF
-
 if ((${#DISKS_ARRAY[@]} < 1));then
-    error_exit "没有搜索到未挂载或未使用完的磁盘信息！"
+    info_msg "没有搜索到未挂载或未使用完的磁盘信息！"
 fi
 for ((INDEX=0;INDEX<${#DISKS_ARRAY[@]};INDEX++));do
     ARRAY_DATA=(${DISKS_ARRAY[$INDEX]})

@@ -2,6 +2,13 @@
 # yum 工具修复脚本
 # 主要针对yum异常修复而用
 # 修复后即可正常使用yum
+#
+# 异常收集：
+# 1、yum 安装报错 YumRepo Error: All mirror URLs are not using ftp, http[s] or file.
+#    一般是openssl版本过低，导致多数https协议无法使用，需要配置http镜像地址
+# 2、curl 报错 OpenSSL: error:1407742E:SSL routines:SSL23_GET_SERVER_HELLO:tlsv1 alert protocol version
+#    一般是curl版本过低，无法访问https地址，重新安装即可
+#
 
 # 参数信息配置
 SHELL_RUN_DESCRIPTION='yum工具修复'
@@ -19,7 +26,9 @@ if [ -n "$YUM_CACHE_PATH" -a -d "$YUM_CACHE_PATH" ];then
         error_exit "yum 缓存目录 $YUM_CACHE_PATH 所在挂载目录 ${YUM_CACHE_PATH_USE[2]} 使用率已经是 ${YUM_CACHE_PATH_USE[1]} ，请清理分区 ${YUM_CACHE_PATH_USE[0]}"
     fi
 fi
-
+if [ -e /var/run/yum.pid ];then
+    error_exit "/var/run/yum.pid 记录的进程还在执行中，无法进行修复"
+fi
 info_msg '清除 yum 缓存'
 yum clean all
 
@@ -45,45 +54,45 @@ if [ $? != '0' ]; then
 # 搜狐 http://mirrors.sohu.com/，支持CentOS 6+
 # 中国科学技术大学 http://mirrors.ustc.edu.cn/ ，支持CentOS 7+
 # 网易 http://mirrors.163.com/ ，支持CentOS 7+
-# 欧洲镜像源 http://mirror.nsc.liu.se ，支持 CentOS 5+
+# 欧洲镜像源 http://mirror.nsc.liu.se ，支持 CentOS 6.4+
 
 [base]
-name=CentOS-$releasever - Base - mirrors.aliyun.com
+name=CentOS-$releasever - Base - http
 failovermethod=priority
 baseurl=http://mirrors.sohu.com/centos/$releasever/os/$basearch/
         http://mirrors.ustc.edu.cn/centos/$releasever/os/$basearch/
         http://mirrors.163.com/centos/$releasever/os/$basearch/
         http://mirror.nsc.liu.se/centos-store/centos/$releasever/os/$basearch/
 gpgcheck=1
-gpgkey=http://mirrors.sohu.com/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
+gpgkey=http://mirrors.sohu.com/centos/RPM-GPG-KEY-CentOS-$releasever
        http://mirrors.ustc.edu.cn/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
        http://mirrors.163.com/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
        http://mirror.nsc.liu.se/centos-store/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
 
-#released updates 
+#released updates
 [updates]
-name=CentOS-$releasever - Updates - mirrors.aliyun.com
+name=CentOS-$releasever - Updates - http
 failovermethod=priority
 baseurl=http://mirrors.sohu.com/centos/$releasever/updates/$basearch/
         http://mirrors.ustc.edu.cn/centos/$releasever/updates/$basearch/
         http://mirrors.163.com/centos/$releasever/updates/$basearch/
         http://mirror.nsc.liu.se/centos-store/centos/$releasever/updates/$basearch/
 gpgcheck=1
-gpgkey=http://mirrors.sohu.com/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
+gpgkey=http://mirrors.sohu.com/centos/RPM-GPG-KEY-CentOS-$releasever
        http://mirrors.ustc.edu.cn/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
        http://mirrors.163.com/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
        http://mirror.nsc.liu.se/centos-store/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
 
 #additional packages that may be useful
 [extras]
-name=CentOS-$releasever - Extras - mirrors.aliyun.com
+name=CentOS-$releasever - Extras - http
 failovermethod=priority
 baseurl=http://mirrors.sohu.com/centos/$releasever/extras/$basearch/
         http://mirrors.ustc.edu.cn/centos/$releasever/extras/$basearch/
         http://mirrors.163.com/centos/$releasever/extras/$basearch/
         http://mirror.nsc.liu.se/centos-store/centos/$releasever/extras/$basearch/
 gpgcheck=1
-gpgkey=http://mirrors.sohu.com/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
+gpgkey=http://mirrors.sohu.com/centos/RPM-GPG-KEY-CentOS-$releasever
        http://mirrors.ustc.edu.cn/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
        http://mirrors.163.com/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
        http://mirror.nsc.liu.se/centos-store/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentOS-$releasever
@@ -93,7 +102,7 @@ gpgkey=http://mirrors.sohu.com/centos/$releasever/os/$basearch/RPM-GPG-KEY-CentO
     if [ $? = '0' ];then
         info_msg 'yum 修复成功'
     else
-        warn_msg 'yum 修复失败'
+        warn_msg 'yum 修复失败，建议排查下网络重新再试'
     fi
 else
     info_msg 'yum 正常，无需修复！'

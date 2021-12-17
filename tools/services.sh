@@ -28,7 +28,7 @@ DEFINE_TOOL_PARAMS='
 #   restart
 #   stop
 #   status
-[-f, --conf=":etc/services.conf"]配置文件
+[-f, --conf="etc/services.conf", {required|file}]指定配置文件，相对脚本根目录
 '
 if (( $# == 0 ));then
     ARGV_help=1

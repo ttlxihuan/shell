@@ -75,7 +75,7 @@ CPU专用信息名：
 '
 DEFINE_TOOL_PARAMS='
 [-d, --debug]调试模式，将输出相关信息用于调试
-[-f, --warn-conf=":etc/resource-monitor.conf"]监听配置文件，方便使用更复杂的监听条件
+[-f, --conf="etc/resource-monitor.conf", {required|file}]监听配置文件，相对脚本根目录
 #配置文件格式：（块不分先后）
 #   [condition]
 #   别名=资源名:资源路径:时长(报警规则)
@@ -381,8 +381,8 @@ EOF
     fi
 }
 # 提取配置文件路径
-if ! get_file_path $ARGV_warn_conf ARGV_warn_conf 1;then
-    error_exit "--warn-conf 未指定有效配置文件：$ARGV_warn_conf"
+if ! get_file_path $ARGV_conf ARGV_conf 1;then
+    error_exit "--warn-conf 未指定有效配置文件：$ARGV_conf"
 fi
 # 必要命令判断
 if ! if_command sar || ! if_command iostat;then
@@ -392,7 +392,7 @@ if ! if_command sar || ! if_command iostat;then
         service sysstat restart
     fi
 fi
-parse_conf "$ARGV_warn_conf"
+parse_conf "$ARGV_conf"
 if [ -n "$ARGV_loop_time" ];then
     if [[ "$ARGV_loop_time" =~ ^[1-9][0-9]+$ ]];then
         debug_show "循环间隔时长：$ARGV_loop_time"
