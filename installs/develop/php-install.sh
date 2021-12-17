@@ -10,8 +10,8 @@
 # bash php-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # 未绑定的扩展尽量不要使用静态编译安装，这种安装方式容易出现问题，建议使用phpize安装，先自行下载源码，解压后使用phpize自动生成php扩展环境，剩下直接使用正常编译安装流程 ./configure && make && make install
 # 官方文档：https://www.php.net/manual/zh/install.pecl.phpize.php
@@ -60,7 +60,7 @@ source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '5.0.0' "https://$PHP_HOST/supported-versions.php" '#v\d+\.\d+\.\d+'
 #  限制空间大小（G）：编译目录、安装目录、内存
-install_storage_require 1 1 6
+install_storage_require 1 1 4
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "

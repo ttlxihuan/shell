@@ -10,8 +10,8 @@
 # bash mysql-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # 下载地址
 #  https://dev.mysql.com/downloads/mysql/
@@ -119,7 +119,7 @@ source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '5.0.0' "https://dev.mysql.com/downloads/mysql/" 'mysql-\d+\.\d+\.\d+'
 #  限制空间大小（G）：编译目录、安装目录、内存
-install_storage_require 30 4 16
+install_storage_require 30 4 6
 # ************** 参数解析 ******************
 # 密码处理
 parse_use_password MYSQL_ROOT_PASSWORD "${ARGV_password:-%25}"

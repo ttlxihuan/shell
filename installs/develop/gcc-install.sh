@@ -10,8 +10,8 @@
 # bash gcc-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 #  官网 https://gcc.gnu.org/
 #
@@ -62,7 +62,7 @@ fi
 # 初始化安装
 init_install '4.0.0' "$MIRRORS_URL/releases/" 'gcc-\d+\.\d+\.\d+'
 #  限制空间大小（G）：编译目录、安装目录、内存
-install_storage_require 4 3 8
+install_storage_require 4 3 4
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 GCC_CONFIGURE_WITH=""

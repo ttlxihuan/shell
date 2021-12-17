@@ -11,8 +11,8 @@
 # bash keepalived-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # keepalived由C开发的路由软件，用于高可用自动切换备用节点的一种解决方案
 #

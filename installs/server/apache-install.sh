@@ -13,8 +13,8 @@
 # bash apache-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # 注意：2.2.3以前的低版本，是捆绑的apr、apr-util所以不建议另外安装，如果有可以先删除，否则容易编译报错。
 #

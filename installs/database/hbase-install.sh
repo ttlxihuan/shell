@@ -12,8 +12,8 @@
 # bash hbase-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # HBase是java开发的分布式数据库，支持TB级数据量，主要用于Hadoop使用
 #

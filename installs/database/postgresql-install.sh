@@ -10,8 +10,8 @@
 # bash postgresql-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # 下载地址：https://www.postgresql.org/download/
 #

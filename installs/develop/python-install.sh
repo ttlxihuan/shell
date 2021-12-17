@@ -10,8 +10,8 @@
 # bash python-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # 注意：
 #   1、编译安装时gcc的版本不需要太高，太高容易造成编译失败，可直接使用包管理器安装gcc

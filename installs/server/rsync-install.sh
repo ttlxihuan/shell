@@ -11,8 +11,8 @@
 # bash rsync-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # 是一个跨平台的数据同步工具，支持远程增量，可以使用scp、ssh、socket方式传输文件
 # rsync需要配置服务端和客户同步端，客户同步端会自动同步服务端的变动文件
@@ -26,22 +26,23 @@ DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
 source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 
-error_exit '此脚本暂未开发完！'
-
 # 初始化安装
-init_install '8.0.0' "https://nodejs.org/zh-cn/download/" 'v\d+\.\d+\.\d+/'
+init_install '2.0.0' "https://download.samba.org/pub/rsync/src/" 'rsync-\d+(\.\d+)+'
 #  限制空间大小（G）：编译目录、安装目录、内存
-install_storage_require 1 1 4
+install_storage_require 1 1 1
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
-CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NODEJS_VERSION"
+CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$RSYNC_VERSION"
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
 ADD_OPTIONS=$ARGV_options
 # ************** 编译安装 ******************
 # 下载nodejs包
-download_software https://nodejs.org/dist/v$NODEJS_VERSION/node-v$NODEJS_VERSION.tar.gz
+download_software https://download.samba.org/pub/rsync/src/ryncs-$RSYNC_VERSION.tar.gz
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+
+exit
+
 # 安装依赖
 info_msg "安装相关已知依赖"
 
@@ -50,6 +51,6 @@ configure_install $CONFIGURE_OPTIONS
 
 
 # 配置文件处理
-info_msg 'php 配置文件修改'
+info_msg 'rsync 配置文件修改'
 
-info_msg "安装成功：nodejs-$NODEJS_VERSION";
+info_msg "安装成功：rsync-$RSYNC_VERSION";

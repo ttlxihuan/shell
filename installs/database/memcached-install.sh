@@ -11,8 +11,8 @@
 # bash memcached-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # memcached 是单一键值对类型的缓存服务，体积小性能高，且未提供官方集群方案。
 # memcached 比如适合大量键值对缓存，集群一般需要借助三方工具或自行开发。

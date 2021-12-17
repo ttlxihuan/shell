@@ -10,8 +10,8 @@
 # bash mongodb-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # 安装文档地址： https://docs.mongodb.com/manual/administration/install-on-linux/
 # 配置文件地址：https://docs.mongodb.com/manual/reference/configuration-options/
@@ -41,7 +41,7 @@ source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '3.0.0' "http://downloads.mongodb.org.s3.amazonaws.com/current.json" 'mongodb-src-r\d+\.\d+\.\d+\.tar\.gz'
 #  限制空间大小（G）：编译目录、安装目录、内存
-install_storage_require 15 15 16
+install_storage_require 15 15 6
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MONGODB_VERSION $ARGV_options"

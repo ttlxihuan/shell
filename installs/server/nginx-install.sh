@@ -11,8 +11,8 @@
 # bash nginx-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # 注意：
 #
@@ -59,7 +59,7 @@ source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
 # 初始化安装
 init_install '1.0.0' "http://$NGINX_HOST/en/download.html" 'Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz'
 #  限制空间大小（G）：编译目录、安装目录、内存
-install_storage_require 1 1 4
+install_storage_require 1 1 1
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NGINX_VERSION --user=nginx --group=nginx "
@@ -80,7 +80,9 @@ fi
 if in_options 'http_ssl_module' $CONFIGURE_OPTIONS;then
     # 注意nginx获取openssl目录时是指定几个目录的，所以安装目录变动了会导致编译失败
     # 当安装了多个版本时使用参数 --with-openssl=DIR 指定openssl编译源文件目录（不是安装后的目录）
-    if if_many_version openssl version;then
+    if ! if_many_version openssl version && if_lib 'openssl' '>=' '1.0.1' && which -a openssl|grep -P '^/usr(/local|/pkg)?/bin/openssl$';then
+        info_msg 'openssl ok'
+    else
         # 暂存编译目录
         NGINX_CONFIGURE_PATH=`pwd`
         # 获取最新版
@@ -91,13 +93,6 @@ if in_options 'http_ssl_module' $CONFIGURE_OPTIONS;then
         download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
         CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-openssl=`pwd`"
         cd $NGINX_CONFIGURE_PATH
-    elif if_lib 'openssl' '>=' '1.0.1' && which -a openssl|grep -P '^/usr(/local|/pkg)?/bin/openssl$';then
-        info_msg 'openssl ok'
-    else
-        # 删除原来版本
-        packge_manager_run remove -OPENSSL_DEVEL_PACKGE_NAMES
-        # 重新安装openssl
-        packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
     fi
 fi
 # http_gzip_module 模块

@@ -10,8 +10,8 @@
 # bash elasticsearch-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # 注意启动服务账号不能是root
 #
@@ -190,7 +190,7 @@ elif [ -n "$ARGV_master_hosts$ARGV_data_hosts" ];then
     error_exit "--cluster-name 未指定，无法配置集群，请核对安装参数"
 fi
 #  限制空间大小（G）：编译目录、安装目录、内存
-install_storage_require 3 4 4
+install_storage_require 3 4 1
 # ************** 安装 ******************
 # 下载elasticsearch包
 LINUX_BIT=`uname -a|grep -P 'x\d+_\d+' -o|tail -n 1`
@@ -342,7 +342,7 @@ if [ "$ARGV_tool" = 'kibana' ];then
     add_user kibana
     chown -R kibana:kibana ./*
     # 启动kibana
-    run_msg 'nohup sudo -u kibana bin/kibana & 2>&1 >/dev/null'
+    run_msg 'nohup sudo -u kibana bin/kibana 2>&1 >/dev/null &'
     info_msg "kibana 管理地址：http://$SERVER_IP:5601"
 fi
 

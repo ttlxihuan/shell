@@ -10,8 +10,8 @@
 # bash git-install.sh
 #
 # 可运行系统：
-# CentOS 5+
-# Ubuntu 15+
+# CentOS 6.4+
+# Ubuntu 15.04+
 #
 # 下载地址
 # https://mirrors.edge.kernel.org/pub/software/scm/git/
@@ -92,7 +92,7 @@ fi
 # 密码处理
 parse_use_password GIT_SSH_PASSWORD "${ARGV_ssh_password}"
 #  限制空间大小（G）：编译目录、安装目录、内存
-install_storage_require 4 1 8
+install_storage_require 4 1 4
 if [ "$ARGV_tool" = "gitlab" ]; then
     # gitlab安装目录最少G
     path_require /opt 3
