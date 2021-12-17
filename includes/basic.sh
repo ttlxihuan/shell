@@ -826,6 +826,7 @@ SHELL_WROK_TOOLS_PATH=${SHELL_WROK_BASH_PATH}/tools
 SHELL_WROK_TEMP_PATH=${SHELL_WROK_BASH_PATH}/temp
 SHELL_WROK_ETC_PATH=${SHELL_WROK_BASH_PATH}/etc
 REGEXP_QUOTE_STRING="([\w\-]+|\\\\.)+|\"([^\"]+|\\\\.)*\"|'([^']+|\\\\.)*'"
+mkdirs $SHELL_WROK_TEMP_PATH
 # 加载配置
 source $SHELL_WROK_INCLUDES_PATH/config.sh || exit
 # 提取安装参数

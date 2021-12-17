@@ -47,7 +47,7 @@ run_install(){
             else
                 install_log_file LOG_FILE "${NAME}"
                 info_msg "安装 ${NAME} 标准输出信息保存在：$LOG_FILE"
-                run_msg "bash $INSTALL_FILE_PATH ${INSTALL_INFO#* } --disk-space=ignore --memory-space=swap >$LOG_FILE 2>&1" && echo '安装 ${NAME} 成功' &
+                run_msg "bash $INSTALL_FILE_PATH ${INSTALL_INFO#* } --disk-space=ignore --memory-space=swap >$LOG_FILE 2>&1" && echo "安装 ${NAME} 成功" &
             fi
         fi
     done <<EOF
