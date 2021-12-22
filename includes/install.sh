@@ -3,11 +3,11 @@
 # 编译安装公共处理文件，所有安装脚本运行的核心文件
 # 此脚本不可单独运行，需要在其它脚本中引用执行
 ############################################################################
-if [ $(basename "$0") = $(basename "${BASH_SOURCE[0]}") ];then
+# 引用公共文件
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/basic.sh || exit
+if [ "$(basename "$0")" = "$(basename "${BASH_SOURCE[0]}")" ];then
     error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
 fi
-# 引用公共文件
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/basic.sh || exit
 # 随机生成密码
 # @command random_password $password_val [$size] [$group]
 # @param $password_val      生成密码写入变量名
@@ -459,6 +459,24 @@ cmake_install(){
     if_error "cmake 编译安装失败"
     make_install "`echo "$*"|grep -oP "\-DCMAKE_INSTALL_PREFIX=\S+"`"
 }
+# 复制安装，即不需要编译直接复制
+# @command copy_install [$user] [$prefix]
+# @param $user              安装目录用户组
+# @param $prefix            复制到安装目录，默认是：$INSTALL_PATH$INSTALL_VERSION
+# return 1|0
+copy_install(){
+    local PREFIX_PATH=${2:-$INSTALL_PATH$INSTALL_VERSION}
+    # 复制安装包
+    mkdirs "$PREFIX_PATH"
+    info_msg "复制所有文件到：$PREFIX_PATH"
+    cp -R ./* "$PREFIX_PATH"
+    if_error "复制安装文件失败"
+    cd "$PREFIX_PATH"
+    if [ -n "$1" ];then
+        add_user "$1"
+        chown -R "$1":"$1" ./*
+    fi
+}
 # 运行安装脚本
 # @command run_install_shell $name $version_num [$other ...]
 # @param $name              安装脚本名，比如：gcc
@@ -586,8 +604,8 @@ init_install(){
     if [ -n "$INSTALL_VERSION_MIN" ] && if_version "$INSTALL_VERSION" "<" "$INSTALL_VERSION_MIN"; then
         error_exit "最小安装版本号: $INSTALL_VERSION_MIN ，当前是：$INSTALL_VERSION"
     fi
-    if ps aux|grep -P "$INSTALL_NAME-install\.sh\s+(new|\d+\.\d+)"|grep -vqP "\s+$$\s+"; then
-        error_exit "$INSTALL_NAME 已经在安装运行中"
+    if has_run_shell "$INSTALL_NAME-install" ;then
+        error_exit "$INSTALL_NAME 在安装运行中"
     fi
     if [ -n "$ARGV_reset" ] && ! [[ "$ARGV_reset" =~ [0-3] ]];then
         error_exit "--reset 未知重装参数值：$ARGV_reset"
@@ -733,7 +751,9 @@ fi
 tools_install curl wget
 #基本安装目录
 INSTALL_BASE_PATH=${ARGV_install_path-/usr/local}
+safe_realpath INSTALL_BASE_PATH
 if [ -z "$INSTALL_BASE_PATH" ] || [ ! -d "$INSTALL_BASE_PATH" ];then
     error_exit '安装根目录无效：'$INSTALL_BASE_PATH
 fi
+
 INSTALL_BASE_PATH=$(cd $INSTALL_BASE_PATH; pwd)

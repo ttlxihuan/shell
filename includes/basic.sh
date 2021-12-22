@@ -2,10 +2,12 @@
 ############################################################################
 # 脚本处理公共文件，所有脚本运行的核心
 # 此脚本不可单独运行，需要在其它脚本中引用执行
+# 脚本常规要求：
+#   1、目录尽可能使用引号，避免目录中包含特殊字符影响命令处理
+#   2、一些不能确定字符串可能包含特殊字符除非有特殊要求，都要求使用引号
+#   3、尽量使用内置功能命令
+#   4、常规命令参数尽量分开写，避免一些命令不支持选项混合导致命令作用不合意
 ############################################################################
-if [ $(basename "$0") = $(basename "${BASH_SOURCE[0]}") ];then
-    error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
-fi
 # 全局版本号
 readonly SHELL_RUN_VERSION='1.0.1'
 # 切换工作目录
@@ -13,8 +15,8 @@ readonly SHELL_RUN_VERSION='1.0.1'
 # @param $path      切换的子目录
 # return 1|0
 chdir(){
-    mkdirs $SHELL_WROK_TEMP_PATH/$1
-    cd $SHELL_WROK_TEMP_PATH/$1
+    mkdirs "$SHELL_WROK_TEMP_PATH/$1"
+    cd "$SHELL_WROK_TEMP_PATH/$1"
 }
 # 递归创建目录
 # @command mkdirs $path [$user]
@@ -42,7 +44,7 @@ math_compute(){
     tools_install bc
     local SCALE_NUM=0
     if [ -n "$3" ]; then
-        SCALE_NUM=$(echo "$3"|grep -oP '^\d+'|awk '{if($1 == ""){print "0"}else{print $1}}')
+        SCALE_NUM=$(printf '%s' "$3"|grep -oP '^\d+'|awk '{if($1 == ""){print "0"}else{print $1}}')
     fi
     RESULT_STR=`echo "scale=$SCALE_NUM; $2"|bc|sed 's/\\\\//'|awk -F '.' '{if($1 ~ "[+-]" || $1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
     eval "$1='$RESULT_STR'"
@@ -109,9 +111,26 @@ run_msg(){
     print_msg RUN "$@"
     eval $@
 }
+# 输出左右占位块信息
+# @command tag_msg $msg $tag $size $type
+# @param $msg           打印信息
+# @param $tag           标签符号，默认是 #
+# @param $size          总长度，默认100
+# @param $type          打印类型，默认是 INFO
+# return 1
+tag_msg(){
+    local TAG_TEXT=${2-#} LINE_SIZE=${3:-100} MSG_TYPE=${4:-INFO} TAG_STR=''
+    local DIFF_BOTH=$(( (LINE_SIZE - ${#1} -2) / 2 ))
+    if (( DIFF_BOTH > ${#TAG_TEXT} ));then
+        TAG_STR="$(printf "%$(( DIFF_BOTH / ${#TAG_TEXT} ))s"|sed "s/ /$TAG_TEXT/g")"
+    fi
+    print_msg "$MSG_TYPE" "$TAG_STR $1 $TAG_STR"
+}
 # 输出信息
 # @command print_msg $type $msg
 # @param $type          打印类型
+# @param $msg           打印信息
+# @param $msg           打印信息
 # @param $msg           打印信息
 # return 1
 print_msg(){
@@ -119,25 +138,47 @@ print_msg(){
         # 重定向不需要输出颜色
         echo -n "[SHELL-$1]"
     else
+        # echo 打印特殊颜色或控制功能，语法是： \e[action;show-text
+        # 语法说明：
+        # \e[       功能转义标记开始符，指定功能后的所有文本均生效，其中 \e 也可以使用 \033 替换
+        # show-text 要显示的文本内容
+        # action;   功能标识符
+        #   使用要求：
+        #       1、多个功能标识符用分号隔开，没有先后顺序要求（最后一个action不加分号）
+        #       2、最后一个标识符结尾加m（功能标记结束符，否则功能异常），echo必需使用-e选项
+        #   > 字体颜色功能：（默认白色）
+        #       30（黑色）、31（红色）、32（绿色）、33（黄色）、34（蓝色）、35（紫色）、36（天蓝色）、37（白色）
+        #   > 字体功能：
+        #       1（加粗高亮）、4（下划线）、5（闪烁）、7（反显，字体与背景颜色互换）
+        #   > 字体背景颜色功能：（默认黑色）
+        #       40（黑色）、41（红色）、42（绿色）、43（黄色）、44（蓝色）、45（紫色）、46（天蓝色）、47（白色）
+        #   > 光标功能：（此功能不能与字体相关在一个action中，否则字体相关不起作用）
+        #       nA（光标上移n行开始打印）、nB（光标下移n行开始打印）、nC（光标右移n空格开始打印）、nD（光标左移n字符开始打印）、s（保存光标位置）、u（恢复光标位置）
+        #       ?25l（隐藏光标）、?25h（显示光标）
+        #   > 其它功能：
+        #       0（关闭所有功能）、2J（清屏）、K（清除光标到结尾内容）
+        #   示例：\e[（下划线+蓝色字体+绿色背景+闪烁）显示内容 \e[（关闭前面所有功能）
+        #       echo -e "\e[4;34;42;5mok\e[0m"
+        # 特别说明：如果开启了功能未关闭（即：\e[0m）会影响到其它输出，这些功能会一直保留在这个终端进程中
         case "$1" in
             ERROR)
-                echo -en "\033[40;31m[SHELL-ERROR]\033[0m"
+                echo -en "\e[40;31m[SHELL-ERROR]\e[0m"
                 ;;
             INFO)
-                echo -en "\033[40;32m[SHELL-INFO]\033[0m"
+                echo -en "\e[40;32m[SHELL-INFO]\e[0m"
                 ;;
             WARN)
-                echo -en "\033[40;33m[SHELL-WARN]\033[0m"
+                echo -en "\e[40;33m[SHELL-WARN]\e[0m"
                 ;;
             RUN)
-                echo -en "\033[40;34m[SHELL-RUN]\033[0m"
+                echo -en "\e[40;34m[SHELL-RUN]\e[0m"
                 ;;
             *)
-                echo -en "\033[40;35m[SHELL-$1]\033[0m"
+                echo -en "\e[40;35m[SHELL-$1]\e[0m"
                 ;;
         esac
     fi
-    printf "%s\n" " ${@:2}"
+    echo " ${@:2}"
 }
 # 询问选项处理
 # @command ask_select $select_name $msg [$options]
@@ -211,15 +252,15 @@ packge_manager_run(){
     local NAME COMMAND_ARRAY_VAL PACKGE_NAME COMMAND_ARRAY
     for NAME in ${@:2}; do
         if [ ${NAME:0:1} = '-' ];then
-            COMMAND_ARRAY='${#'${NAME:1}'[@]}'
-            if [ `eval "echo $COMMAND_ARRAY"` -gt 1 ];then
+            eval COMMAND_ARRAY="\${#${NAME:1}[@]}"
+            if [ "$COMMAND_ARRAY" -gt 1 ];then
                 COMMAND_ARRAY_VAL='${'${NAME:1}'['$[PACKGE_MANAGER_INDEX]']}'
-            elif [ `eval "echo $COMMAND_ARRAY"` -gt 0 ];then
+            elif [ "$COMMAND_ARRAY" -gt 0 ];then
                 COMMAND_ARRAY_VAL='${'${NAME:1}'[0]}'
             else
                 error_exit "找不到配置的安装包名: $NAME"
             fi
-            PACKGE_NAME=`eval "echo $COMMAND_ARRAY_VAL"`
+            eval PACKGE_NAME="\$COMMAND_ARRAY_VAL"
             if [ "$PACKGE_NAME" = '-' -o "$PACKGE_NAME" = '' ];then
                 continue;
             fi
@@ -256,7 +297,7 @@ tools_install(){
 # @param $name          包名
 # return 1|0
 if_command(){
-    if which $1 2>&1|grep -q "/$1";then
+    if which "$1" >/dev/null 2>/dev/null;then
         return 0
     fi
     return 1
@@ -269,7 +310,7 @@ if_command(){
 if_many_version(){
     if if_command $1;then
         local ITEM NEXT_VERSION PREV_VERSION
-        for ITEM in `which -a $1`; do
+        for ITEM in `which -a "$1" 2>/dev/null`; do
             NEXT_VERSION=`$ITEM ${@:2} 2>&1`
             if [ -z "$PREV_VERSION" ];then
                 PREV_VERSION=$NEXT_VERSION
@@ -303,10 +344,10 @@ if_lib(){
         # 下载
         download_software https://pkg-config.freedesktop.org/releases/pkg-config-$PKG_CONFIG_VERSION.tar.gz
         # 编译安装
-        configure_install --with-internal-glib --prefix=$INSTALL_BASE_PATH/pkg-config/$PKG_CONFIG_VERSION
+        configure_install --with-internal-glib --prefix="$INSTALL_BASE_PATH/pkg-config/$PKG_CONFIG_VERSION"
     fi
     if pkg-config --exists "$1";then
-        if [ -n "$2" -a -n "$3" ] && ! pkg-config --cflags --libs "$1 $2 $3" > /dev/null;then
+        if [ -n "$2" -a -n "$3" ] && ! pkg-config --cflags --libs "$1 $2 $3" >/dev/null;then
             return 1
         fi
         return 0
@@ -320,7 +361,7 @@ if_lib(){
 # @param $version2  版本号2
 # return 1|0
 if_version(){
-    local VERSIONS=`echo -e "$1\n$3"|sort -Vrb` RESULT
+    local RESULT VERSIONS=`echo -e "$1\n$3"|sort -Vrb`
     case "$2" in
         "==")
             RESULT=`echo -e "$VERSIONS"|uniq|wc -l|grep 1`
@@ -372,7 +413,7 @@ if_version(){
 #                           validate    选项或参数验证，验证支持参考函数 validate_shell_param
 # @param $options_name      命令参数数组名
 # return 1|0
-parse_shell_param() {
+parse_shell_param(){
     local PARAM NAME SHORT_NAME DEFAULT_VALUE DEFAULT_VALUE_STR DEFAULT_VALIDATE_STR PARAM_STR PARAM_INFO_STR PARAM_NAME_STR PARAM_SHOW_DEFINE PARAM_SHOW_INFO ARG_NAME INDEX 
     local SPACE_NUM=22 ARGUMENTS=() OPTIONS=() OPTIONALS=() ARGVS=() VALIDATES_NAME_QUEUE=() VALIDATES_RULE_QUEUE=() COMMENT_SHOW_ARGUMENTS='' COMMENT_SHOW_OPTIONS=''
     local REGEXP_ARGU='[[:alnum:]][[:alnum:]\-]+' REGEXP_ARGV_SHORT='\-[[:alnum:]]' REGEXP_ARGV_LONG='\-\-[[:alnum:]][[:alnum:]\-]+'
@@ -441,7 +482,7 @@ parse_shell_param() {
         if [ -n "$DEFAULT_VALUE_STR" ];then
             DEFAULT_VALUE_STR=$(printf '%s' "$DEFAULT_VALUE_STR"|sed -r "s/(^=\s*)//")
             PARAM_SHOW_DEFINE="$PARAM_SHOW_DEFINE [= ${DEFAULT_VALUE_STR:-''}]"
-            get_escape_string "$DEFAULT_VALUE_STR" $ARG_NAME
+            get_param_string "$DEFAULT_VALUE_STR" $ARG_NAME
         elif ! declare -p $ARG_NAME 2>/dev/null >/dev/null;then
             eval "$ARG_NAME=''"
         fi
@@ -451,7 +492,7 @@ parse_shell_param() {
             VALIDATES_RULE_QUEUE[${#VALIDATES_RULE_QUEUE[@]}]="$DEFAULT_VALIDATE_STR"
         fi
         # 构造帮助命令中参数展示
-        INDEX=`echo $[ $(printf '%s' "$PARAM_SHOW_DEFINE"|wc -m) + 4 ]`
+        INDEX=$[ $(printf '%s' "$PARAM_SHOW_DEFINE"|wc -m) + 4 ]
         PARAM_SHOW_INFO="    $PARAM_SHOW_DEFINE"
         if ((INDEX >= SPACE_NUM));then
             PARAM_SHOW_INFO="$PARAM_SHOW_INFO\n"
@@ -469,9 +510,9 @@ $(eval "echo -e \"\$$1\"")
 [-v, --version]显示脚本版本号
 EOF
     # 解析匹配传入参数
-    local ITEM ARG_NUM VALUE OPTIONS_TEMP NAME_TEMP VALUE_TEMP ARGUMENTS_INDEX=0 ARG_SIZE=$(eval "echo \${#$2[@]}")
+    local ITEM ARG_NUM VALUE OPTIONS_TEMP NAME_TEMP VALUE_TEMP ARGUMENTS_INDEX=0 ARG_SIZE=$(eval echo "\${#$2[@]}")
     for ((ARG_NUM=0; ARG_NUM < ARG_SIZE; ARG_NUM++)); do
-        eval "ITEM=\${$2[$ARG_NUM]}"
+        eval ITEM="\${$2[$ARG_NUM]}"
         if [ -z "$ITEM" ];then
             continue
         fi
@@ -537,9 +578,9 @@ EOF
         if [ -n "$SHELL_RUN_HELP" ];then
             INFO_SHOW_STR=$INFO_SHOW_STR"Help: \n"$(echo -e "$SHELL_RUN_HELP"|sed -r 's/^(\s*\S)/    \1/g');
         fi
-        local RUN_SHOW_STR="    bash $(echo -n $0|sed "s,^`pwd`/,,") ${PARAMS_NAME[@]}\n"
+        local RUN_SHOW_STR="    bash $(echo -n "$0"|sed "s,^`pwd`/,,") ${PARAMS_NAME[@]}\n"
         if [ $(basename $0) != 'run.sh' -a -e $SHELL_WROK_BASH_PATH/run.sh ];then
-            RUN_SHOW_STR="$RUN_SHOW_STR\n    bash "$(echo -n $SHELL_WROK_BASH_PATH/|sed "s,^`pwd`/,,")"run.sh $(basename $0 '.sh') ${PARAMS_NAME[@]}\n"
+            RUN_SHOW_STR="$RUN_SHOW_STR\n    bash "$(echo -n "$SHELL_WROK_BASH_PATH/"|sed "s,^`pwd`/,,")"run.sh $(basename $0 '.sh') ${PARAMS_NAME[@]}\n"
         fi
         echo -e "Description:
 $(echo -e "$SHELL_RUN_DESCRIPTION"|sed -r 's/^(\s*\S)/    \1/g')
@@ -599,7 +640,7 @@ validate_shell_param(){
         RULE_VALUES=($(printf '%s' "${RULE_TEXT:${#RULE_NAME}+1}"|grep -oP "$VALUE_RULES"))
         # 剥离值前后引号
         for((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX+=2));do
-            get_escape_string "${RULE_VALUES[$INDEX]}" RULE_VALUES[$INDEX]
+            get_param_string "${RULE_VALUES[$INDEX]}" RULE_VALUES[$INDEX]
         done
         [[ ! "$RULE_NAME" =~ ^(int|float|string)$ || "${RULE_VALUES[0]}" =~ ^([1-9][0-9]*|[0-9])*$ && "${RULE_VALUES[2]}" =~ ^([1-9][0-9]*|[0-9])*$ ]] ||
             error_exit "脚本参数 ${ARG_NAME} 校验规则错误，选项必需是数值范围：${RULE_TEXT}"
@@ -702,14 +743,35 @@ validate_shell_param(){
 $(printf '%s' "$2"|grep -oP "[^:\|]+(:$VALUE_RULES(,$VALUE_RULES)*)?\|?")
 EOF
 }
-# 获取转义后的字符串
-# @command get_escape_string $string $export_name
-# @param $string            要处理的字符串，前后引号会玻璃，内部转义符会全部替换
-# @param $export_name       解析成功写入变量名
+# 获取参数定义的字符串，处理会剥离前后引号，转义内部字符并写入指定变量中
+# @command get_param_string $string $set_value
+# @param $string            要处理字符串
+# @param $set_value         写入变量名
 # return 1|0
-get_escape_string(){
-    local _TEMP_STRING=$(printf '%s' "$1"|sed -r "s/(^['\"])|(['\"]$)//g"|sed -r "s/\\\\(.)/\1/g")
-    eval $2=\$_TEMP_STRING
+get_param_string(){
+    local _TEMP_STRING=$(printf '%s' "$1"|sed -r "s/(^['\"])|(['\"]$)//g")
+    stripc_slashes _TEMP_STRING
+    eval $2="\$_TEMP_STRING"
+}
+# 去掉转义
+# @command stripc_slashes $string_name [...]
+# @param $string_name       要添加的字符串变量名
+# return 1|0
+stripc_slashes(){
+    local VAL_NAME
+    for VAL_NAME in $@;do
+        eval $VAL_NAME="\$(echo -n -e \"\${$VAL_NAME}\")"
+    done
+}
+# 给指定变量添加转义
+# @command addc_slashes $string_name [...]
+# @param $string_name       要添加的字符串变量名
+# return 1|0
+addc_slashes(){
+    local VAL_NAME
+    for VAL_NAME in $@;do
+        eval $VAL_NAME="\$(printf '%s' \"\${$VAL_NAME}\"|sed -r 's/(\s|>|<|&|!|\\||^[\-~]|\\\\)/\\\\\\1/g')"
+    done
 }
 # 通过变量名获取shell脚本选项信息
 # @command get_shell_option $name $set_opt $set_val
@@ -769,11 +831,11 @@ has_run_shell(){
         fi
     fi
     while read RUN_PID;do
-        if [ -d "/proc/$RUN_PID/" ] && stat --printf='%N' /proc/$RUN_PID/exe 2>/dev/null|grep -qP "(/bash|/sh|${BASH})$";then
+        if [ -n "$RUN_PID" -a -d "/proc/$RUN_PID/" ] && readlink /proc/$RUN_PID/exe 2>/dev/null|grep -qP "(/bash|/sh|${BASH})$";then
             return 0
         fi
     done <<EOF
-$(ps aux|grep -qP "(bash|sh|source|${BASH})\s+$1\.sh$RUN_PARAMS"|awk '{print $2}')
+$(ps aux|grep -P "(bash|sh|source|${BASH})\s+(.*/)?$1\.sh$RUN_PARAMS"|awk '{print $2}')
 EOF
     return 1
 }
@@ -789,50 +851,78 @@ find_project_file(){
         include)
             FIND_DIR=$SHELL_WROK_INCLUDES_PATH
             FIND_NAME="$2.sh"
-            ;;
+        ;;
         install)
             FIND_DIR=$SHELL_WROK_INSTALLS_PATH
             FIND_NAME="$2-install.sh"
-            ;;
+        ;;
         tool)
             FIND_DIR=$SHELL_WROK_TOOLS_PATH
             FIND_NAME="$2.sh"
-            ;;
+        ;;
         etc)
             FIND_DIR=$SHELL_WROK_ETC_PATH
             FIND_NAME="$2.conf"
-            ;;
+        ;;
         *)
             error_exit "可搜索类型错误 $1"
-            ;;
+        ;;
     esac
-    local FIND_LISTS=(`find $FIND_DIR -name "$FIND_NAME"`)
+    local FIND_LISTS=($(find "$FIND_DIR" -name "$FIND_NAME"))
     if [ ${#FIND_LISTS[@]} = '0' ];then
         error_exit "在 $FIND_DIR 目录下搜索不到 $2"
     elif [ ${#FIND_LISTS[@]} = '1' ];then
-        eval "$3=$(cd $(dirname ${FIND_LISTS[0]});pwd)/$(basename ${FIND_LISTS[0]})"
+        eval $3=$(cd "$(dirname "${FIND_LISTS[0]}")";pwd)/$(basename "${FIND_LISTS[0]}")
     else
         error_exit "在 $FIND_DIR 目录下搜索到 ${#FIND_LISTS[@]} 个匹配项"
     fi
 }
-if [ `whoami` != 'root' ];then
+# 全路径解析并转义特殊字符
+# @command safe_realpath $path
+# @param $path              要处理的目录变量名，处理完后会修改此变量
+# return 1|0
+safe_realpath(){
+    local _PATH _NAME
+    for _NAME in $@;do
+        eval _PATH="\${$_NAME}"
+        if [ -z "$_PATH" ];then
+            _PATH="$SHELL_WROK_BASH_PATH"
+        else
+            case "$_PATH" in
+                \~|\~/*) # 用户工作目录
+                    _PATH="$(cd ~;pwd)/${_PATH:2}"
+                ;;
+                [^/]*) # 工作目录
+                    _PATH="$SHELL_WROK_BASH_PATH/$_PATH"
+                ;;
+            esac
+        fi
+        addc_slashes _PATH
+        eval $_NAME="\$_PATH"
+    done
+}
+if [ "$(basename "$0")" = "$(basename "${BASH_SOURCE[0]}")" ];then
+    error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
+fi
+if [ "$(whoami)" != 'root' ];then
     warn_msg '当前执行用户非 root 可能会影响脚本正常运行！'
 fi
 # 提取工作目录
-SHELL_WROK_BASH_PATH=$(cd $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../;pwd)
-SHELL_WROK_INCLUDES_PATH=${SHELL_WROK_BASH_PATH}/includes
-SHELL_WROK_INSTALLS_PATH=${SHELL_WROK_BASH_PATH}/installs
-SHELL_WROK_TOOLS_PATH=${SHELL_WROK_BASH_PATH}/tools
-SHELL_WROK_TEMP_PATH=${SHELL_WROK_BASH_PATH}/temp
-SHELL_WROK_ETC_PATH=${SHELL_WROK_BASH_PATH}/etc
+SHELL_WROK_BASH_PATH="$(cd "$(dirname ${BASH_SOURCE[0]})/../"; pwd)"
+safe_realpath SHELL_WROK_BASH_PATH
+SHELL_WROK_INCLUDES_PATH="${SHELL_WROK_BASH_PATH}/includes"
+SHELL_WROK_INSTALLS_PATH="${SHELL_WROK_BASH_PATH}/installs"
+SHELL_WROK_TOOLS_PATH="${SHELL_WROK_BASH_PATH}/tools"
+SHELL_WROK_TEMP_PATH="${SHELL_WROK_BASH_PATH}/temp"
+SHELL_WROK_ETC_PATH="${SHELL_WROK_BASH_PATH}/etc"
 REGEXP_QUOTE_STRING="([\w\-]+|\\\\.)+|\"([^\"]+|\\\\.)*\"|'([^']+|\\\\.)*'"
-mkdirs $SHELL_WROK_TEMP_PATH
+mkdirs "$SHELL_WROK_TEMP_PATH"
 # 加载配置
-source $SHELL_WROK_INCLUDES_PATH/config.sh || exit
+source "$SHELL_WROK_INCLUDES_PATH/config.sh" || exit
 # 提取安装参数
 CALL_INPUT_ARGVS=()
 for ((INDEX=1;INDEX<=$#;INDEX++));do
-    CALL_INPUT_ARGVS[${#CALL_INPUT_ARGVS[@]}]=${@:$INDEX:1}
+    CALL_INPUT_ARGVS[${#CALL_INPUT_ARGVS[@]}]="${@:$INDEX:1}"
 done
 unset INDEX
 # 判断系统适用哪个包管理器

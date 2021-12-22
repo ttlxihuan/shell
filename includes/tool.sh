@@ -8,22 +8,19 @@
 #   DEFINE_TOOL_PARAMS      脚本参数体，解析参数使用，可选
 # 所有脚本会强制增加两个参数 --help、--version 用来展示信息
 ############################################################################
-if [ $(basename "$0") = $(basename "${BASH_SOURCE[0]}") ];then
+# 引用公共文件
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/basic.sh || exit
+if [ "$(basename "$0")" = "$(basename "${BASH_SOURCE[0]}")" ];then
     error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
 fi
-# 引用公共文件
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/basic.sh || exit
 # 解析通用ini格式配置文件
 # @command parse_conf $path [$block [...]]
 # @param $path              配置文件名
 # @param $block             必需有的区块配置
 # return 1|0
 parse_conf(){
-    if [[ "$1" =~ ^[~/] ]];then
-        CONF_FILE="$1"
-    else
-        CONF_FILE="$SHELL_WROK_BASH_PATH/$1"
-    fi
+    CONF_FILE="$1"
+    safe_realpath CONF_FILE
     if [ ! -e "$CONF_FILE" ];then
         error_exit "配置文件不存在：$1"
     fi
