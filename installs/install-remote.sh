@@ -35,15 +35,13 @@ DEFINE_TOOL_PARAMS="
 #压缩下载包可以节省远程服务器下载开销提升安装成功率
 #开启此选项时不可还有下载操作
 #默认复制远程压缩文件不压缩 temp 目录
-#验证安装时此选项无效
+#验证安装时此选项无效，强制只复制脚本文件
 "
 SHELL_RUN_HELP='
-
 远程安装要求：
 1、远程安装依赖三个工具 ssh scp ，脚本会自动安装。
 2、远程安装流程：证书处理、创建目录、复制脚本、执行安装。每个环节均有可能输入密码
 3、使用的证书不建议设置密码，否则证书登录时还需要输入密码
-4、使用远程安装时不可另外执行本地批量安装并行操作，会影响远程安装复制文件导致安装失败
 '
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/install-batch.sh || exit
 # 开始远程安装服务
@@ -251,6 +249,5 @@ if [ "$ARGV_local_install" = 'async' ];then
 elif [ "$ARGV_local_install" = 'skip' ];then
     info_msg '跳过本机批量处理'
 fi
-
 # 循环远程配置数据并执行安装
 each_conf start_ssh_install remote

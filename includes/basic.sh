@@ -908,7 +908,7 @@ if [ "$(whoami)" != 'root' ];then
     warn_msg '当前执行用户非 root 可能会影响脚本正常运行！'
 fi
 # 提取工作目录
-SHELL_WROK_BASH_PATH="$(cd "$(dirname ${BASH_SOURCE[0]})/../"; pwd)"
+SHELL_WROK_BASH_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../"; pwd)"
 safe_realpath SHELL_WROK_BASH_PATH
 SHELL_WROK_INCLUDES_PATH="${SHELL_WROK_BASH_PATH}/includes"
 SHELL_WROK_INSTALLS_PATH="${SHELL_WROK_BASH_PATH}/installs"

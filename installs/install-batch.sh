@@ -6,8 +6,7 @@
 if [ "$(basename "$0")" = "$(basename "${BASH_SOURCE[0]}")" ];then
     SHELL_RUN_DESCRIPTION='批量安装'
 fi
-SHELL_RUN_HELP='
-1、批量安装仅限支持的脚本，多个安装并行操作
+SHELL_RUN_HELP='1、批量安装仅限支持的脚本，多个安装并行操作
 2、批量安装默认会忽略磁盘空间（建议磁盘剩余空间 >= 50G）
 3、批量安装默认会自动适配虚拟内存，当物理内存不足时自动添加虚拟内存
 '$SHELL_RUN_HELP
