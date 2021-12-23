@@ -24,20 +24,18 @@ DEFINE_TOOL_PARAMS="
 #在进行安装前需要保证目录可用空间，空间不足会造成安装失败
 [-i, --local-install='async', {required|in:async,skip}]本地批量安装处理
 #async  异步安装远程与本地并行
-#       各服务不复制安装文件
-#       各服务器均需要自行下载安装包
 #skip   不执行本地安装，仅执行远程安装
-#       将复制安装文件致远程服务器
-#       此选项不可与本地批量安装并行
-#       当本地有并行安装时将终止批量安装
-#执行远程批量安装时尽量避免本地另执行批量安装
-#本地交叉批量安装会影响复制文件完整导致远程安装异常
 [-E, --disable-expect]禁止使用expect工具自动输入密码
 #禁用后配置文件中的密码将无法自动输入并登录
 [--ssh-key='~/.ssh/id_rsa']指定本地登录远程服务器证书地址
 #证书地址文件不存在时会自动创建
 #为空时将处理证书登录和创建操作
 #为空时如果已经配置好证书登录将自动使用
+[-S, --scp-download]压缩temp/shell-install里下载包
+#压缩下载包可以节省远程服务器下载开销提升安装成功率
+#开启此选项时不可还有下载操作
+#默认复制远程压缩文件不压缩 temp 目录
+#验证安装时此选项无效
 "
 SHELL_RUN_HELP='
 
@@ -106,18 +104,17 @@ start_ssh_install(){
         if [ -n "$SSH_KEY_OPTION" ];then
             # 注意：ssh-copy-id 命令是一个shell脚本，一般在 /usr/bin/ssh-copy-id
             # 因为没有提供过多的ssh参数选项所以只能通过地址打包参数
-            local COPY_KEY_OPTION="$SSH_KEY_OPTION \"-p $SSH_PORT $SSH_ADDR\""
             info_msg "尝试复制 ssh-key 证书到 $1 服务器，可能要求输入密码"
             if [ -z "$ARGV_disable_expect" -a -n "$SSH_PASSWORD" ];then
                 expect_password EXPECT_PASSWORD "$SSH_PASSWORD"
                 # expect不支持单引号字符串，必需使用双引号字符串
-                expect -d <<EOF
+                expect <<EOF
 set timeout 30
-spawn ssh-copy-id $COPY_KEY_OPTION
+spawn ssh-copy-id $SSH_KEY_OPTION \"-p $SSH_PORT $SSH_ADDR\"
 $EXPECT_PASSWORD
 EOF
             else
-                ssh-copy-id $COPY_KEY_OPTION
+                ssh-copy-id $SSH_KEY_OPTION "-p $SSH_PORT $SSH_ADDR"
             fi
             if eval $SSH_CHECK >/dev/null; then
                 info_msg "证书复制成功"
@@ -174,7 +171,7 @@ $EXPECT_PASSWORD
 $EXPECT_ROOT_PASSWORD
 EOF
     fi
-    [ $? != '0' ] && warn_msg "远程操作失败"
+    [ $? != '0' -a -z "$ARGV_check_install" ] && warn_msg "远程操作失败"
 }
 # 获取 expect 密码输入操作
 # @command expect_password $set_value $password
@@ -216,29 +213,44 @@ if [ -n "$ARGV_ssh_key" ];then
     # 生成证书使用选项
     SSH_KEY_OPTION="-i $ARGV_ssh_key"
 fi
+# 压缩文件处理
 cd $SHELL_WROK_BASH_PATH
-COPY_REMOTE_FILE=./temp/remote-shell.tar.gz
-EXCLUDE_OPTIONS="--exclude=./temp"
-info_msg "find ./ -maxdepth 4 -mmin $(( $(stat -c '%Y' $COPY_REMOTE_FILE) - $(date '+%s') )) -type f"
+# 选择压缩文件
+if [ "$ARGV_check_install" = '1' -o -z "$ARGV_scp_download" ];then
+    COPY_REMOTE_FILE="./temp/remote-shell.tar.gz"
+else
+    COPY_REMOTE_FILE="./temp/remote-shell.all.tar.gz"
+    # 判断是否有新下载包，如果有重新压缩
+    if [ -e "$COPY_REMOTE_FILE" ] && find ./temp/shell-install/ -maxdepth 1 -type f -readable -exec stat -c '%Y' {} \;|awk '{if ($1 > '$(stat -c '%Y' $COPY_REMOTE_FILE)'){print}}'|grep -qP '[0-9]+';then
+        warn_msg "检测到有新下载包，将重新压缩"
+        rm -f $COPY_REMOTE_FILE
+    fi
+fi
+if [ -e "$COPY_REMOTE_FILE" ] && find ./ -type f ! -path './temp/*' -exec stat -c '%Y' {} \;|awk '{if ($1 > '$(stat -c '%Y' $COPY_REMOTE_FILE)'){print}}'|grep -qP '[0-9]+';then
+    warn_msg "检测到脚本可配置文件有变动，将重新压缩"
+    rm -f $COPY_REMOTE_FILE
+fi
+# 压缩文件不存在则压缩
 if [ ! -e "$COPY_REMOTE_FILE" ];then
+    PATH_OPTIONS='--exclude=./temp ./'
+    # 搜索出要压缩的下载包
+    if [ -z "$ARGV_check_install" -a "$ARGV_scp_download" = '1' -a -d "./temp/shell-install/" ];then
+        has_run_shell ".+-install" && warn_msg "检测到本地有安装脚本运行中，压缩 temp/shell-install 目录可能存在未下载完成文件"
+        PATH_OPTIONS="$PATH_OPTIONS $(find ./temp/shell-install/ -maxdepth 1 -type f -readable)"
+    fi
     # 压缩脚本及相关文件
     info_msg "压缩脚本及相关文件到：$COPY_REMOTE_FILE"
-    info_msg "压缩文件目录总大小："$(du -ab --max-depth=1 $EXCLUDE_OPTIONS ./|awk 'BEGIN{count=0}{count+=$1}END{if(count < 1024){printf "%0.2fB",count}else if(count < 1048576){printf "%0.2fK",count/1024}else if(count < 1073741824){printf "%0.2fM",count/1048576}else{printf "%0.2fG",count/1073741824}}')
-    tar -czf $COPY_REMOTE_FILE $EXCLUDE_OPTIONS ./
+    info_msg "压缩文件目录总大小："$(du -ab --max-depth=1 $PATH_OPTIONS|awk 'BEGIN{count=0}{count+=$1}END{if(count < 1024){printf "%0.2fB",count}else if(count < 1048576){printf "%0.2fK",count/1024}else if(count < 1073741824){printf "%0.2fM",count/1048576}else{printf "%0.2fG",count/1073741824}}')
+    tar -czf $COPY_REMOTE_FILE $PATH_OPTIONS
     if_error "压缩文件失败，请确认权限和磁盘空间"
 fi
 # 本地安装方式处理
 tag_msg "本地"
-case "$ARGV_local_install" in
-    async)
-        start_install
-    ;;
-    skip)
-        if [ -z "$ARGV_check_install" ] && has_run_shell ".+-install"; then
-            error_exit "检测到本地已经有安装脚本运行中"
-        fi
-        info_msg '跳过本机批量处理'
-    ;;
-esac
+if [ "$ARGV_local_install" = 'async' ];then
+    start_install
+elif [ "$ARGV_local_install" = 'skip' ];then
+    info_msg '跳过本机批量处理'
+fi
+
 # 循环远程配置数据并执行安装
 each_conf start_ssh_install remote

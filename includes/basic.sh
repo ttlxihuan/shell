@@ -822,7 +822,7 @@ parse_lists(){
 # @param $options           脚本运行必需参数规则，可使用正则
 # return 1|0
 has_run_shell(){
-    local RUN_PID RUN_PARAMS="$2"
+    local RUN_EXE RUN_PARAMS="$2"
     if [ -z "$RUN_PARAMS" ];then
         if [[ "$1" == *-install ]];then
             RUN_PARAMS="\s+(new|\d+(\.\d+)+)"
@@ -830,12 +830,12 @@ has_run_shell(){
             RUN_PARAMS="([\s&>;]+|$)"
         fi
     fi
-    while read RUN_PID;do
-        if [ -n "$RUN_PID" -a -d "/proc/$RUN_PID/" ] && readlink /proc/$RUN_PID/exe 2>/dev/null|grep -qP "(/bash|/sh|${BASH})$";then
+    while read RUN_EXE;do
+        if [ -n "$RUN_EXE" -a -e "$RUN_EXE" ] && readlink $RUN_EXE 2>/dev/null|grep -qP "(/bash|/sh|${BASH})$";then
             return 0
         fi
     done <<EOF
-$(ps aux|grep -P "(bash|sh|source|${BASH})\s+(.*/)?$1\.sh$RUN_PARAMS"|awk '{print $2}')
+$(ps aux|grep -P "(bash|sh|source|${BASH})\s+(.*/)?$1\.sh$RUN_PARAMS"|awk '{if($2 != '$$'){print "/proc/"$2"/exe"}}')
 EOF
     return 1
 }
