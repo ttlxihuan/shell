@@ -1,75 +1,27 @@
-linux 服务器常用工具安装包
+linux shell脚本集合，脚本分两大类：自动安装、辅助工具
 ===============
 
-安装脚本仅支持linux系统的CentOS和Ubuntu两类系统，建议安装系统版本
+脚本仅支持linux系统的CentOS和Ubuntu两类系统，建议安装系统版本
 * CentOS 6.4+
 * Ubuntu 15.04+
 
+## 如何使用
 为方便增加脚本和管理，脚本全部存放在子目录中，由统一调用脚本 run.sh 入口操作。
 
-### 查看安装脚本信息
------------------
+自动安装 lnpm = nginx+php+mysql 最新版
 ```
-bash run.sh -h
-```
-
-
-### 单一安装脚本命令
------------------
-```
-bash run.sh [name] [version] [--options ...]
+bash run.sh install-batch @lnpm
 ```
 
-参数说明：
-* [name]        指定安装脚本名，如：redis-install、nginx-install、php-install等
-* [version]     指定安装版本，如果不指定则打印最新版本，如果要安装最新版本可以指定为 new
-* [--options]   安装选项，各安装脚本选项信息不一致，了解更多通过 -h 参数查看
-
-#### 示例
+挂载硬盘
 ```
-bash run.sh php-install new
+bash run.sh disk
 ```
 
-
-安装过程中需要外网下载，并且需要root权限，安装成功后会自动尝试启动服务或应用。
-
-
-### 批量安装脚本命令
------------------
-#### 本机批量安装命令
-```
-bash run.sh install-batch
-```
-#### 机群批量安装命令
-```
-bash run.sh install-remote
-```
-
-批量安装需要调整安装配置文件 etc/install-batch.conf
-```
-# 安装的服务器【机群安装】
-默认账号为 root
-[host]
-192.168.181.130 password [user]
-
-# 安装配置【本机或机群安装】
-[install]
-php 7.2.7
-mysql 8.0.11
-nginx 1.15.0
-```
-
-### 注意
-不建议向低版本安装，比如原来已经安装高版本再安装低版本，容易造成部分依赖包版本要求而导致找不到
-如果命令运行出错可能是换行符的问题可以运行命令
-```
-find ./ ! -path '*/temp/*' -type f -exec sed -i 's/\r//' {} \;
-```
-
-### 快速使用
+### 快速下载和使用
 创建一个sh脚本
 ```
-vim install.sh
+vim shells.sh
 ```
 
 复制输入下面的脚本代码并保存（注意需要安装 wget，如果版本过低下载容易报错）
@@ -90,22 +42,95 @@ fi
 cd shell-master
 find ./ ! -path '*/temp/*' -type f -exec sed -i 's/\r//' {} \;
 for NAME in ${@:1}; do
-    if [ -e "$NAME-install.sh" ];then
-        echo "运行：$NAME"
-        nohup bash run.sh $NAME-install new 2>&1 &> ../$NAME-install.log &
-    else
-        echo "unknown install: $NAME"
-    fi
+    nohup bash run.sh $NAME 2>&1 &> ../$NAME.log &
 done
 exit 0
 ```
 
-执行安装，需要安装什么就增加对应的包名（安装最新稳定版本，如果想安装指定版本则需要使用上面的安装方式）
+自动安装和工具会陆续增加，具体支持脚本可查看目录结构
 ```
-bash install.sh nginx php mysql git
+bash shells.sh @lnpm
 ```
 
-> 注意：以上脚本会下载所有安装脚本代码，保存在 ./shell-master 目录下。
+### 目录结构
+./etc           脚本配置文件目录
+./includes      公共脚本目录，包含脚本处理的基础，不可直接调用
+./installs      自动安装脚本目录集，所有安装脚本均在此目录下，均可直接调用
+./tools         工具脚本目录集，所以工具脚本均在此目录下，均可直接调用
+./temp          脚本处理临时存储目录
+
+
+### 查看功能信息
+-----------------
+```
+bash run.sh -h
+```
+
+### 注意
+如果命令运行出错可能是换行符的问题可以运行命令
+```
+find ./ ! -path '*/temp/*' -type f -exec sed -i 's/\r//' {} \;
+```
+
+## 自动安装
+安装过程中需要外网下载，并且需要root权限，安装成功后会自动尝试启动服务或应用。
+不建议安装多版本先安装高再安装低版本，容易造成部分依赖包版本要求版本不一至导致安装失败
+下载使用的是curl和wget两个命令，在使用前需要保证这两个命令能访问https网络
+
+### 单一安装脚本命令
+-----------------
+命令语法：
+```
+bash run.sh [script-name] [version] [--options ...]
+```
+
+参数说明：
+* [script-name]     指定安装脚本名，如：redis-install、nginx-install、php-install等
+* [version]         指定安装版本，如果不指定则打印最新版本，如果要安装最新版本可以指定为 new
+* [--options]       安装选项，各安装脚本选项信息不一致，了解更多通过 -h 参数查看
+
+#### 示例
+安装php最新版本
+```
+bash run.sh php-install new
+```
+
+### 批量安装脚本
+-----------------
+命令语法：
+```
+bash run.sh install-batch [name] [-c]
+```
+参数说明：
+* [name]            安装包名，具体以配置文件 etc/install-batch.conf 为准
+* [-c]              验证安装结果
+
+注意：安装是切入后台执行，安装结果需要另行查证或使用脚本查证
+
+#### 示例
+安装php和nginx最新版本
+```
+bash run.sh install-batch php,nginx
+```
+
+### 远程批量安装命令
+-----------------
+命令语法：
+```
+bash run.sh install-remote [name] [remote] [-c]
+```
+参数说明：
+* [name]            安装包名，具体以配置文件 etc/install-batch.conf 为准
+* [remote]          指定匹配的远程节点名
+* [-c]              验证安装结果
+
+注意：远程批量安装是通过批量复制脚本库到各远程服务器中，再调用批量安装脚本进行安装操作，使用前需要修改配置文件
+
+#### 示例
+远程安装php和nginx最新版本
+```
+bash run.sh install-remote php,nginx
+```
 
 ### 安装说明
 * 1、安装脚本有两种类型，如果安装的包存在编译安装则使用的是编译安装，否则是使用其它安装方式，比如elasticsearch解压即可使用
@@ -119,8 +144,28 @@ bash install.sh nginx php mysql git
 * 9、编译安装中途强制终止可能会导致无法再次继续编译安装，建议删除解压目录后再调用脚本进行编译安装，或者使用参数 --reset 3 自动处理
 * 10、安装磁盘或内存空间不足时会自动选择其它可用硬盘或添加虚拟内存，可以选择不忽略空间处理，多数空间不足安装无法完成
 * 11、部分系统存在多个版本依赖，导致安装失败，特别是gcc。这类往往需要手动干预，可以删除不需要的版本或者重新安装指定版本，也可以通过编译参数进行指定。
+* 12、当你确认已经安装了匹配版本的动态为时可能是存在多个版本操作时加载了错误的版本动态库，如果有多个版本的动态库会引起安装或启动出错，需要手动去掉版本不匹配的动态库目录，动态库有环境变量 PKG_CONFIG_PATH 和 /etc/ld.so.conf 动态库目录配置文件，前者是pkg-config工具只要export环境变量即可，后者修改配置文件后需要ldconfig重新加载
 
-### 注意安装兼容说明
-* 1、脚本不能满足指定系统的所有场景安装，安装失败的原因多样化而无法穷尽，如果你在安装过程中有失败的可以发issues或者提供代码来完善。
-* 2、当你确认已经安装了匹配版本的动态为时可能是存在多个版本操作时加载了错误的版本动态库，如果有多个版本的动态库会引起安装或启动出错，需要手动去掉版本不匹配的动态库目录，动态库有环境变量 PKG_CONFIG_PATH 和 /etc/ld.so.conf 动态库目录配置文件，前者是pkg-config工具只要export环境变量即可，后者修改配置文件后需要ldconfig重新加载
+## 辅助工具
+目前辅助工具比较少，主要有：监控、磁盘挂载等
 
+### 工具使用命令
+-----------------
+命令语法：
+```
+bash run.sh [name] [options ...]
+```
+参数说明：
+* [name]            工具名
+* [options]         工具可使用选项
+
+#### 示例
+挂载新增加硬盘
+```
+bash run.sh disk
+```
+
+## 特别说明
+* 1、此脚本库仅仅是以方便使用，并非唯一选项，比如：各安装包可以使用docker快速应用，使用脚本成功率并没有docker高，但可以做更多更方便选择。
+* 2、脚本不能满足指定系统的所有场景，比如：安装失败的原因多样化而无法穷尽。
+* 3、有兴趣的朋友欢迎加入此坑。
