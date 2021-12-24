@@ -27,7 +27,7 @@ DEFINE_INSTALL_PARAMS="
 
 "
 # 加载基本处理
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
 init_install 1.26 "https://mirrors.edge.kernel.org/pub/linux/utils/kernel/ipvsadm/" 'ipvsadm-\d+\.\d+\.tar.gz' '\d+\.\d+'
 #  限制空间大小（G）：编译目录、安装目录、内存

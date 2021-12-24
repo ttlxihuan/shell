@@ -76,7 +76,7 @@ DEFINE_TOOL_PARAMS='
 [--cache-file="temp/.iptables.cache"]用于记录开启数据，当配置调整进行匹配处理
 #当脚本在唯一执行时不需要调用此参数
 '
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../includes/tool.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 
 # 提取配置文件路径
 if ! get_file_path $ARGV_conf ARGV_conf 1;then

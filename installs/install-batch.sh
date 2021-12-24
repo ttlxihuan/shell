@@ -13,6 +13,7 @@ SHELL_RUN_HELP='1、批量安装仅限支持的脚本，多个安装并行操作
 DEFINE_TOOL_PARAMS="
 [name, {required}]要安装的包或组名，多个使用逗号分开
 #包或组名必需在配置文件中指定
+#组名必需是@+组合形式，否则按包名处理
 [-f, --conf='etc/install-batch.conf', {required|file}]指定配置文件，相对脚本库根目录
 [-c, --check-install]验证批量安装结果信息
 $DEFINE_TOOL_PARAMS

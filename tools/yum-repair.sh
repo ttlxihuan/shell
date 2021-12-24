@@ -13,7 +13,7 @@
 # 参数信息配置
 SHELL_RUN_DESCRIPTION='yum工具修复'
 SHELL_RUN_HELP='修复目录只针对https访问异常，其它异常修复不能保证可用性'
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../includes/tool.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 
 if ! which yum 2>&1 >/dev/null;then
     error_exit '当前系统没有安装 yum 工具';

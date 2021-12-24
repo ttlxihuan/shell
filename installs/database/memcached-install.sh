@@ -31,7 +31,7 @@ DEFINE_INSTALL_PARAMS="
 #指定为0时即不配置内存
 "
 # 加载基本处理
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 解析最大运行内存参数处理
 if ! parse_use_memory MEMCACHED_MAX_MEMORY "${ARGV_max_memory:-50%}" M;then
     error_exit '--max-memory 指定错误值'

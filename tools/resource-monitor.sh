@@ -89,7 +89,7 @@ DEFINE_TOOL_PARAMS='
 [--cache-file=":temp/.resource-monitor.cache"] 持续数据缓存文件，主要用来记录异常的开始时间，用来判断异常时长。
 #多个进程同时执行时建议指定不同的缓存文件以免干扰
 '
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../includes/tool.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 # 解析各资源数据
 # @command parse_resources
 # return 0|1

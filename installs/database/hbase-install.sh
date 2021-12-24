@@ -26,7 +26,7 @@ DEFINE_INSTALL_PARAMS="
 
 "
 # 加载基本处理
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 
 error_exit '此脚本暂未开发完！'
 
@@ -44,17 +44,11 @@ packge_manager_run install -JAVA_PACKGE_NAMES
 if ! if_command java;then
     error_exit '安装java失败'
 fi
-# 创建用户
-add_user hbase
-# 复制安装包
-mkdirs $INSTALL_PATH$HBASE_VERSION
-info_msg '复制所有文件到：'$INSTALL_PATH$HBASE_VERSION
-cp -R ./* $INSTALL_PATH$HBASE_VERSION
-cd $INSTALL_PATH$HBASE_VERSION
+# 复制安装包并创建用户
+copy_install hbase
+
 # 数据目录
 # mkdirs data
-# 修改权限
-chown -R hbase:hbase ./*
 
 # 配置文件处理
 info_msg "hbase 配置文件修改"

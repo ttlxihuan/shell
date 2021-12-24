@@ -139,7 +139,7 @@ DEFINE_INSTALL_PARAMS="
 #指定为0时即不配置内存
 "
 # 加载基本处理
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
 init_install 5.0.0 "https://www.elastic.co/downloads/elasticsearch" 'elasticsearch-\d+\.\d+\.\d+-linux'
 if [ -n "$ARGV_tool" ] && ! [[ "$ARGV_tool" =~ ^kibana$ ]]; then
@@ -210,17 +210,11 @@ packge_manager_run install -JAVA_PACKGE_NAMES
 if ! if_command java;then
     error_exit '安装java失败'
 fi
-# 创建用户
-add_user elasticsearch
-# 复制安装包
-mkdirs $INSTALL_PATH$ELASTICSEARCH_VERSION
-info_msg '复制所有文件到：'$INSTALL_PATH$ELASTICSEARCH_VERSION
-cp -R ./* $INSTALL_PATH$ELASTICSEARCH_VERSION
-cd $INSTALL_PATH$ELASTICSEARCH_VERSION
 
-mkdirs data
+# 复制安装包并创建用户
+copy_install elasticsearch
 
-chown -R elasticsearch:elasticsearch ./*
+mkdirs data elasticsearch
 
 #info_msg "系统限制相关配置文件修改"
 # 修改系统限制配置文件
@@ -334,13 +328,8 @@ if [ "$ARGV_tool" = 'kibana' ];then
         TAR_FILE_NAME="-linux-$LINUX_BIT"
     fi
     download_software https://artifacts.elastic.co/downloads/kibana/kibana-$ELASTICSEARCH_VERSION$TAR_FILE_NAME.tar.gz kibana-$ELASTICSEARCH_VERSION$TAR_FILE_NAME
-    mkdirs $INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
-    info_msg '复制所有文件到：'$INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
-    cp -R ./* $INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
-    cd $INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION
-    # 创建用户
-    add_user kibana
-    chown -R kibana:kibana ./*
+    # 复制安装包并创建用户
+    copy_install kibana "$INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION"
     # 启动kibana
     run_msg 'nohup sudo -u kibana bin/kibana 2>&1 >/dev/null &'
     info_msg "kibana 管理地址：http://$SERVER_IP:5601"

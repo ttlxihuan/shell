@@ -115,7 +115,7 @@ DEFINE_INSTALL_PARAMS="
 # 定义安装类型
 DEFINE_INSTALL_TYPE='cmake'
 # 加载基本处理
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
 init_install '5.0.0' "https://dev.mysql.com/downloads/mysql/" 'mysql-\d+\.\d+\.\d+'
 #  限制空间大小（G）：编译目录、安装目录、内存

@@ -19,7 +19,7 @@
 ##################################### 安装处理 #####################################
 ####################################################################################
 # 加载基本处理
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
 init_install '3.5.9' "https://dlcdn.apache.org/zookeeper/" 'zookeeper-\d+\.\d+\.\d+'
 #  限制空间大小（G）：编译目录、安装目录、内存
@@ -37,21 +37,17 @@ packge_manager_run install -JAVA_PACKGE_NAMES
 if ! if_command java;then
     error_exit '安装java失败'
 fi
-# 创建用户
-add_user zookeeper
-# 复制安装包
-mkdirs $INSTALL_PATH$ZOOKEEPER_VERSION zookeeper
-info_msg '复制所有文件到：'$INSTALL_PATH$ZOOKEEPER_VERSION
-cp -R ./* $INSTALL_PATH$ZOOKEEPER_VERSION
-cd $INSTALL_PATH$ZOOKEEPER_VERSION
+
+# 复制安装包并创建用户
+copy_install zookeeper
+
 info_msg 'zookeeper 配置文件修改'
 # 复制默认配置文件
 if [ ! -e "./conf/zoo.cfg" ];then
-    cp ./conf/zoo_sample.cfg ./conf/zoo.cfg
+    sudo -u zookeeper cp ./conf/zoo_sample.cfg ./conf/zoo.cfg
 fi
-mkdirs run
-# 开放权限，需要开发上级目录，否则启动易容异常
-chown -R zookeeper:zookeeper ./
+mkdirs run zookeeper
+
 # 修改配置
 sed -i -r "s/^(dataDir=).*$/\1$(echo "$INSTALL_PATH$ZOOKEEPER_VERSION/"|sed 's/\//\\\//g')run/" ./conf/zoo.cfg
 

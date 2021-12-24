@@ -49,7 +49,7 @@ DEFINE_INSTALL_PARAMS="
 #指定为0时即不配置内存
 "
 # 加载基本处理
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
 init_install '3.0.0' "http://download.redis.io/releases/" 'redis-\d+\.\d+\.\d+\.tar\.gz'
 [ -n "$ARGV_bind" ] || error_exit '--bind 绑定监听地址不能为空'
@@ -93,14 +93,8 @@ fi
 # 编译
 make_install '' $ARGV_options
 
-# 创建用户组
-add_user redis
-
-# 复制安装包
-mkdirs $INSTALL_PATH$REDIS_VERSION redis
-info_msg '复制所有文件到：'$INSTALL_PATH$REDIS_VERSION
-cp -R ./* $INSTALL_PATH$REDIS_VERSION
-cd $INSTALL_PATH$REDIS_VERSION
+# 复制安装包并创建用户
+copy_install redis
 
 # redis conf set
 info_msg 'redis 配置文件修改'

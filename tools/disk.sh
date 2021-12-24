@@ -44,7 +44,7 @@ DEFINE_TOOL_PARAMS='
 [-f, --force]强制执行不需要询问操作
 [--temp]临时挂载，指定后将不写 /etc/fstab 配置文件
 '
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../includes/tool.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 # 格式化处理
 # @command disk_format $disk
 # @param $part_name             格式化写入分区变量名

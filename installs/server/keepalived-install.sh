@@ -25,7 +25,7 @@ DEFINE_INSTALL_PARAMS="
 
 "
 # 加载基本处理
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 
 error_exit '此脚本暂未开发完！'
 

@@ -35,7 +35,7 @@ DEFINE_INSTALL_PARAMS="
 [-p, --api-port='']指定接口端口号，默认http是8123、mysql是9004
 "
 # 加载基本处理
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../../includes/install.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 
 error_exit '此脚本暂未开发完！'
 

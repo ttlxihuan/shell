@@ -20,15 +20,15 @@ SHELL_RUN_HELP='支持版本库或非版本库同步文件到目标服务器
 如果需要全自动同步可以安装使用rsync工具
 '
 DEFINE_TOOL_PARAMS='
+[-f, --conf=etc/install-batch.conf, {required|file}]指定配置文件，相对脚本库根目录
 [-d, --dir]同步目录
-[-r, --repository=""]同步版本库，不指定将按全量同步
-#支持GIT和SVN两种版本库
-#指定版本库后可使用增量、版本号和回滚同步
-[-, --host=0]远程服务器
+[-e, --exclude]同步排除目录集，多个逗号分开
+#支持匹配模式：通配符、字符范围、字符组
+
 
 
 '
-source $(cd $(dirname ${BASH_SOURCE[0]}); pwd)/../includes/tool.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 
 error_exit '此脚本暂未开发完！'
 
