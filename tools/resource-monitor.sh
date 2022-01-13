@@ -84,9 +84,9 @@ DEFINE_TOOL_PARAMS='
 #   [exec]
 #   别名=报警调用命令
 #   别名是对应各块的标识，不限制重名，所的重名均有效
-[-l, --loop-time=0]循环监听时长，以秒为单位，大于0有效定时。
+[-l, --loop-time=0, {required|int:0}]循环监听时长，以秒为单位，大于0有效定时。
 #定时器中不建议使用此参数。
-[--cache-file=":temp/.resource-monitor.cache"] 持续数据缓存文件，主要用来记录异常的开始时间，用来判断异常时长。
+[--cache-file="temp/.resource-monitor.cache", {required}] 持续数据缓存文件，主要用来记录异常的开始时间，用来判断异常时长。
 #多个进程同时执行时建议指定不同的缓存文件以免干扰
 '
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
@@ -153,7 +153,7 @@ parse_part_resources(){
         # 分区是多个，只能每个单独运行
         resources_warn $ITEM PART
     done <<EOF
-`lsblk -bnapl|awk '$6=="part"{print $1}'`
+`lsblk -bnal|awk '$6=="part"{print "/dev/"$1}'`
 EOF
 }
 # 解析网卡数据
@@ -207,7 +207,7 @@ in_options(){
     fi
     local INDEX
     for ((INDEX=2;INDEX<=$#;INDEX++));do
-        if [ "`eval echo \$$INDEX`" = "$1" ];then
+        if [ "${@:$INDEX:1}" = "$1" ];then
             return 0
         fi
     done
@@ -219,69 +219,80 @@ in_options(){
 # @param $name      要处理的资源名集
 # return 0|1
 resources_warn(){
-    local INDEX MAX_INDEX _AS WARN_NAME WARN_TIME WARN_COND WARN_PATH=$1
+    local INDEX MAX_INDEX _AS WARN_NAME WARN_TIME WARN_COND WARN_PATH=$1 ONLY_WARN=${@:2}
     if [ "$ARGV_debug" = '1' ];then
         info_msg "资源：${@:2} 可用变量集："
         declare -l|grep -oP '[A-Z]+_.*$'
     fi
-    for WARN_NAME in ${@:2}; do
-        debug_show "${WARN_NAME} 报警处理开始"
-        MAX_INDEX=$(eval echo \${#CONDITION_ITEMS_$WARN_NAME[@]})
-        for ((INDEX=0;INDEX<MAX_INDEX;INDEX+=4));do
-            if [ -n "$WARN_PATH" ] && ! in_options "$WARN_PATH" $(eval "echo \${CONDITION_ITEMS_$3[$((INDEX+1))]}|awk -F ',' '{print}'");then
-                continue
-            fi
-            eval _AS=\${CONDITION_ITEMS_$WARN_NAME[$INDEX]}
-            eval WARN_TIME=\${CONDITION_ITEMS_$WARN_NAME[$((INDEX+2))]}
-            eval WARN_COND=\${CONDITION_ITEMS_$WARN_NAME[$((INDEX+3))]}
-            if [ $(( $WARN_COND )) != '0' ];then
-                debug_show "资源名：$WARN_NAME ，资源路径：$WARN_PATH ，持续时长：$WARN_TIME ，条件表达式：$WARN_COND ，触发报警处理"
-                if ! persist_warn WARN_TIME "$WARN_PATH($WARN_COND)" "$WARN_TIME";then
-                    continue
-                fi
-            else
-                debug_show "资源名：$WARN_NAME ，资源路径：$WARN_PATH ，持续时长：$WARN_TIME ，条件表达式：$WARN_COND ，释放报警处理"
-                persist_warn WARN_TIME "$WARN_PATH($WARN_COND)"
-                continue
-            fi
-            # 生成报警信息
-            trigger_warn "$_AS"
-        done
-        debug_show "${WARN_NAME} 报警处理结束"
-    done
+    each_conf trigger_warn condition
 }
 # 触发报警
 # @command trigger_warn $as
 # @param $as            触发别名
+#                                   $item_name      区块内项名
+#                                   $item_value     区块内项值
 # return 0|1
 trigger_warn(){
-    debug_show "触发报警：$1"
-    local INDEX TEXT_STR MAX_INDEX=$(eval echo \${#MSG_ITEMS_$1[@]})
-    for ((INDEX=0;INDEX<MAX_INDEX;INDEX++));do
-        eval TEXT_STR=\${MSG_ITEMS_$1[$INDEX]}
-        debug_show "报警消息："$TEXT_STR
-        eval echo $TEXT_STR
+    local WARN_RESOURCE=${2%%:*} 
+    if ! in_options $WARN_RESOURCE $ONLY_WARN;then
+        return 1
+    fi
+    # 提取必要数据
+    local WARN_PATH=${2#*:} WARN_TIMER WARN_TIME WARN_COND WARN_MSG WARN_EXEC WARN_STATUS='0'
+    [ -z "$WARN_PATH" ] && debug_show "condition 区块 $1 不能匹配报警路径、时长、条件" && return 1
+    WARN_TIME=${WARN_PATH#*:}
+    [ -z "$WARN_TIME" ] && debug_show "condition 区块 $1 不能匹配报警时长、条件" &&  return 1
+    WARN_PATH=${WARN_PATH%%:*}
+    WARN_COND=${WARN_TIME#*(}
+    WARN_COND=${WARN_COND%)*}
+    [ -z "$WARN_COND" ] && debug_show "condition 区块 $1 没有匹配到报警条件" && return 1
+    WARN_TIME=${WARN_TIME%%(*}
+    if ( [ $(( $WARN_COND )) != '0' ] ) 2>/dev/null;then
+        if ! persist_warn "$WARN_PATH($WARN_COND)" WARN_TIMER "$WARN_TIME";then
+            debug_show "资源：$WARN_RESOURCE ，资源路径：$WARN_PATH ，持续时长：$WARN_TIMER ，条件表达式：$WARN_COND ，触发报警时长启动处理"
+            WARN_STATUS='1'
+        else
+            debug_show "资源：$WARN_RESOURCE ，资源路径：$WARN_PATH ，持续时长：$WARN_TIMER ，条件表达式：$WARN_COND ，触发报警处理"
+            WARN_STATUS='2'
+        fi
+    else
+        if persist_warn "$WARN_PATH($WARN_COND)";then
+            debug_show "资源：$WARN_RESOURCE ，资源路径：$WARN_PATH ，条件表达式：$WARN_COND ，报警释放处理"
+            WARN_STATUS='-1'
+        else
+            debug_show "资源：$WARN_RESOURCE ，资源路径：$WARN_PATH ，条件表达式：$WARN_COND ，资源使用正常处理"
+        fi
+    fi
+    local ITEM_KEY ITEM_NAME ITEM_VALUE ITEMS=("$1:$WARN_STATUS" "$1:*")
+    if [ "$WARN_STATUS" = '2' ];then
+        ITEMS[${#ITEMS[@]}]="$1"
+    fi
+    for ITEM_NAME in msg:WARN_MSG exec:WARN_EXEC;do
+        for ((ITEM_KEY=0;ITEM_KEY<${#ITEMS[@]};ITEM_KEY++));do
+            get_conf ITEM_VALUE ${ITEM_NAME%%:*} "${ITEMS[$ITEM_KEY]}"
+            if [ -n "$ITEM_VALUE" ];then
+                ITEM_VALUE=$(printf '%s' "$ITEM_VALUE"|sed -r 's/([\\"])/\\\1/g')
+                eval "${ITEM_NAME#*:}=\"$ITEM_VALUE\""
+                break
+            fi
+        done
     done
-    MAX_INDEX=$(eval echo \${#EXEC_ITEMS_$1[@]})
-    for ((INDEX=0;INDEX<MAX_INDEX;INDEX++));do
-        eval TEXT_STR=\${EXEC_ITEMS_$1[$INDEX]}
-        debug_show "报警命令："$TEXT_STR
-        eval $TEXT_STR
-    done
+    [ -n "$WARN_MSG" ] && warn_msg "$WARN_MSG"
+    [ -n "$WARN_EXEC" ] && eval "$WARN_EXEC"
 }
 # 持续处理
-# @command persist_warn $time_name $warn $time_str
-# @param $time_name     持续时长写入变量名
+# @command persist_warn $warn $time_name $time_str
 # @param $warn          报警规则
+# @param $time_name     持续时长写入变量名
 # @param $time_str      持续时长格式串
 # return 0|1
 persist_warn(){
-    local NAME=`printf '%s' "$2"|sed -r 's/\s+//g'|md5sum -t|awk '{print $1}'`
+    local NAME
+    make_conf_key NAME "$1"
     if [ -z "$3" ];then
         # 删除匹配行
-        sed -i -r "/^$NAME=.*/d" $ARGV_cache_file
-        eval "$1=''"
-        return 1
+        grep -qP "^$NAME=.*" $ARGV_cache_file && sed -i -r "/^$NAME=.*/d" $ARGV_cache_file
+        return $?
     fi
     local CURR_TIME=`date "+%s"` PREV_TIME=`grep "$NAME=" $ARGV_cache_file|tail -n 1|awk -F '=' '{print $2}'`
     if [ -z "$PREV_TIME" ];then
@@ -292,7 +303,7 @@ persist_warn(){
     else
         local DIFF_TIME=$((`echo "$3"|sed -e 's/i/*60+/g' -e 's/h/*3600+/g' -e 's/d/*86400+/g'|sed 's/+$//'`))
         debug_show "初始触发报警时间：`date -d @$PREV_TIME '+%Y-%m-%d %H:%M:%S'`，持续时间要求：$DIFF_TIME 秒，当前时间：`date -d @$CURR_TIME '+%Y-%m-%d %H:%M:%S'`"
-        duration_format $1 $((CURR_TIME - PREV_TIME))
+        duration_format $2 $((CURR_TIME - PREV_TIME))
         return $((DIFF_TIME > CURR_TIME - PREV_TIME))
     fi
 }
@@ -328,62 +339,8 @@ debug_show(){
         read
     fi
 }
-# 解析配置文件
-# @command parse_conf $file
-# @param $file       要解析的配置文件
-# return 0|1
-parse_conf(){
-    sed -i 's/\r//' $1
-    local ITEM _ITEM LINES_NUM GET_LINES GET_CONTENTS _ALIAS_NAME _ALIAS_VALUE _NAME CONF_TAGS_LINE=$(grep -noP '^\s*\[[^\]]+\]' $1)
-    for ITEM in condition msg exec;do
-        LINES_NUM=(`echo -e "$CONF_TAGS_LINE"|grep -P "\s*\[\s*$ITEM\s*\]" -A 1|grep -oP '^\d+'`)
-        if ((${#LINES_NUM[@]} >1));then
-            GET_LINES=$((${LINES_NUM[0]}+1)),$((${LINES_NUM[1]}-1))p
-        else
-            GET_LINES=$((${LINES_NUM[0]}+1))',$p'
-        fi
-        GET_CONTENTS=$(sed -n $GET_LINES "$1"|grep -P '^\s*[^#=\s]+\s*=')
-        debug_show "[$ITEM]\n$GET_CONTENTS"
-        if [[ "$GET_CONTENTS" =~ ^[[:space:]]*$ ]];then
-            continue
-        fi
-        # 整理数据，方便后面提取
-        while read _ITEM;do
-            if [[ "$_ITEM" =~ ^[[:space:]]*$ ]];then
-                continue
-            fi
-            _ALIAS_NAME=$(printf '%s' "$_ITEM"|grep -oP '^\s*[^#=\s]+\s*='|grep -oP '[^#=\s]+'|md5sum -t|awk '{print $1}'|tr '[:lower:]' '[:upper:]')
-            _ALIAS_VALUE=${_ITEM#*=}
-            if [ "$ITEM" = 'condition' ];then
-                while read _ITEM;do
-                    if [[ "$_ITEM" =~ ^[[:space:]]*$ ]];then
-                        continue
-                    fi
-                    _NAME=CONDITION_ITEMS_$(echo "$_ITEM"|grep -oP '(^|\W)\w+\s*:'|grep -oP '\w+')
-                    eval "if [ -z \"\${#$_NAME[@]}\" ];then $_NAME=(); fi; $_NAME[\${#$_NAME[@]}]=\$_ALIAS_NAME"
-                    eval "$_NAME[\${#$_NAME[@]}]=\$(echo \"\$_ITEM\"|grep -oP ':\s*([\w/\.,\s]+)?:'|head -n 1|grep -oP '[\w/\.,\s]+')"
-                    eval "$_NAME[\${#$_NAME[@]}]=\$(echo \"\$_ITEM\"|grep -oP ':\s*([0-9]+[ihd])*\s*\('|head -n 1|grep -oP '([0-9]+[ihd])*')"
-                    eval "$_NAME[\${#$_NAME[@]}]=\$(echo \"\$_ITEM\"|grep -oP '\(.*?\)\s*;'|sed -r 's/(^\(+|\)\s*;$)//g'|sed 's/\./_/g')"
-                done <<EOF
-`printf '%s' "$_ALIAS_VALUE"|grep -oP '(^|\W)(CPU|MEM|SWAP|PART|PROC|NET|NETC)\s*:\s*([\w/\.,\s]+)?:\s*([0-9]+[ihd])*\s*\(.*?\)\s*;'`
-EOF
-            else
-                _NAME=$(echo $ITEM|tr '[:lower:]' '[:upper:]')_ITEMS_
-                eval "if [ -z \"\${#$_NAME$_ALIAS_NAME[@]}\" ];then $_NAME$_ALIAS_NAME=(); fi; $_NAME$_ALIAS_NAME[\${#$_NAME$_ALIAS_NAME[@]}]=\$_ALIAS_VALUE"
-            fi
-        done <<EOF
-`printf '%s' "$GET_CONTENTS"`
-EOF
-    done
-    if [ "$ARGV_debug" = '1' ];then
-        info_msg "配置解析数据集："
-        declare -a|grep -oP '\s(CONDITION|MSG|EXEC)_ITEMS_\w+=.*$'
-    fi
-}
-# 提取配置文件路径
-if ! get_file_path $ARGV_conf ARGV_conf 1;then
-    error_exit "--warn-conf 未指定有效配置文件：$ARGV_conf"
-fi
+# 配置文件解析
+parse_conf $ARGV_conf condition msg exec
 # 必要命令判断
 if ! if_command sar || ! if_command iostat;then
     packge_manager_run install sysstat
@@ -392,23 +349,17 @@ if ! if_command sar || ! if_command iostat;then
         service sysstat restart
     fi
 fi
-parse_conf "$ARGV_conf"
-if [ -n "$ARGV_loop_time" ];then
-    if [[ "$ARGV_loop_time" =~ ^[1-9][0-9]+$ ]];then
-        debug_show "循环间隔时长：$ARGV_loop_time"
-    else
-        error_exit "--loop-time 未指定有效循环监听时长：$ARGV_loop_time"
-    fi
-fi
 # 提取缓存文件
-if ! get_file_path $ARGV_cache_file ARGV_cache_file || ([ ! -e "$ARGV_cache_file" ] && ! touch "$ARGV_cache_file");then
+safe_realpath ARGV_cache_file
+if [ ! -e "$ARGV_cache_file" ] && ! touch "$ARGV_cache_file";then
     error_exit "--cache-file 缓存文件无效：$ARGV_cache_file"
 fi
 
 # 执行监听
 while true;do
     parse_resources
-    if [ -n "$ARGV_loop_time" ];then
+    wait
+    if (( ARGV_loop_time > 0 ));then
         sleep $ARGV_loop_time
     else
         break
