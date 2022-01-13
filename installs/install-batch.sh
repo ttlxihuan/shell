@@ -98,7 +98,7 @@ start_install(){
     fi
 }
 # 配置文件解析
-parse_conf $ARGV_conf install install-group remote $CONF_BLOCKS
+parse_conf $ARGV_conf install install-group remote
 # 如果是当前脚本为入口文件则为本地批量安装
 if [ "$(basename "$0")" = "$(basename "${BASH_SOURCE[0]}")" ];then
     start_install

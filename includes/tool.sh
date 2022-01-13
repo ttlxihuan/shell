@@ -100,18 +100,23 @@ make_conf_key(){
 # return 1|0
 get_conf(){
     if [ -n "$2" ];then
-        local BLOCK_NAME
-        make_conf_key BLOCK_NAME "$2"
+        local _BLOCK_NAME_ _CONF_NAME_
+        make_conf_key _BLOCK_NAME_ "$2"
         if [ -n "$3" ];then
-            local ITEM_NAME
-            make_conf_key ITEM_NAME "$3"
-            eval "$1=\${CONF_${BLOCK_NAME}_${ITEM_NAME}}"
+            local _ITEM_NAME_
+            make_conf_key _ITEM_NAME_ "$3"
+            _CONF_NAME_="CONF_${_BLOCK_NAME_}_${_ITEM_NAME_}"
+            eval "$1=\${$_CONF_NAME_}"
         else
-            eval "$1=(\${CONF_BLOCK_ITEMS_${BLOCK_NAME}[@]})"
+            _CONF_NAME_="CONF_BLOCK_ITEMS_${_BLOCK_NAME_}"
+            eval "$1=(\${$_CONF_NAME_[@]})"
         fi
+        declare -p $_CONF_NAME_ >/dev/null 2>/dev/null
+        return $?
     else
         eval "$1=(\${CONF_BLOCK_NAMES[@]})"
     fi
+    return 0
 }
 # 循环配置项并调用函数
 # @command each_conf $func [$block]

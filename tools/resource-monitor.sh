@@ -269,8 +269,7 @@ trigger_warn(){
     fi
     for ITEM_NAME in msg:WARN_MSG exec:WARN_EXEC;do
         for ((ITEM_KEY=0;ITEM_KEY<${#ITEMS[@]};ITEM_KEY++));do
-            get_conf ITEM_VALUE ${ITEM_NAME%%:*} "${ITEMS[$ITEM_KEY]}"
-            if [ -n "$ITEM_VALUE" ];then
+            if get_conf ITEM_VALUE ${ITEM_NAME%%:*} "${ITEMS[$ITEM_KEY]}";then
                 ITEM_VALUE=$(printf '%s' "$ITEM_VALUE"|sed -r 's/([\\"])/\\\1/g')
                 eval "${ITEM_NAME#*:}=\"$ITEM_VALUE\""
                 break
