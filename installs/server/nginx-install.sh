@@ -201,7 +201,7 @@ conf
     cat > static.conf.default <<conf
 # 此文件为静态服务配置模板
 # 使用时建议复制文件并去掉文件名后缀 .default
-# 开启后视需求修改：域名、ssl、根目录
+# 开启后视需求修改：域名、ssl、根目录、独立日志
 server {
     # 配置端口号
     listen 80;
@@ -216,6 +216,10 @@ server {
     # 配置根目录
     root /www/localhost/dist;
 
+    # 独立日志文件，方便查看
+    # access_log logs/-access.log
+    # error_log logs/-error.log
+
     # 引用静态文件基础配置
     include vhosts/static;
 }
@@ -223,7 +227,7 @@ conf
     cat > php.conf.default <<conf
 # 此文件为PHP服务配置模板
 # 使用时建议复制文件并去掉文件名后缀 .default
-# 开启后视需求修改：域名、ssl、根目录
+# 开启后视需求修改：域名、ssl、根目录、独立日志
 server {
     # 配置端口号
     listen 80;
@@ -238,6 +242,10 @@ server {
     # 配置根目录
     root /www/localhost/public;
 
+    # 独立日志文件，方便查看
+    # access_log logs/-access.log
+    # error_log logs/-error.log
+
     # 引用PHP基础配置
     include vhosts/php;
 }
@@ -245,8 +253,9 @@ conf
     cat > upstream.conf.default <<conf
 # 此文件为负载均衡配置模板
 # 使用时建议复制文件并去掉文件名后缀 .default
-# 开启后视需求修改：集群名、集群节点、负载均衡入口端口
-# 以下配置示例中丢弃了商业命令，即付费版本有效，
+# 开启后视需求修改：集群名、集群节点、负载均衡入口端口、独立日志
+
+# 以下配置示例中丢弃了商业相关命令（即付费版本有效）
 # 集群文档：http://nginx.org/en/docs/http/ngx_http_upstream_module.html
 
 # 集群节点配置，需要指定唯一集群名
@@ -338,6 +347,10 @@ server {
 
     # 配置访问域名，多个空格隔开
     server_name  localhost;
+
+    # 独立日志文件，方便查看
+    # access_log logs/-access.log
+    # error_log logs/-error.log
 
     location / {
         # 负载均衡各节点使用http

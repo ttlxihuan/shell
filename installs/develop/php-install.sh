@@ -420,6 +420,8 @@ fi
 # 上传配置
 info_msg '修改php上传文件大小为8M'
 sed -i -r 's/^;?(upload_max_filesize\s+=\s+)[0-9]+M/\18M/' lib/php.ini
+# 隐藏php响应头信息
+sed -i -r 's/^\s*(expose_php\s*=)\s*On/\1Off/' lib/php.ini
 
 # 解析处理pecl扩展
 echo "$PECL_OPTIONS"|grep -oP '\w[\w\-]+(\s*=\s*\{[^\{\}]+\})?\s+'| while read EXT_CONFIG
