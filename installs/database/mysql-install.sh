@@ -309,6 +309,9 @@ else
 fi
 # 默认模式配置
 cat >> $MY_CNF <<MY_CONF
+# 关闭加载本地文件，加载本地文件可能存在安全隐患，无特殊要求不建议开启
+local-infile=0
+
 # 启动用户
 user=mysql
 
