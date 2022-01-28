@@ -642,7 +642,7 @@ INSTALL_NAME=$(basename "$0" '-install.sh')
 # 安装通用参数信息配置
 SHELL_RUN_DESCRIPTION="安装${INSTALL_NAME}脚本"
 DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
-[version, {regexp:'^(new|[0-9](.[0-9]){1,4})$'}]指定安装版本，不传则是获取最新稳定版本号
+[version, {regexp:'^(new|[0-9]{1,}(.[0-9]{1,}){1,4})$'}]指定安装版本，不传则是获取最新稳定版本号
 #传new安装最新版
 #传指定版本号则安装指定版本
 [--install-path='/usr/local', {required_with:ARGU_version|path}]安装根目录，规则：安装根目录/软件名/版本号
