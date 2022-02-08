@@ -206,14 +206,22 @@ install_storage_require(){
 # @param $version_rule      提取版本号的正则规则（精准匹配，直接对应的版本号）
 # return 1|0
 get_version(){
-    local VERSION_RULE="$4" VERSION
+    local VERSION VERSION_RULE="$4" ATTEMPT=1
     if [ -z "$4" ];then
         VERSION_RULE='\d+(\.\d+){1,2}'
     fi
-    VERSION=`curl -LkN $2 2>/dev/null|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
-    if [ -z "$VERSION" ];then
-        error_exit "获取版本数据失败: $2"
-    fi
+    while true;do
+        ((ATTEMPT++))
+        VERSION=`curl -LkN $2 2>/dev/null|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
+        if [ -n "$VERSION" ];then
+            break
+        fi
+        if ((ATTEMPT <= 3));then
+            warn_msg "正在第 $ATTEMPT 次尝试获取版本号"
+        else
+            error_exit "已经尝试 $((ATTEMPT - 1)) 次尝试获取版本号失败 ，请确认是否可访问地址：$2"
+        fi
+    done
     eval "$1=\"$VERSION\""
     return 0
 }
