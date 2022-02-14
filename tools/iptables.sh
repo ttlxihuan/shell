@@ -79,11 +79,13 @@ DEFINE_TOOL_PARAMS='
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 
 # 提取配置文件路径
-if ! get_file_path $ARGV_conf ARGV_conf 1;then
-    error_exit "--conf 未指定有效配置文件：$ARGV_conf"
+safe_realpath ARGV_conf
+if [ ! -e "$ARGV_conf" ];then
+    error_exit "配置文件不存在：$1"
 fi
 # 提取缓存文件
-if ! get_file_path $ARGV_cache_file ARGV_cache_file || ([ ! -e "$ARGV_cache_file" ] && ! touch "$ARGV_cache_file");then
+safe_realpath ARGV_cache_file
+if [ ! -e "$ARGV_cache_file" ] && ! touch "$ARGV_cache_file";then
     error_exit "--cache-file 缓存文件无效：$ARGV_cache_file"
 fi
 CONFIG_FILE=$ARGV_conf;
@@ -184,7 +186,7 @@ if [ -n "$CONFIG_DIFF" ];then
         if [ -n "$(echo $LINE|grep -P "^#.*$")" ] || [ -n "$(echo $LINE|grep -P "^[\t\n\s\r]*$")" ] || [ -z "$LINE" ]; then
             continue;
         fi
-        #CONFIG=(${LINE//[:blank:]/});
+        #CONFIG=(${LINE//[[:space:]]/});
         CONFIG=(`echo $LINE|grep -P "[\w\.\-]+" -o`);
         SET_IP="";
         SET_PORT="";
@@ -192,41 +194,41 @@ if [ -n "$CONFIG_DIFF" ];then
         SET_SWITCH="";
         SET_HANDLE="";
         # ip配置提取
-        if [ -n "$(echo ${CONFIG[0]}|grep -P "^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(/\d{1,2})?$")" ]; then #
+        if echo "${CONFIG[0]}"|grep -qP '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(/\d{1,2})?$'; then
             SET_IP=" -s ${CONFIG[0]}";
         elif [ "${CONFIG[0]}" != "-1" ]; then
             warn_msg "host配置错误：${CONFIG[0]}";
             continue;
         fi
         #port配置提取
-        if [ -n "$(echo ${CONFIG[1]}|grep -P "^\d{1,4}(:\d{1,4})?$")" ]; then #
+        if echo "${CONFIG[1]}"|grep -qP "^\d{1,4}(:\d{1,4})?$"; then
             SET_PORT=" --dport ${CONFIG[1]}";
         elif [ "${CONFIG[1]}" != "-1" ]; then
             warn_msg "port配置错误：${CONFIG[1]}";
             continue;
         fi
         #max配置提取
-        if [ -n "$(echo ${CONFIG[2]}|grep -P "^([a-z0-9A-Z]{2}-){5}[a-z0-9A-Z]{2}$")" ]; then #
+        if echo "${CONFIG[2]}"|grep -qP "^([a-z0-9A-Z]{2}-){5}[a-z0-9A-Z]{2}$"; then
             SET_MAC=" -m mac --mac-source ${CONFIG[2]}";
         elif [ "${CONFIG[2]}" != "-1" ]; then
             warn_msg "mac配置错误：${CONFIG[2]}";
             continue;
         fi
         #switch配置提取
-        if [ -n "$(echo ${CONFIG[3]}|grep -P "^(1|yes)$")" ]; then #
+        if [[ "${CONFIG[3]}" =~ ^(1|yes)$ ]]; then
             SET_SWITCH=" -j ACCEPT";
-        elif [ -n "$(echo ${CONFIG[3]}|grep -P "^(0|no)$")" ]; then #
+        elif [[ "${CONFIG[3]}" =~ ^(0|no)$ ]]; then
             SET_SWITCH=" -j DROP";
         else
             warn_msg "switch配置错误：${CONFIG[3]}";
             continue;
         fi
         #handle配置提取
-        if [ -n "$(echo ${CONFIG[4]}|grep -P "^(remove)$")" ]; then #
+        if [ "${CONFIG[4]}" = 'remove' ]; then
             SET_HANDLE="-D";
-        elif [ -n "$(echo ${CONFIG[4]}|grep -P "^(insert)$")" ]; then #
+        elif [  "${CONFIG[4]}" = 'insert' ]; then
             SET_HANDLE="-I";
-        elif [ -n "$(echo ${CONFIG[4]}|grep -P "^(add)$")" ]; then #
+        elif [ "${CONFIG[4]}" = 'add' ]; then
             SET_HANDLE="-A";
         else
             warn_msg "remove配置错误：${CONFIG[4]}";
