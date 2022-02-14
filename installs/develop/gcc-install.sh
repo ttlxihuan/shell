@@ -56,7 +56,8 @@ if [ -z "`curl --connect-timeout 20 -I -X HEAD $MIRRORS_URL/releases/ 2>&1| grep
         MIRRORS_URL=`echo -e "$MIRRORS_HOST_PING_TIME"|grep -P '^\d+'|sort -n -t ',' -k 1|head -n 1|grep -P 'http.*$' -o`
     fi
     if [ -z "$MIRRORS_URL" ];then
-        error_exit '没有找到可用的镜像下载地址'
+        error_exit '没有找到更快镜像下载地址'
+        MIRRORS_URL="https://bigsearcher.com/mirrors/gcc/"
     fi
 fi
 # 初始化安装

@@ -497,7 +497,7 @@ run_install_shell (){
     if [ -z "$2" ]; then
         error_exit "安装shell脚本必需指定的安装的版本号参数"
     fi
-    run_msg bash $INSTALL_FILE_PATH --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH} ${@:2}
+    run_msg bash $INSTALL_FILE_PATH ${@:2} --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH}
     if_error "安装shell脚本失败：$1"
     source /etc/profile
 }
