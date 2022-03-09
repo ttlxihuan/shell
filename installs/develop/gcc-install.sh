@@ -78,7 +78,10 @@ parse_options GCC_CONFIGURE_WITH $ADD_OPTIONS
 GCC_CONFIGURE_PATH=`pwd`
 # 安装依赖
 info_msg "安装相关已知依赖"
-packge_manager_run install -GCC_C_PACKGE_NAMES -BZIP2_PACKGE_NAMES -M4_PACKGE_NAMES
+if ! if_command g++;then
+    packge_manager_run install -GCC_C_PACKGE_NAMES
+fi
+packge_manager_run install -BZIP2_PACKGE_NAMES -M4_PACKGE_NAMES
 # 部分版需要下载配置文件
 if [ ! -e "./configure" ] && [ -e "./contrib/download_prerequisites" ];then
     ./contrib/download_prerequisites

@@ -74,7 +74,7 @@ if ! if_lib libevent '>' '2.0.0';then
     CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS" --with-libevent=$INSTALL_BASE_PATH/libevent/$LIBEVENT_VERSION "
 else
     # 获取libevent安装目录
-    LIBEVENT_INSTALL_PATH=$(pkg-config --libs-only-L libevent|grep -oP '/([^/]+/)+')
+    get_lib_install_path libevent LIBEVENT_INSTALL_PATH
     if [ -n "$LIBEVENT_INSTALL_PATH" ];then
         CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS" --with-libevent=$LIBEVENT_INSTALL_PATH "
     fi

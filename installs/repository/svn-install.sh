@@ -79,9 +79,11 @@ else
     info_msg 'sqlite ok'
 fi
 # sqlite3 多版本处理
-if [ -n "$SQLITE_MINIMUM_VER" ] && if_version "$SQLITE_MINIMUM_VER" ">=" "3.0.0" && if_many_version sqlite3 --version && if_lib sqlite3;then
-    SQLITE_PKG_PATH=$(pkg-config --libs-only-L sqlite3|grep -oP '/([^/]+/)+')
-    CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-sqlite=\"$SQLITE_PKG_PATH\""
+if [ -n "$SQLITE_MINIMUM_VER" ] && if_version "$SQLITE_MINIMUM_VER" ">=" "3.0.0" && if_many_version sqlite3 --version;then
+    get_lib_install_path sqlite3 SQLITE_PKG_PATH
+    if [ -n "$SQLITE_PKG_PATH" ];then
+        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-sqlite=\"$SQLITE_PKG_PATH\""
+    fi
 fi
 # 安装apr和apr-util
 APR_DIFF='-1'

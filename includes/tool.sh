@@ -143,24 +143,5 @@ each_conf(){
         done
     fi
 }
-# 获取文件全路径
-# @command get_file_path $path $var_name $exist
-# @param $path              文件名
-# @param $var_name          全路径写入变量名
-# @param $exist             验证文件存在
-# return 1|0
-# get_file_path(){
-#     if [[ "$1" =~ ^[~/] ]];then
-#         REALPATH_STR="$1"
-#     elif [[ "$1" =~ ^[^~/] ]];then
-#         REALPATH_STR="$SHELL_WROK_BASH_PATH/$1"
-#     else
-#         return 1
-#     fi
-#     if [ -n "$3" -a ! -e "$REALPATH_STR" ];then
-#         return 1
-#     fi
-#     eval "$2=$REALPATH_STR"
-# }
 # 解析工具脚本参数
 parse_shell_param DEFINE_TOOL_PARAMS CALL_INPUT_ARGVS

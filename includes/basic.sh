@@ -260,7 +260,7 @@ packge_manager_run(){
             else
                 error_exit "找不到配置的安装包名: $NAME"
             fi
-            eval PACKGE_NAME="\$COMMAND_ARRAY_VAL"
+            eval PACKGE_NAME="$COMMAND_ARRAY_VAL"
             if [ "$PACKGE_NAME" = '-' -o "$PACKGE_NAME" = '' ];then
                 continue;
             fi
@@ -320,6 +320,14 @@ if_many_version(){
         done
     fi
     return 1
+}
+# 获取库安装目录
+# @command get_lib_install_path $name $path_val
+# @param $name          库名
+# @param $path_val      目录输入变量名
+# return 1|0
+get_lib_install_path(){
+    eval $2="$(pkg-config --libs-only-L "$1" 2>/dev/null|grep -oP '/([^/]+/)+');"
 }
 # 判断库是否存在
 # @command if_lib $name [$if $version]
@@ -807,14 +815,32 @@ parse_lists(){
         fi
         PARSE_STRING=${PARSE_STRING:`printf '%s' "$NEXT"|wc -m`}
         # 去重处理
-        for ((INDEX=0; INDEX < `eval "\${#$1[@]}"`; INDEX++)); do
-            if test `eval "\${$1[$INDEX]}"` = $ITEM ;then
-                continue 2
-            fi
-        done
+        if search_array "$ITEM" "$1";then
+            continue
+        fi
         eval "$1[\${#$1[@]}]"="\$ITEM"
     done
     return 0
+}
+# 搜索指定元素在数据中的第一个匹配位置
+# @command search_array $value $array_name [$val_name] [$start_index]
+# @param $value             要搜索的元素值
+# @param $array_name        要搜索的数组变量名
+# @param $val_name          搜索到位置写入变量名，没找到为-1
+# @param $start_index       指定搜索开始位置，默认为0
+# return 1|0
+search_array(){
+    local INDEX=${4:-0} SIZE=$(eval "\${#$2[@]}")
+    for((;INDEX < SIZE;INDEX++));do
+        if [ "$1" = $(eval "\${$2[$INDEX]}") ];then
+            if [ -n "$3" ];then
+                eval "$3=$INDEX"
+            fi
+            return 0
+        fi
+    done
+    eval "$3=-1"
+    return 1
 }
 # 是否正在运行指定脚本
 # @command has_run_shell $name $options

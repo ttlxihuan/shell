@@ -58,21 +58,21 @@ DEFINE_INSTALL_TYPE='configure'
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
-init_install '5.0.0' "https://$PHP_HOST/supported-versions.php" '#v\d+\.\d+\.\d+'
+init_install '7.0.0' "https://$PHP_HOST/supported-versions.php" '#v\d+\.\d+\.\d+'
 #  限制空间大小（G）：编译目录、安装目录、内存
 install_storage_require 1 1 4
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 gmp ?swoole '$ARGV_options
+ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 ?swoole ?pcntl gmp '$ARGV_options
 # 配置编译安装pecl扩展块信息，只有指定了才会认定为pecl扩展包，并且需要在上面的选项中添加上（需要指定为询问安装比如 ?swoole），否则不会进行安装或安装异常
 # 如果扩展包源文件已经放到PHP编译目录中则同PHP一起编译安装
 # 如果没有则在PHP编译安装完成后再通过phpize方式安装
 # 注意：有依赖的扩展包需要提前安装好依赖，需要通过phpize安装的扩展并在这里设置好相关编译配置
 # 配置格式：扩展名={版本 编译选项集...}
 # 版本默认为new是最新，其它为指定版本号
-PECL_OPTIONS='swoole={new --enable-openssl --enable-http2} yar gmagick'
+PECL_OPTIONS='swoole={new ?openssl ?http2} yar gmagick '
 # ************** 编译安装 ******************
 # 下载PHP包
 download_software https://$PHP_HOST/distributions/php-$PHP_VERSION.tar.gz
@@ -127,6 +127,14 @@ if in_options gmp $CONFIGURE_OPTIONS;then
     if ldconfig -p|grep -q '/libgmp\.so' && find /usr/include/ -name 'gmp.h'|grep 'gmp' && find /usr/local/include/ -name 'gmp.h'|grep 'gmp';then
         info_msg 'gmp ok'
     else
+        # 安装gmp
+        get_version GMP_VERSION https://gmplib.org/download/gmp/ 'gmp-\d+(\.\d+)+\.tar\.bz2'
+        info_msg "安装：gmp-$GMP_VERSION"
+        # 下载
+        download_software https://gmplib.org/download/gmp/gmp-$GMP_VERSION.tar.bz2
+        # 编译安装
+        configure_install --prefix=$INSTALL_BASE_PATH/gmp/$GMP_VERSION --enable-shared
+
         # 安装gmp-dev
         packge_manager_run install -GMP_DEVEL_PACKGE_NAMES
     fi
@@ -246,6 +254,11 @@ if in_options curl $CONFIGURE_OPTIONS;then
         configure_install --prefix=$INSTALL_BASE_PATH/curl/$LIBCURL_VERSION --enable-libcurl-option --with-openssl
     fi
     info_msg 'libcurl ok'
+    # 获取libcurl安装目录
+    get_lib_install_path libcurl LIBCURL_INSTALL_PATH
+    if [ -n "$LIBCURL_INSTALL_PATH" ];then
+        CONFIGURE_OPTIONS="${CONFIGURE_OPTIONS/--with-curl /--with-curl=$LIBCURL_INSTALL_PATH }"
+    fi
 fi
 # sqlite3 扩展使用
 if ! in_options !sqlite3 $CONFIGURE_OPTIONS || ! in_options !pdo-sqlite $CONFIGURE_OPTIONS;then
@@ -268,35 +281,38 @@ if ! in_options !sqlite3 $CONFIGURE_OPTIONS || ! in_options !pdo-sqlite $CONFIGU
 fi
 # xml 扩展使用
 if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;then
-    if if_version $PHP_VERSION '<' 7.4.0;then
-        if if_lib "libxml-2.0";then
-            info_msg 'libxml ok'
-        else
-            # 安装libxml2-dev
-            packge_manager_run install -LIBXML2_DEVEL_PACKGE_NAMES
-        fi
+    if if_version $PHP_VERSION '>=' 8.0.0;then
+        MIN_LIBXML2_VERSION='2.9.0'
     else
-        if if_version $PHP_VERSION '>=' 8.0.0;then
-            MIN_LIBXML2_VERSION='2.9.0'
-        else
-            MIN_LIBXML2_VERSION='2.7.6'
-        fi
-        # 安装libxml2
-        if if_lib "libxml-2.0" ">=" "$MIN_LIBXML2_VERSION";then
-            info_msg 'libxml ok'
-        else
-            # 获取最新版
-            get_version LIBXML2_VERSION "ftp://xmlsoft.org/libxml2/" 'libxml2-sources-\d+\.\d+\.\d+\.tar\.gz'
-            info_msg "安装：libxml2-$LIBXML2_VERSION"
-            # 下载
-            download_software ftp://xmlsoft.org/libxml2/libxml2-sources-$LIBXML2_VERSION.tar.gz libxml2-$LIBXML2_VERSION
-            # 安装 python-dev
-            # 部分低版系统环境不好，所以直接禁止编译到python中
-            # packge_manager_run install -PYTHON_DEVEL_PACKGE_NAMES
-            # 编译安装
-            configure_install --prefix=$INSTALL_BASE_PATH/libxml2/$LIBXML2_VERSION --with-python=no
-        fi
+        MIN_LIBXML2_VERSION='2.7.6'
     fi
+    # 安装libxml2
+    if if_lib "libxml-2.0" ">=" "$MIN_LIBXML2_VERSION";then
+        info_msg 'libxml ok'
+    else
+        # 获取最新版
+        get_version LIBXML2_VERSION "ftp://xmlsoft.org/libxml2/" 'libxml2-sources-\d+\.\d+\.\d+\.tar\.gz'
+        info_msg "安装：libxml2-$LIBXML2_VERSION"
+        # 下载
+        download_software ftp://xmlsoft.org/libxml2/libxml2-sources-$LIBXML2_VERSION.tar.gz libxml2-$LIBXML2_VERSION
+        # 安装 python-dev
+        # 部分低版系统环境不好，所以直接禁止编译到python中
+        # packge_manager_run install -PYTHON_DEVEL_PACKGE_NAMES
+        # 编译安装
+        configure_install --prefix=$INSTALL_BASE_PATH/libxml2/$LIBXML2_VERSION --with-python=no
+    fi
+    # 获取libxml安装目录
+    get_lib_install_path libxml-2.0 LIBXML2_INSTALL_PATH
+    if [ -n "$LIBXML2_INSTALL_PATH" ];then
+        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-libxml-dir=$LIBXML2_INSTALL_PATH "
+    fi
+fi
+# 安装swoole，要求gcc-4.8+
+# php编译gcc版本不能过高，暂时限制在 4.8.5
+GCC_VERSION=$(gcc --version|grep -oP '\d+(\.\d+){2}'|head -1)
+if (in_add_options swoole $ADD_OPTIONS && if_version $GCC_VERSION '<' '4.8.0') || if_version $GCC_VERSION '>' '4.8.5';then
+    # 默认安装 6.5.0 版本的，方便兼容其它安装
+    run_install_shell gcc 4.8.5
 fi
 # apxs2 扩展使用
 #if in_options apxs2 $CONFIGURE_OPTIONS;then
@@ -407,10 +423,15 @@ if $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP '^Zend OPcache$';then
             sed -i -r 's/^;?(opcache\.jit_buffer_size=)[0-1]/\11/' lib/php.ini
         else
             # 不存在配置添加
-            OPCACHE_LINE_NUM=$(grep -qP ';?(opcache\.enable=)' lib/php.ini|grep -oP '^\d+')
-            sed -i "${OPCACHE_LINE_NUM}iopcache.jit_buffer_size: 128M" lib/php.ini
-            # 注意，此配置有多种可选值，在官方文档中有详细说明
-            sed -i "${OPCACHE_LINE_NUM}iopcache.jit: 1205" lib/php.ini
+            OPCACHE_LINE_NUM=$(grep -onP ';?(opcache\.enable=)' lib/php.ini|grep -oP '^\d+')
+            if [ -n "$OPCACHE_LINE_NUM" ];then
+                sed -i "${OPCACHE_LINE_NUM}iopcache.jit_buffer_size=128M" lib/php.ini
+                # 注意，此配置有多种可选值，在官方文档中有详细说明
+                sed -i "${OPCACHE_LINE_NUM}iopcache.jit=1205" lib/php.ini
+            else
+                echo "opcache.jit=1205" >> lib/php.ini
+                echo "opcache.jit_buffer_size=128M" >> lib/php.ini
+            fi
         fi
     fi
 fi
@@ -423,6 +444,7 @@ sed -i -r 's/^;?(upload_max_filesize\s+=\s+)[0-9]+M/\18M/' lib/php.ini
 # 隐藏php响应头信息
 sed -i -r 's/^\s*(expose_php\s*=)\s*On/\1Off/' lib/php.ini
 
+info_msg '处理pecl扩展'
 # 解析处理pecl扩展
 echo "$PECL_OPTIONS"|grep -oP '\w[\w\-]+(\s*=\s*\{[^\{\}]+\})?\s+'| while read EXT_CONFIG
 do
@@ -431,7 +453,7 @@ do
         EXT_VERSION="`echo $EXT_OPTIONS|awk '{print $1}'`"
         EXT_ADD_OPTIONS="`echo $EXT_OPTIONS|awk '{$1=""; print}'`"
     fi
-    if in_add_options $EXT_NAME $ADD_OPTIONS && $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "^$EXT_NAME\$";then
+    if in_add_options $EXT_NAME $ADD_OPTIONS && ! $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "^$EXT_NAME\$";then
         info_msg "安装pecl扩展：$EXT_NAME"
         # 最低PHP版本处理
         get_version MIN_PHP_VERSION "https://pecl.php.net/package/$EXT_NAME" "PHP Version: PHP \d+\.\d+\.\d+ or newer" "\d+\.\d+\.\d+"
@@ -446,16 +468,38 @@ do
         info_msg "安装：$EXT_NAME-$EXT_VERSION"
         # 下载
         download_software https://pecl.php.net/get/$EXT_NAME-$EXT_VERSION.tgz
-        # 通过phpize安装
+        # 获取autoconf版本要求
+        if [ -e "./configure.ac" ];then
+            AUTOCONF_MIN_VERSION=$(grep AC_PREREQ ./configure.ac|grep -oP '\d+(\.\d+)+');
+            tools_install autoconf
+            if if_version $(autoconf --version|grep -oP 'autoconf.*\d+(\.\d+)+'|grep -oP '\d+(\.\d+)+') '<' $AUTOCONF_MIN_VERSION;then
+                # 版本过低需要安装高版本的
+                packge_manager_run remove autoconf
+                PHP_EXT_CONFIGURE_PATH=$(pwd)
+                # 获取最新版
+                get_version AUTOCONF_VERSION http://ftp.gnu.org/gnu/autoconf/ 'autoconf-\d+(\.\d+)+\.tar\.gz'
+                info_msg "安装：autoconf-$AUTOCONF_VERSION"
+                # 下载
+                download_software http://ftp.gnu.org/gnu/autoconf/autoconf-$AUTOCONF_VERSION.tar.gz
+                # 编译安装
+                configure_install --prefix=$INSTALL_BASE_PATH/autoconf/$AUTOCONF_VERSION
+                cd "$PHP_EXT_CONFIGURE_PATH"
+            fi
+        fi
+        # 通过phpize安装，生成configure编译文件
         $INSTALL_PATH$PHP_VERSION/bin/phpize
+        # 解析选项
+        parse_options EXT_CONFIGURE_OPTIONS $EXT_ADD_OPTIONS
         # 编译安装phpize
-        configure_install $EXT_ADD_OPTIONS --with-php-config=$INSTALL_PATH$PHP_VERSION/bin/php-config
+        configure_install $EXT_CONFIGURE_OPTIONS --with-php-config=$INSTALL_PATH$PHP_VERSION/bin/php-config
         cd $INSTALL_PATH$PHP_VERSION
         # 开启扩展
         if [ -z "`cat lib/php.ini|grep extension=$EXT_NAME.so`" ]; then
             echo "extension=$EXT_NAME.so" >> lib/php.ini
         fi
         info_msg "安装成功：$EXT_NAME-$EXT_VERSION"
+    else
+        info_msg "$EXT_NAME 扩展已安装"
     fi
 done
 
