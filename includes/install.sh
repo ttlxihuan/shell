@@ -212,7 +212,7 @@ get_version(){
     fi
     while true;do
         ((ATTEMPT++))
-        VERSION=`curl -LkN $2 2>/dev/null|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
+        VERSION=`curl -LkN "$2" 2>/dev/null|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
         if [ -n "$VERSION" ];then
             break
         fi
@@ -235,17 +235,17 @@ download_file(){
     chdir shell-install
     info_msg '下载保存目录：'`pwd`
     if [ ! -e "$FILE_NAME" ];then
-        if ! wget --no-check-certificate -T 7200 -O $FILE_NAME $1; then
-            curl -OLkN --connect-timeout 7200 -o $FILE_NAME $1
+        if ! wget --no-check-certificate -T 7200 -O "$FILE_NAME" "$1"; then
+            curl -OLkN --connect-timeout 7200 -o "$FILE_NAME" "$1"
         fi
         if [ $? != '0' ];then
-            local TEMP_FILENAME=`date +'%Y_%m_%d_%H_%M_%S'`_error_$FILE_NAME
-            mv $FILE_NAME $TEMP_FILENAME
+            local TEMP_FILENAME=`date +'%Y_%m_%d_%H_%M_%S'`_error_"$FILE_NAME"
+            mv "$FILE_NAME" "$TEMP_FILENAME"
             error_exit "下载失败: $1 ，保存文件名：$TEMP_FILENAME，终止继续执行"
         fi
-        info_msg '下载文件成功，保存目录：'`pwd`/$FILE_NAME
+        info_msg "下载文件成功，保存目录：`pwd`/$FILE_NAME"
     else
-        info_msg '已经存在下载文件：'$FILE_NAME
+        info_msg "已经存在下载文件：$FILE_NAME"
     fi
 }
 # 下载软件
@@ -415,7 +415,7 @@ in_options(){
 in_add_options(){
     local ITEM
     for ITEM in ${@:2}; do
-        if [ $1 = $ITEM ] || [ $ITEM = "?$1" ];then
+        if [ "$1" = "$ITEM" -o "$ITEM" = "?$1" ];then
             return 0
         fi
     done
