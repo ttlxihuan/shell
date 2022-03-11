@@ -195,10 +195,7 @@ install_storage_require 3 4 1
 # 下载elasticsearch包
 LINUX_BIT=`uname -a|grep -P 'x\d+_\d+' -o|tail -n 1`
 # 不同版本文件名有区别
-if if_version $ELASTICSEARCH_VERSION '>=' '8.0.0'; then
-    # 8.0以上的版本
-    TAR_FILE_NAME="-alpha2-linux-$LINUX_BIT"
-elif if_version $ELASTICSEARCH_VERSION '>=' '7.0.0'; then
+if if_version $ELASTICSEARCH_VERSION '>=' '7.0.0'; then
     # 7.0以上的版本
     TAR_FILE_NAME="-linux-$LINUX_BIT"
 else
@@ -315,23 +312,22 @@ if [ -n "$ARGV_cluster_name" ];then
 fi
 
 # 启动服务
-run_msg 'sudo -u elasticsearch ./bin/elasticsearch -d'
+sudo_msg elasticsearch ./bin/elasticsearch -d
 
 # 安装 kibana
 if [ "$ARGV_tool" = 'kibana' ];then
     # 获取对应版本
+    KIBANA_PATH_NAME="kibana-$ELASTICSEARCH_VERSION-linux-$LINUX_BIT"
     if if_version $ELASTICSEARCH_VERSION '>=' '8.0.0'; then
-        # 8.0以上的版本
-        TAR_FILE_NAME="-alpha2"
+        KIBANA_DIR_NAME="kibana-$ELASTICSEARCH_VERSION"
     else
-        # 8.0以下的版本
-        TAR_FILE_NAME="-linux-$LINUX_BIT"
+        KIBANA_DIR_NAME=$KIBANA_PATH_NAME
     fi
-    download_software https://artifacts.elastic.co/downloads/kibana/kibana-$ELASTICSEARCH_VERSION$TAR_FILE_NAME.tar.gz kibana-$ELASTICSEARCH_VERSION$TAR_FILE_NAME
+    download_software https://artifacts.elastic.co/downloads/kibana/$KIBANA_PATH_NAME.tar.gz $KIBANA_DIR_NAME
     # 复制安装包并创建用户
     copy_install kibana "$INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION"
     # 启动kibana
-    run_msg 'nohup sudo -u kibana bin/kibana 2>&1 >/dev/null &'
+    sudo_msg kibana "nohup ./bin/kibana -d 2>&1 >/dev/null &"
     info_msg "kibana 管理地址：http://$SERVER_IP:5601"
 fi
 
