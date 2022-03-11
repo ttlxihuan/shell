@@ -44,7 +44,7 @@ copy_install zookeeper
 info_msg 'zookeeper 配置文件修改'
 # 复制默认配置文件
 if [ ! -e "./conf/zoo.cfg" ];then
-    sudo -u zookeeper cp ./conf/zoo_sample.cfg ./conf/zoo.cfg
+    sudo_msg zookeeper cp ./conf/zoo_sample.cfg ./conf/zoo.cfg
 fi
 mkdirs run zookeeper
 
@@ -52,7 +52,7 @@ mkdirs run zookeeper
 sed -i -r "s/^(dataDir=).*$/\1$(echo "$INSTALL_PATH$ZOOKEEPER_VERSION/"|sed 's/\//\\\//g')run/" ./conf/zoo.cfg
 
 # 启动服务端服务
-run_msg sudo -u zookeeper ./bin/zkServer.sh --config ./conf start
+sudo_msg zookeeper ./bin/zkServer.sh --config ./conf start
 
 RUN_STATUS_OUT=`find $INSTALL_PATH$ZOOKEEPER_VERSION/logs/ -name 'zookeeper*.out'|tail -n 1`
 if [ -e "$RUN_STATUS_OUT" ];then

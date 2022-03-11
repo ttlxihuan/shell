@@ -111,6 +111,32 @@ run_msg(){
     print_msg RUN "$@"
     eval $@
 }
+# 使用指定用户运行命令并输出信息
+# @command sudo_msg $user $command
+# @param $user          执行命令的用户
+# @param $command       执行命令
+# return 1
+sudo_msg(){
+    local CURRENT_USERNAME=$(whoami)
+    if [ "$CURRENT_USERNAME" != 'root' ];then
+        warn_msg "非root用户运行sudo，可能导致权限不足运行失败！"
+    fi
+    # 判断运行sudo权限
+    if [ -z "$1" ];then
+        error_exit "sudo运行用户为空"
+    elif ! id "$1" 2>&1|grep -q "($1)";then
+        error_exit "sudo运行用户${1}不存在"
+    fi
+    if ! grep -q "^${CURRENT_USERNAME} " /etc/sudoers;then
+        # 开放调用sudo命令权限
+        if ! [ -w /etc/sudoers ] && ! chmod u+w /etc/sudoers;then
+            error_exit "/etc/sudoers 配置文件不可写，无法添加 ${CURRENT_USERNAME} 配置权限，请手动添加权限！"
+        fi
+        echo "${CURRENT_USERNAME} ALL=(ALL) ALL" >> /etc/sudoers
+        chmod u-w /etc/sudoers
+    fi
+    run_msg sudo -u $1 ${@:2}
+}
 # 输出左右占位块信息
 # @command tag_msg $msg $tag $size $type
 # @param $msg           打印信息

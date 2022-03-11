@@ -127,7 +127,7 @@ fi
 mkdirs data redis
 
 # 启动服务
-run_msg sudo -u redis ./src/redis-server redis.conf
+sudo_msg redis ./src/redis-server redis.conf
 
 # 创建集群
 if [ -n "$ARGV_cluster_hosts" ];then

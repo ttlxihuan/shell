@@ -65,7 +65,7 @@ add_user sshd
 
 # 启动服务
 chown -R sshd:sshd ./
-sudo -u sshd sshd
+sudo_msg sshd sshd
 
 # 安装成功
 info_msg "安装成功：openssh-$OPENSSH_VERSION";

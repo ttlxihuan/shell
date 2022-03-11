@@ -57,10 +57,10 @@ info_msg "postgresql 基本配置处理"
 mkdirs ./database postgresql
 
 # 初始化数据
-sudo -u postgresql ./bin/initdb -D $INSTALL_PATH$POSTGRESQL_VERSION/database
+sudo_msg postgresql ./bin/initdb -D $INSTALL_PATH$POSTGRESQL_VERSION/database
 
 # 启动服务
-run_msg sudo -u postgresql ./bin/pg_ctl -D ./database start
+sudo_msg postgresql ./bin/pg_ctl -D ./database start
 
 info_msg "安装成功：postgresql-$POSTGRESQL_VERSION"
 

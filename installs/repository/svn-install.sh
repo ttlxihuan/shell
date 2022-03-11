@@ -167,7 +167,7 @@ if [ -n "$ARGV_work_dir" ];then
     add_user svnserve
     chown -R svnserve:svnserve $ARGV_work_dir
     # 启动服务
-    run_msg sudo -u svnserve ./bin/svnserve -d -r $ARGV_work_dir
+    sudo_msg svnserve ./bin/svnserve -d -r $ARGV_work_dir
 fi
 
 info_msg "安装成功：svn-$SVN_VERSION"

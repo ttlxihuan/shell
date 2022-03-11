@@ -10,6 +10,7 @@
 #   SELinux 查看命令: sestatus  在Current mode选项上有三种值：Enforcing（强制严格权限） 、Permissive（兼容权限） 、Disabled（禁用）。通过 setenforce 命令进行修改，具体修改参数可通过帮助参数了解 
 #   AppArmor 查看命令：apparmor_status 
 #   用户目录（即 ~ ）权限修改: chmod 0700 ~ && chmod u+rw ~/.Xauthority
+#   如果修改权限还不行就只能通过命令重置安全记录：restorecon ~
 #
 
 # 参数信息配置

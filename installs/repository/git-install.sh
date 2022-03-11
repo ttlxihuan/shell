@@ -161,10 +161,10 @@ if [ "$ARGV_tool" = "gitolite" ]; then
     ln -sv $INSTALL_BASE$GIT_VERSION/bin/git /bin/git
     mkdirs "$TOOL_WORK_PATH/gitolite" git
     packge_manager_run install 'perl(Data::Dumper)'
-    run_msg sudo -u git ./install -to $TOOL_WORK_PATH/gitolite
+    sudo_msg git ./install -to $TOOL_WORK_PATH/gitolite
     if_error "gitolite install fail!"
     cd $TOOL_WORK_PATH/gitolite
-    run_msg sudo -u git ./gitolite setup -pk $TOOL_WORK_PATH/gitolite-admin.pub
+    sudo_msg git ./gitolite setup -pk $TOOL_WORK_PATH/gitolite-admin.pub
     if [ -d "$TOOL_WORK_PATH/repositories" ]; then
         get_ip
         info_msg '管理仓库地址：'

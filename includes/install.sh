@@ -473,7 +473,7 @@ cmake_install(){
 # @param $prefix            复制到安装目录，默认是：$INSTALL_PATH$INSTALL_VERSION
 # return 1|0
 copy_install(){
-    local PREFIX_PATH=${2:-$INSTALL_PATH$INSTALL_VERSION}
+    local PREFIX_PATH=${2:-"$INSTALL_PATH$INSTALL_VERSION"}
     # 复制安装包
     mkdirs "$PREFIX_PATH"
     info_msg "复制所有文件到：$PREFIX_PATH"
@@ -564,7 +564,7 @@ add_pkg_config(){
 # @param $password      用户密码，不指定则不创建密码
 # return 0
 add_user(){
-    if [ -n "`id $1 2>&1|grep "($1)"`" ]; then
+    if id "$1" 2>&1|grep -q "($1)"; then
          info_msg "用户：$1 已经存在无需再创建";
     else
         local RUN_FILE='/sbin/nologin'
@@ -599,7 +599,7 @@ init_install(){
     if [ -z "$ARGU_version" ] || [[ $ARGU_version == "new" ]]; then
         get_version $INSTALL_VERSION_NAME "$2" "$3" "$VERSION_RULE"
         if [ -z "$ARGU_version" ];then
-            eval "echo $""$INSTALL_VERSION_NAME"
+            eval echo "最新稳定版本：\$$INSTALL_VERSION_NAME"
             exit 0;
         fi
     elif echo "$ARGU_version"|grep -qP "^${VERSION_RULE}$";then
@@ -607,7 +607,7 @@ init_install(){
     else
         error_exit "安装版本号参数格式错误：$ARGU_version"
     fi
-    INSTALL_VERSION=`eval "echo \$"$INSTALL_VERSION_NAME`
+    INSTALL_VERSION=$(eval echo "\$$INSTALL_VERSION_NAME")
     local INSTALL_VERSION_MIN=$1
     if [ -n "$INSTALL_VERSION_MIN" ] && if_version "$INSTALL_VERSION" "<" "$INSTALL_VERSION_MIN"; then
         error_exit "最小安装版本号: $INSTALL_VERSION_MIN ，当前是：$INSTALL_VERSION"

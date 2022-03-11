@@ -878,7 +878,7 @@ mkdirs logs
 chown -R mongodb:mongodb ./*
 
 # 启动服务器
-run_msg sudo -u mongodb ./bin/mongod -f ./etc/mongod.conf
+sudo_msg mongodb ./bin/mongod -f ./etc/mongod.conf
 
 # 安装成功
 info_msg "安装成功：mongodb-$MONGODB_VERSION";
