@@ -11,7 +11,8 @@
 #   AppArmor 查看命令：apparmor_status 
 #   用户目录（即 ~ ）权限修改: chmod 0700 ~ && chmod u+rw ~/.Xauthority
 #   如果修改权限还不行就只能通过命令重置安全记录：restorecon ~
-#
+#   如果只有某些终端使用ssh甚至http连接会时常或必现连接重置可尝试将这些终端的网络重置，
+#   如果是所有的终端连接到服务器均有问题那只能去排查服务器的网络问题。
 
 # 参数信息配置
 SHELL_RUN_DESCRIPTION='远程批量安装'

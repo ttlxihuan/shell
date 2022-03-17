@@ -353,7 +353,7 @@ if_many_version(){
 # @param $path_val      目录输入变量名
 # return 1|0
 get_lib_install_path(){
-    eval $2="$(pkg-config --libs-only-L "$1" 2>/dev/null|grep -oP '/([^/]+/)+');"
+    eval $2="$(pkg-config --libs-only-L "$1" 2>/dev/null|grep -oP '/([^/]+/)+')"
 }
 # 判断库是否存在
 # @command if_lib $name [$if $version]

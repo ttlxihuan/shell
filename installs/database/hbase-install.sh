@@ -28,15 +28,13 @@ DEFINE_INSTALL_PARAMS="
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 
-error_exit '此脚本暂未开发完！'
-
 # 初始化安装
 init_install 1.0.0 "https://hbase.apache.org/downloads.html" 'hbase-\d+(\.\d+){2}-bin.tar.gz'
 #  限制空间大小（G）：编译目录、安装目录、内存
 install_storage_require 1 1 1
 # ************** 编译安装 ******************
-# 下载nginx包
-download_software https://www.apache.org/dyn/closer.lua/hbase/$HBASE_VERSION/hbase-$HBASE_VERSION-bin.tar.gz
+# 下载hbase包
+download_software https://dlcdn.apache.org/hbase/$HBASE_VERSION/hbase-$HBASE_VERSION-bin.tar.gz
 
 # 安装依赖
 info_msg "安装相关已知依赖"
@@ -44,6 +42,7 @@ packge_manager_run install -JAVA_PACKGE_NAMES
 if ! if_command java;then
     error_exit '安装java失败'
 fi
+
 # 复制安装包并创建用户
 copy_install hbase
 
@@ -53,8 +52,10 @@ copy_install hbase
 # 配置文件处理
 info_msg "hbase 配置文件修改"
 # sed  conf/hbase-site.xml
+# 添加必需环境变量
+sed -i -r 's/^#?\s*(export\s+JAVA_HOME=\s*).*$/\1'$(which java|sed 's,/bin/java,,'|sed 's,/,\\/,')'/' conf/hbase-env.sh
 
 # 启动服务
-sudo -u hbase ./bin/start-hbase.sh
+sudo_msg hbase ./bin/start-hbase.sh
 
 info_msg "安装成功：$INSTALL_NAME-$HBASE_VERSION"
