@@ -32,25 +32,24 @@ init_install '2.0.0' "https://download.samba.org/pub/rsync/src/" 'rsync-\d+(\.\d
 install_storage_require 1 1 1
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
-CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$RSYNC_VERSION"
+CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$RSYNC_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS=$ARGV_options
+ADD_OPTIONS="!lz4 !zstd !xxhash $ARGV_options"
 # ************** 编译安装 ******************
 # 下载nodejs包
-download_software https://download.samba.org/pub/rsync/src/ryncs-$RSYNC_VERSION.tar.gz
+download_software https://download.samba.org/pub/rsync/src/rsync-$RSYNC_VERSION.tar.gz
 # 解析选项
 parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
-
-exit
 
 # 安装依赖
 info_msg "安装相关已知依赖"
 
+# 所有依赖均在INSTALL.md文件中说明了，暂时还没有处理
+
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 
-
 # 配置文件处理
-info_msg 'rsync 配置文件修改'
+# info_msg 'rsync 配置文件修改'
 
 info_msg "安装成功：rsync-$RSYNC_VERSION";
