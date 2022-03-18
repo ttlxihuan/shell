@@ -34,7 +34,7 @@ install_storage_require 1 1 1
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$RSYNC_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS="!lz4 !zstd !xxhash $ARGV_options"
+ADD_OPTIONS="?!lz4 ?!zstd ?!xxhash ?!md2man $ARGV_options"
 # ************** 编译安装 ******************
 # 下载nodejs包
 download_software https://download.samba.org/pub/rsync/src/rsync-$RSYNC_VERSION.tar.gz

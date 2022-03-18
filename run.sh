@@ -87,7 +87,7 @@ else
             ARV_ITEM=${ARV_ITEM//\"/\\\"}
             ARGVS_STR="$ARGVS_STR "'"'$ARV_ITEM'"'
         done
-        eval bash $RUN_SHELL_FILE $ARGVS_STR
+        run_msg bash $RUN_SHELL_FILE $ARGVS_STR
     else
         error_exit "脚本 $ARGU_script_name 不存在，查看可以通过运行：bash $0 -h"
     fi
