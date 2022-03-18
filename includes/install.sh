@@ -491,7 +491,7 @@ copy_install(){
 # @param $version_num       安装版本号
 # @param $other             其它安装参数集
 # return 1|0
-run_install_shell (){
+run_install_shell(){
     local INSTALL_FILE_PATH
     find_project_file install "$1" INSTALL_FILE_PATH
     if [ -z "$2" ]; then
