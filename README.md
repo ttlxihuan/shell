@@ -40,7 +40,7 @@ if [ ! -d "shell-master" ];then
     unzip master.zip
 fi
 cd shell-master
-find ./ ! -path '*/temp/*' -type f -exec sed -i 's/\r//' {} \;
+find ./ -maxdepth 3 ! -path '*/temp/*' -type f -exec sed -i 's/\r//' {} \;
 for NAME in ${@:1}; do
     nohup bash run.sh $NAME 2>&1 &> ../$NAME.log &
 done
@@ -69,7 +69,7 @@ bash run.sh -h
 ### 注意
 如果命令运行出错可能是换行符的问题可以运行命令
 ```
-find ./ ! -path '*/temp/*' -type f -exec sed -i 's/\r//' {} \;
+find ./ -maxdepth 3 ! -path '*/temp/*' -type f -exec sed -i 's/\r//' {} \;
 ```
 
 ## 自动安装
