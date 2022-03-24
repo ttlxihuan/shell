@@ -30,50 +30,57 @@
 ####################################################################################
 # 定义安装参数
 DEFINE_INSTALL_PARAMS="
-[-a, --api='mysql']指定启用接口，支持：http、mysql
-# JDBC、ODBC两个需要外加驱动包，暂时不支持
-[-p, --api-port='']指定接口端口号，默认http是8123、mysql是9004
+[-l, --only-localhost]允许仅本地连接服务器
 "
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 
-error_exit '此脚本暂未开发完！'
-
 # 初始化安装
-init_install 20.0.0.0 "https://repo.clickhouse.com/tgz/stable/" 'clickhouse-server-\d+(\.\d+){3}' '\d+(\.\d+){3}'
+init_install 21.1.9.41 "https://packages.clickhouse.com/tgz/stable/" 'clickhouse-server-\d+(\.\d+){3}' '\d+(\.\d+){3}'
 #  限制空间大小（G）：编译目录、安装目录、内存
-install_storage_require 1 1 1
-# ************** 相关配置 ******************
-# 编译初始选项（这里的指定必需有编译项）
-CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$CLICKHOUSE_VERSION --user=clickhouse --group=clickhouse "
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS=' '$ARGV_options
+install_storage_require 4 3 4
 # ************** 编译安装 ******************
-# 下载nginx包
-download_software http://$NGINX_HOST/download/nginx-$NGINX_VERSION.tar.gz
+# 下载clickhouse包
+download_software https://packages.clickhouse.com/tgz/stable/clickhouse-common-static-$CLICKHOUSE_VERSION.tgz
+run_msg ./install/doinst.sh
+download_software https://packages.clickhouse.com/tgz/stable/clickhouse-common-static-dbg-$CLICKHOUSE_VERSION.tgz
+run_msg ./install/doinst.sh
+download_software https://packages.clickhouse.com/tgz/stable/clickhouse-server-$CLICKHOUSE_VERSION.tgz
+# 创建默认密码
+mkdirs ./etc/clickhouse-server/users.d
+if [ ! -e ./etc/clickhouse-server/users.d/default-password.xml ];then
+    cat > ./etc/clickhouse-server/users.d/default-password.xml <<conf
+<clickhouse>
+    <users>
+        <default>
+            <password remove='1' />
+            <!-- default-password: root -->
+            <password_sha256_hex>$(echo -n "root" | sha256sum | tr -d '-')</password_sha256_hex>
+        </default>
+    </users>
+</clickhouse>
+conf
+fi
+# 默认监听地址，指定为非仅本地
+# 如果允许非本地连接则会创建配置文件 etc/clickhouse-server/config.d/listen.xml
+# 配置文件中的监听地址可以自行调整
+if [ "$ARGV_only_localhost" = '1' ];then
+    INPUT_VAL='y'
+else
+    INPUT_VAL='n'
+fi
+run_msg ./install/doinst.sh <<CMD
+$INPUT_VAL
+CMD
+download_software https://packages.clickhouse.com/tgz/stable/clickhouse-client-$CLICKHOUSE_VERSION.tgz
+run_msg ./install/doinst.sh
 
-# 架构支持处理
-grep -q sse4_2 /proc/cpuinfo && echo "SSE 4.2 supported" || echo "SSE 4.2 not supported"
-
-# 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
-# 安装依赖
-info_msg "安装相关已知依赖"
-
-
-
-# 编译安装
-configure_install $CONFIGURE_OPTIONS
 # 创建用户组
-add_user clickhouse
+# add_user clickhouse
 # 配置文件处理
-info_msg "clickhouse 配置文件修改"
-
+# info_msg "clickhouse 配置文件修改"
 
 # 启动服务
+run_msg /etc/init.d/clickhouse-server start
 
-
-info_msg "安装成功：$INSTALL_NAME-$ELASTICSEARCH_VERSION"
-
-
-
+info_msg "安装成功：$INSTALL_NAME-$CLICKHOUSE_VERSION"
