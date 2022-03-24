@@ -19,8 +19,11 @@
 # 然后重启服务：
 #     service syslog restart   或  systemctl restart rsyslog
 #
-# 插入iptables日志记录
+# 插入iptables日志记录（此记录需要在其它规则后添加）
 #     iptables -I INPUT -j LOG --log-prefix "iptables" --log-level warning
+#
+# 插入iptables指定端口日志记录（此记录需要在其它规则后添加），注意修改端口或连接类型
+#     iptables -I INPUT -p tcp --dport 22 -m state --state NEW -j LOG --log-prefix "iptables" --log-level warning
 #
 # 参数说明：
 #  -I INPUT 输入类型（必需使用-I插入方式这样规则才在最上面，如果使用-A则追加到最下面会被上面的命令给截取并跳过从而导致日志收集失败，如果没有其它规则那-I或-A结果一样）
@@ -31,10 +34,14 @@
 # 注意：这种日志只是收集并不能收集防火墙的最终处理结果，由于数据量比较大，所以一般必要性不大，上面的命令是收集所有的输入请求，如果需要指定IP或端口则再单独添加
 # 删除收集日志规则命令：
 #     iptables -D INPUT -j LOG --log-prefix "iptables" --log-level warning
+#     iptables -D INPUT -p tcp --dport 22 -m state --state NEW -j LOG --log-prefix "iptables" --log-level warning
 # ========================================================
 #
-#
-#
+# 规则持久化，直接通过iptables命令添加的规则重启后将丢失，如果需要持久化必需保存到对应的配置文件中。
+#     持久化命令：
+#           service iptables save
+#           或
+#           iptables-save > /etc/sysconfig/iptables
 #
 # ========================================================
 # 【排查防火墙异常丢包导致部分连接不上】
@@ -53,9 +60,11 @@
 #
 #
 # ========================================================
-#
-#
-#
+#  如果访问时而正常时而不正常就得排查下规则，iptables规则是逐个进行的，当某条匹配则应用并停止后续规则匹配处理。
+#  1、如果增加禁止规则最好通过 -A 追加（规则会附加在规则列表最后）
+#  2、如果增加允许访问规则最好通过 -I 插入（规则会插入在规则列表最前）
+#  如果存在--reject-with icmp-host-prohibited类似规则可以去掉使用 iptables -A INPUT -j DROP 替代，目前应用时发现--reject-with icmp-host-prohibited类似规则会产生访问偶现异常。
+#  删除规则如果不清楚命令结构可以通过iptables-save命令查看，并找到匹配规则，复制出来将最前面的 -A 改为 -D然后追加到iptables命令上
 #
 #
 # 网络状态说明：https://blog.csdn.net/qq_28098067/article/details/80811938
