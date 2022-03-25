@@ -71,7 +71,7 @@ run_install(){
 # return 1|0
 check_install(){
     local INSTALL_RESULT INSTALL_STATUS LOG_FILE
-    for LOG_FILE in $(find "$SHELL_WROK_TEMP_PATH" -name "${1}-install-*.log"|sort -r|head -n 1);do
+    for LOG_FILE in $(find "$SHELL_WROK_TEMP_PATH" -maxdepth 1 -name "${1}-install-*.log"|sort -r|head -n 1);do
         tag_msg "${1} $(echo "$LOG_FILE"|grep -oP '\d{4}(-\d{1,2}){2}(_\d{1,2}([:_]\d{1,2}){2})?'|tail -n 1|sed -e 's/_/ /' -e 's/_/:/g')" '*' 60
         INSTALL_RESULT=$(tail -n 1 $LOG_FILE)
         if [[ "$INSTALL_RESULT" =~ \[SHELL-[A-Z]+\] ]];then

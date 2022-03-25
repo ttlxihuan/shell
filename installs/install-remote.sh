@@ -132,7 +132,7 @@ EOF
     # 创建目录和复制命令
     local MKDIR_COMMAND="mkdir -p $ARGV_remote_dir" SCP_COMMAND="scp -r $SSH_KEY_OPTION -P $SSH_PORT \"$COPY_REMOTE_FILE\" $SSH_ADDR:$ARGV_remote_dir"
     # 安装命令
-    local INSTALL_COMMAND="cd $ARGV_remote_dir && (test -e ./installs/install-batch.sh || tar -xzf $COPY_REMOTE_BASENAME) &&"
+    local INSTALL_COMMAND="cd $ARGV_remote_dir && (test -e ./installs/install-batch.sh && ((\\\$(stat -c '%Z' ./installs/install-batch.sh) >= \\\$(stat -c '%Z' $COPY_REMOTE_BASENAME))) || tar -xzf $COPY_REMOTE_BASENAME) &&"
     if [ "$SSH_USER" != root ];then
         INSTALL_COMMAND="$INSTALL_COMMAND sudo"
     fi
@@ -229,12 +229,12 @@ if [ "$ARGV_check_install" = '1' -o -z "$ARGV_scp_download" ];then
 else
     COPY_REMOTE_FILE="./temp/remote-shell.all.tar.gz"
     # 判断是否有新下载包，如果有重新压缩
-    if [ -e "$COPY_REMOTE_FILE" ] && find ./temp/shell-install/ -maxdepth 1 -type f -readable -exec stat -c '%Y' {} \;|awk '{if ($1 > '$(stat -c '%Y' $COPY_REMOTE_FILE)'){print}}'|grep -qP '[0-9]+';then
+    if [ -e "$COPY_REMOTE_FILE" ] && find ./temp/shell-install/ -maxdepth 1 -type f -readable -exec stat -c '%Z' {} \;|awk '{if ($1 > '$(stat -c '%Z' $COPY_REMOTE_FILE)'){print}}'|grep -qP '[0-9]+';then
         warn_msg "检测到有新下载包，将重新压缩"
         rm -f $COPY_REMOTE_FILE
     fi
 fi
-if [ -e "$COPY_REMOTE_FILE" ] && find ./ -maxdepth 3 -type f ! -path './temp/*' -exec stat -c '%Y' {} \;|awk '{if ($1 > '$(stat -c '%Y' $COPY_REMOTE_FILE)'){print}}'|grep -qP '[0-9]+';then
+if [ -e "$COPY_REMOTE_FILE" ] && find ./ -maxdepth 3 -type f ! -path './temp/*' -exec stat -c '%Z' {} \;|awk '{if ($1 > '$(stat -c '%Z' $COPY_REMOTE_FILE)'){print}}'|grep -qP '[0-9]+';then
     warn_msg "检测到脚本可配置文件有变动，将重新压缩"
     rm -f $COPY_REMOTE_FILE
 fi
