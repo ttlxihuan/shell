@@ -127,10 +127,12 @@ EOF
         fi
     fi
     SSH_HOST_OPTION="$SSH_KEY_OPTION $SSH_HOST_OPTION"
-    # 基本命令定义
-    # expect不支持单引号字符串，必需使用双引号字符串
+    # 验证是否复制命令
+    local SSH_NOT_COPY_COMMAND="ssh $SSH_HOST_OPTION \"( test ! -d $ARGV_remote_dir || ( cd $ARGV_remote_dir && ! test -e $COPY_REMOTE_BASENAME -a \\\$(sha1sum $COPY_REMOTE_BASENAME|grep -oP '^\w+') = '$COPY_REMOTE_FILE_SHA1SUM' )) && echo '$COPY_REMOTE_BASENAME not copied!'\""
+    # 创建目录和复制命令
     local MKDIR_COMMAND="mkdir -p $ARGV_remote_dir" SCP_COMMAND="scp -r $SSH_KEY_OPTION -P $SSH_PORT \"$COPY_REMOTE_FILE\" $SSH_ADDR:$ARGV_remote_dir"
-    local INSTALL_COMMAND="cd $ARGV_remote_dir && tar -xzf $(basename $COPY_REMOTE_FILE) &&"
+    # 安装命令
+    local INSTALL_COMMAND="cd $ARGV_remote_dir && (test -e ./installs/install-batch.sh || tar -xzf $COPY_REMOTE_BASENAME) &&"
     if [ "$SSH_USER" != root ];then
         INSTALL_COMMAND="$INSTALL_COMMAND sudo"
     fi
@@ -148,7 +150,7 @@ EOF
     fi
     # 选项执行方式
     if [ -n "$ARGV_disable_expect" ] || [ "$KEYGEN_LOGIN" = '1' -a "$SSH_USER" = root ] || [ "$SSH_USER" != root -a -z "$SSH_ROOT_PASSWORD" ];then
-        eval "$SSH_MKDIR_COMMAND && $SCP_COMMAND && $SSH_INSTALL_COMMAND"
+        eval "( ! $SSH_NOT_COPY_COMMAND || ( $SSH_MKDIR_COMMAND && $SCP_COMMAND )) && $SSH_INSTALL_COMMAND"
     else
         local EXPECT_ROOT_PASSWORD
         if [ "$KEYGEN_LOGIN" = '0' ];then
@@ -162,10 +164,16 @@ EOF
         # expect -d 是调试模式，可以打印出命令输出信息和expect操作信息
         expect <<EOF
 set timeout 30
-spawn $SSH_MKDIR_COMMAND
+spawn $SSH_NOT_COPY_COMMAND
 $EXPECT_PASSWORD
-spawn $SCP_COMMAND
-$EXPECT_PASSWORD
+expect {
+    "$COPY_REMOTE_BASENAME not copied!" {
+        spawn $SSH_MKDIR_COMMAND
+        $EXPECT_PASSWORD
+        spawn $SCP_COMMAND
+        $EXPECT_PASSWORD
+    }
+}
 spawn $SSH_INSTALL_COMMAND
 $EXPECT_PASSWORD
 $EXPECT_ROOT_PASSWORD
@@ -180,14 +188,14 @@ EOF
 # return 1|0
 expect_password(){
     eval "$1='expect {
-        \"*yes/no*\" {
-            send \"yes\r\";
-            exp_continue;
-        }
-        \"*password*\" {
-            send \"$2\r\";
-            exp_continue;
-        }
+    \"*yes/no*\" {
+        send \"yes\r\";
+        exp_continue;
+    }
+    \"*password*\" {
+        send \"$2\r\";
+        exp_continue;
+    }
 }'"
 }
 # 安装必需工具
@@ -226,7 +234,7 @@ else
         rm -f $COPY_REMOTE_FILE
     fi
 fi
-if [ -e "$COPY_REMOTE_FILE" ] && find ./ -type f ! -path './temp/*' -exec stat -c '%Y' {} \;|awk '{if ($1 > '$(stat -c '%Y' $COPY_REMOTE_FILE)'){print}}'|grep -qP '[0-9]+';then
+if [ -e "$COPY_REMOTE_FILE" ] && find ./ -maxdepth 3 -type f ! -path './temp/*' -exec stat -c '%Y' {} \;|awk '{if ($1 > '$(stat -c '%Y' $COPY_REMOTE_FILE)'){print}}'|grep -qP '[0-9]+';then
     warn_msg "检测到脚本可配置文件有变动，将重新压缩"
     rm -f $COPY_REMOTE_FILE
 fi
@@ -244,6 +252,10 @@ if [ ! -e "$COPY_REMOTE_FILE" ];then
     tar -czf $COPY_REMOTE_FILE $PATH_OPTIONS
     if_error "压缩文件失败，请确认权限和磁盘空间"
 fi
+# 生成文件核对串
+COPY_REMOTE_FILE_SHA1SUM=$(sha1sum $COPY_REMOTE_FILE|grep -oP '^\w+')
+# 提取文件名
+COPY_REMOTE_BASENAME=$(basename $COPY_REMOTE_FILE)
 # 本地安装方式处理
 tag_msg "本地"
 if [ "$ARGV_local_install" = 'async' ];then
