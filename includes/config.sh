@@ -97,9 +97,21 @@ GETTEXT_DEVEL_PACKGE_NAMES=('gettext-devel' 'gettext-dev')
 JAVA_PACKGE_NAMES=('java' 'default-jre')
 # 安装libnl3
 LIBNL3_DEVEL_PACKGE_NAMES=('libnl3-devel' 'libnl-genl-3-dev')
+# 安装libnl3-route
+LIBNL3_ROUTE_DEVEL_PACKGE_NAMES=('-' 'libnl-route-3-dev')
 # 安装libnl
 LIBNL_DEVEL_PACKGE_NAMES=('libnl-devel' 'libnlopt-dev')
 # 安装popt
 POPT_DEVEL_PACKGE_NAMES=('popt-devel' '-')
 # 安装popt-static
 POPT_STATIC_PACKGE_NAMES=('popt-static' '-')
+# 安装iptables-devel
+IPTABLES_DEVEL_PACKGE_NAMES=('iptables-devel' 'iptables-dev')
+# 安装ipset-devel
+IPSET_DEVEL_PACKGE_NAMES=('ipset-devel' 'libipset-dev')
+# 安装libnfnetlink-devel
+LIBNFNETLINK_DEVEL_PACKGE_NAMES=('libnfnetlink-devel' 'libnfnetlink-dev')
+# 安装glibc-devel
+GLIBC_DEVEL_PACKGE_NAMES=('glibc-devel' 'linux-libc-dev')
+# 安装kernel-headers
+KERNEL_HEADERS_PACKGE_NAMES=('kernel-headers' "linux-headers-$(uname -r)")
