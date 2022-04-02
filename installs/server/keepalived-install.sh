@@ -118,7 +118,7 @@ add_user keepalived
 info_msg "keepalived 配置文件修改"
 
 # 启动服务
-
+sudo_msg keepalived ./sbin/keepalived
 
 info_msg "安装成功：$INSTALL_NAME-$KEEPALIVED_VERSION"
 
