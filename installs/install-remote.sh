@@ -128,7 +128,7 @@ EOF
     fi
     SSH_HOST_OPTION="$SSH_KEY_OPTION $SSH_HOST_OPTION"
     # 验证是否复制命令
-    local SSH_NOT_COPY_COMMAND="ssh $SSH_HOST_OPTION \"( test ! -d $ARGV_remote_dir || ( cd $ARGV_remote_dir && ! test -e $COPY_REMOTE_BASENAME -a \\\$(sha1sum $COPY_REMOTE_BASENAME|grep -oP '^\w+') = '$COPY_REMOTE_FILE_SHA1SUM' )) && echo '$COPY_REMOTE_BASENAME not copied!'\""
+    local SSH_NOT_COPY_COMMAND="ssh $SSH_HOST_OPTION \"( test ! -d $ARGV_remote_dir || ( cd $ARGV_remote_dir && ! test -e $COPY_REMOTE_BASENAME -a \\\$(sha1sum $COPY_REMOTE_BASENAME|awk '{print \\\$1}') = '$COPY_REMOTE_FILE_SHA1SUM' )) && echo '$COPY_REMOTE_BASENAME not copied!'\""
     # 创建目录和复制命令
     local MKDIR_COMMAND="mkdir -p $ARGV_remote_dir" SCP_COMMAND="scp -r $SSH_KEY_OPTION -P $SSH_PORT \"$COPY_REMOTE_FILE\" $SSH_ADDR:$ARGV_remote_dir"
     # 安装命令

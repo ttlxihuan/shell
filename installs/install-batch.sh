@@ -28,7 +28,7 @@ each_install(){
     if (( (RUN_INSTALL_RECURSION++) > 10 ));then
         error_exit "$1 递归安装已经超过10层，请确认配置是否异常"
     fi
-    local NAME INSTALL_INFO
+    local NAME INSTALL_INFO COMMAND_NAME COMMAND_ARGV
     # 循环提取要安装的包名
     while read NAME ;do
         if [[ "$NAME" == @* ]];then
@@ -39,15 +39,16 @@ each_install(){
             if [ -z "$INSTALL_INFO" ];then
                 INSTALL_INFO="$NAME"
             fi
-            if ! [[ "${INSTALL_INFO#* }" =~ [[:space:]]+[^[:space:]]+ ]];then
-                INSTALL_INFO="$INSTALL_INFO new"
+            COMMAND_NAME=${INSTALL_INFO%% *}
+            COMMAND_ARGV=${INSTALL_INFO#* }
+            if ! [[ "$COMMAND_ARGV" =~ ^([[:space:]]*(new|[0-9]+(\.[0-9])+)([[:space:]]+.*|[[:space:]]*)?)?$ ]];then
+                COMMAND_ARGV="new ${COMMAND_ARGV}"
             fi
-            NAME=${INSTALL_INFO%% *}
-            if has_run_shell "${NAME}-install"; then
-                warn_msg "${NAME} 在安装运行中"
+            if has_run_shell "${COMMAND_NAME}-install"; then
+                warn_msg "${COMMAND_NAME} 在安装运行中"
             else
                 # 调用函数处理
-                $2 $INSTALL_INFO
+                $2 $COMMAND_NAME $COMMAND_ARGV
             fi
         fi
     done <<EOF
@@ -70,19 +71,24 @@ run_install(){
 # @command check_install
 # return 1|0
 check_install(){
-    local INSTALL_RESULT INSTALL_STATUS LOG_FILE
-    for LOG_FILE in $(find "$SHELL_WROK_TEMP_PATH" -maxdepth 1 -name "${1}-install-*.log"|sort -r|head -n 1);do
+    local INSTALL_RESULT INSTALL_STATUS LOG_FILE=$(find "$SHELL_WROK_TEMP_PATH" -maxdepth 1 -name "${1}-install-*.log"|sort -r|head -n 1)
+    if [ -n "$LOG_FILE" -a -e "$LOG_FILE" ];then
         tag_msg "${1} $(echo "$LOG_FILE"|grep -oP '\d{4}(-\d{1,2}){2}(_\d{1,2}([:_]\d{1,2}){2})?'|tail -n 1|sed -e 's/_/ /' -e 's/_/:/g')" '*' 60
-        INSTALL_RESULT=$(tail -n 1 $LOG_FILE)
+        INSTALL_RESULT=$(tail -n 1 "$LOG_FILE")
         if [[ "$INSTALL_RESULT" =~ \[SHELL-[A-Z]+\] ]];then
             INSTALL_STATUS=${INSTALL_RESULT#*[}
             INSTALL_STATUS=${INSTALL_STATUS%%]*}
+        elif has_run_shell "${NAME}-install"; then
+            INSTALL_STATUS='INFO'
+            INSTALL_RESULT='安装准备中'
         else
             INSTALL_STATUS='UNKNOWN'
+            INSTALL_RESULT='无安装进程和信息'
         fi
         print_msg "${INSTALL_STATUS#*-}" "${INSTALL_RESULT#*]}"
-    done
-    [ -z "$LOG_FILE" ] && warn_msg "没有 $1 安装信息"
+    else
+        warn_msg "没有 $1 安装信息"
+    fi
 }
 # 开始批量安装操作
 # @command start_install
