@@ -24,6 +24,12 @@
 #
 # 注意：如果有的时候编译时提示某个文件不存在，可以尝试重新解压再编译，比如提示config.host文件不存在
 #
+# 当编译时报类似错： [-Werror=implicit-function-declaration]
+#   这种错误是编译警告报错，实际上是某些代码不符合规范默认是不再继续编译，如果需要再继续编译则有两个办法：
+#       1、（需要手动在原来基础上make，不可make clean）找到编译报错的目录（即第一个make报错行退出的目录（一般是编译目录中的子目录） make: Leaving directory，进入目录打开Makefile文件，搜索到编译选项 -Werror=implicit-function-declaration 去掉并保存，重新编译
+#       2、（不可用）增加编译环境变量CFLAGS或CXXFLAGS指定为-Wno-error，强制跳过-Werror选项报错，重新编译。CFLAGS是C编译，CXXFLAGS是C++编译，如果不清楚两个都指定
+#          使用命令 export CFLAGS="-Wno-error" 或 export CXXFLAGS="-Wno-error"
+#   其它警告可查看：https://blog.csdn.net/li_wen01/article/details/71171413
 #
 ####################################################################################
 ##################################### 安装处理 #####################################
@@ -66,14 +72,14 @@ init_install '4.0.0' "$MIRRORS_URL/releases/" 'gcc-\d+\.\d+\.\d+'
 install_storage_require 4 3 4
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
-GCC_CONFIGURE_WITH=""
+CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$GCC_VERSION "
 # 编译增加项（这里的配置会随着编译版本自动生成编译项）
 ADD_OPTIONS=$ARGV_options
 # ************** 编译安装 ******************
 # 下载GCC包
 download_software $MIRRORS_URL/releases/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.gz
 # 解析选项
-parse_options GCC_CONFIGURE_WITH $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
 # 暂存编译目录
 GCC_CONFIGURE_PATH=`pwd`
 # 安装依赖
@@ -116,10 +122,10 @@ else
 fi
 # 64位系统需要禁用multilib
 if uname -a|grep -q x86_64; then
-    GCC_CONFIGURE_WITH=$GCC_CONFIGURE_WITH' --disable-multilib'
+    CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS' --disable-multilib'
 fi
 # 编译安装
-configure_install --prefix=$INSTALL_PATH$GCC_VERSION$GCC_CONFIGURE_WITH
+configure_install $CONFIGURE_OPTIONS
 # 动态库处理
 echo "$INSTALL_PATH$GCC_VERSION/lib64" >> /etc/ld.so.conf
 info_msg "移动文件 lib64/*.py"

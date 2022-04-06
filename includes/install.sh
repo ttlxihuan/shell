@@ -2,6 +2,11 @@
 ############################################################################
 # 编译安装公共处理文件，所有安装脚本运行的核心文件
 # 此脚本不可单独运行，需要在其它脚本中引用执行
+#
+# 编译死循环处理
+#   1、make时会检查编译文件时间，有的时候文件时间不匹配导致编译无限死循环，需要在编译目录下修改下文件时间（可使用命令： find ./ -type f|xargs touch ），再进行编译（注意是configure所在目录）
+#   2、清空编译目录再解压重新编译安装
+#   3、使用单核编译
 ############################################################################
 # 引用公共文件
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/basic.sh || exit
@@ -274,7 +279,7 @@ download_software(){
         info_msg "删除解压目录重新解压：$DIR_NAME"
         rm -rf $DIR_NAME
     fi
-    local ATTEMPT=1
+    local DECOMPRESSION_INFO ATTEMPT=1
     while true;do
         ((ATTEMPT++))
         download_file $1 $FILE_NAME
@@ -285,16 +290,16 @@ download_software(){
             info_msg '解压下载文件：'$FILE_NAME
             case "$FILE_NAME" in
                 *.gz|*.tar.gz|*.tgz)
-                    tar -zxf $FILE_NAME
+                    DECOMPRESSION_INFO=$(tar -vzxf $FILE_NAME)
                 ;;
                 *.tar|*.tar.bz2)
-                    tar -xf $FILE_NAME
+                    DECOMPRESSION_INFO=$(tar -vxf $FILE_NAME)
                 ;;
                 *.zip)
                     if ! if_command unzip; then
                         packge_manager_run install -UNZIP_PACKGE_NAMES
                     fi
-                    unzip $FILE_NAME
+                    DECOMPRESSION_INFO=$(unzip $FILE_NAME)
                 ;;
                 *.tar.xz)
                     if ! if_command xz; then
@@ -302,7 +307,7 @@ download_software(){
                     fi
                     xz -d $FILE_NAME
                     TAR_FILE_NAME=${FILE_NAME%*.xz}
-                    tar -xf $TAR_FILE_NAME
+                    DECOMPRESSION_INFO=$(tar -vxf $TAR_FILE_NAME)
                 ;;
                 *.rpm|*.pem)
                     return 0
@@ -315,7 +320,7 @@ download_software(){
                 info_msg "下载文件的sha256: "`sha256sum $FILE_NAME`
                 break
             else
-                warn_msg "下载解压 $FILE_NAME 失败，即将删除解压和下载产生文件与目录"
+                warn_msg "解压 $FILE_NAME 失败，即将删除解压和下载产生文件及目录"
                 [ -e "$FILE_NAME" ] && rm -f $FILE_NAME
                 [ -d "$DIR_NAME" ] && rm -rf $DIR_NAME
                 if ((ATTEMPT <= 3));then
@@ -326,8 +331,20 @@ download_software(){
             fi
         fi
     done
-    cd $DIR_NAME
-    if_error "解压目录找不到: $DIR_NAME"
+    # 解压目录不存在，直接提取解压信息中最后一个目录
+    if [ ! -d "$DIR_NAME" ];then
+        # 提取解压目录
+        DEC_DIR_NAME=$(printf '%s' "$DECOMPRESSION_INFO"|tail -n 1|grep -oP '([^/\s]+/)+'|awk -F '/' '{print $1}')
+        if [ -d "$DEC_DIR_NAME" ];then
+            mv "$DEC_DIR_NAME" "$DIR_NAME"
+        fi
+    fi
+    if [ -d "$DIR_NAME" ];then
+        info_msg "进入解压目录：$DIR_NAME"
+        cd $DIR_NAME
+    else
+        if_error "解压目录找不到: $DIR_NAME"
+    fi
     return 0
 }
 # 解析编译选项
