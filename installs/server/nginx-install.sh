@@ -135,6 +135,9 @@ ssl_session_timeout  5m;
 if ( \$scheme = http ) {
     return 301 https://\$host\$request_uri;
 }
+
+# 发送HSTS头信息，强制浏览器使用https协议发送数据
+add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 conf
     cat > websocket <<conf
 # 此文件为共用文件，用于其它 server 块引用
