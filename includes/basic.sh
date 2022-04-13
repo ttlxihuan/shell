@@ -9,7 +9,7 @@
 #   4、常规命令参数尽量分开写，避免一些命令不支持选项混合导致命令作用不合意
 ############################################################################
 # 全局版本号
-readonly SHELL_RUN_VERSION='1.0.1'
+readonly SHELL_RUN_VERSION='1.0.2'
 # 切换工作目录
 # @command chdir $path
 # @param $path      切换的子目录
@@ -647,8 +647,6 @@ $INFO_SHOW_STR";
 #                               required_with_all:name[,name...]        指定变量全部存在时必填，name是参数变量名
 #                               required_without:name[,name...]         指定变量有不存在时必填，name是参数变量名
 #                               required_without_all:name[,name...]     指定变量全部不存在时必填，name是参数变量名
-#                               required_if:name,value[,name,value...]  指定变量有等于指定值时必填，name是参数变量名，value是参数变量值
-#                               required_nif:name,value[,name,value...] 指定变量有不等于指定值时必填，name是参数变量名，value是参数变量值
 #                               int[:[min],[max]]       必需是整数，可以指定数值大小范围
 #                               float[:[min],[max]]     必需是浮点数，可以指定数值大小范围
 #                               string[:[min],[max]]    必需是字符串，可以指定长度范围
@@ -673,7 +671,7 @@ validate_shell_param(){
         ([[ -z "$ARG_VALUE" && "$RULE_NAME" != required* ]] || [[ -n "$ARG_VALUE" && "$RULE_NAME" == required* ]]) && continue
         RULE_VALUES=($(printf '%s' "${RULE_TEXT:${#RULE_NAME}+1}"|grep -oP "$VALUE_RULES"))
         # 剥离值前后引号
-        for((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX+=2));do
+        for ((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX+=2));do
             get_param_string "${RULE_VALUES[$INDEX]}" RULE_VALUES[$INDEX]
         done
         [[ ! "$RULE_NAME" =~ ^(int|float|string)$ || "${RULE_VALUES[0]}" =~ ^([1-9][0-9]*|[0-9])*$ && "${RULE_VALUES[2]}" =~ ^([1-9][0-9]*|[0-9])*$ ]] ||
@@ -706,26 +704,14 @@ validate_shell_param(){
             required)
                 error_exit "脚本参数 ${ARG_NAME} 不可为空"
             ;;
-            required_if)
-                for((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX+=2));do
-                    get_shell_option "${RULE_VALUES[$INDEX]}" ARG_REQUIRED_OPT ARG_REQUIRED_VAL
-                    [ -z "$ARG_REQUIRED_VAL" -o "$ARG_REQUIRED_VAL" != "${RULE_VALUES[$INDEX+1]}" ] || error_exit "脚本参数 ${ARG_NAME} 在 ${ARG_REQUIRED_OPT} = ${RULE_VALUES[$INDEX+1]} 时不可为空"
-                done
-            ;;
-            required_nif)
-                for((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX+=2));do
-                    get_shell_option "${RULE_VALUES[$INDEX]}" ARG_REQUIRED_OPT ARG_REQUIRED_VAL
-                    [ "$ARG_REQUIRED_VAL" = "${RULE_VALUES[$INDEX+1]}" ] || error_exit "脚本参数 ${ARG_NAME} 在 ${ARG_REQUIRED_OPT} != ${RULE_VALUES[$INDEX+1]} 时不可为空"
-                done
-            ;;
             required_with)
-                for((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do
+                for ((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do
                     get_shell_option "${RULE_VALUES[$INDEX]}" ARG_REQUIRED_OPT ARG_REQUIRED_VAL
                     [ -z "$ARG_REQUIRED_VAL" ] || error_exit "脚本参数 ${ARG_NAME} 在 ${ARG_REQUIRED_OPT} 指定后不可为空"
                 done
             ;;
             required_with_all)
-                for((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do
+                for ((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do
                     get_shell_option "${RULE_VALUES[$INDEX]}" ARG_REQUIRED_OPT ARG_REQUIRED_VAL
                     [ -z "$ARG_REQUIRED_VAL" ] && continue 2
                     LISTS_STR="$LISTS_STR, $ARG_REQUIRED_OPT"
@@ -733,13 +719,13 @@ validate_shell_param(){
                 error_exit "脚本参数 ${ARG_NAME} 在 ${LISTS_STR:2} 指定后不可为空"
             ;;
             required_without)
-                for((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do
+                for ((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do
                     get_shell_option "${RULE_VALUES[$INDEX]}" ARG_REQUIRED_OPT ARG_REQUIRED_VAL
                     [ -n "$ARG_REQUIRED_VAL" ] || error_exit "脚本参数 ${ARG_NAME} 在 ${ARG_REQUIRED_OPT} 不指定时不可为空"
                 done
             ;;
             required_without_all)
-                for((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do
+                for ((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do
                     get_shell_option "${RULE_VALUES[$INDEX]}" ARG_REQUIRED_OPT ARG_REQUIRED_VAL
                     [ -n "$ARG_REQUIRED_VAL" ] && continue 2
                     LISTS_STR="$LISTS_STR, $ARG_REQUIRED_OPT"
@@ -757,7 +743,7 @@ validate_shell_param(){
                 curl -I -m 5 "$ARG_VALUE" 2>/dev/null >/dev/null || error_exit "脚本参数 ${ARG_NAME} 不是有效url地址，当前是：$ARG_VALUE"
             ;;
             in)
-                for((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do
+                for ((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do
                     if [ "${RULE_VALUES[$INDEX]}" = "$ARG_VALUE" ];then
                         ARG_EXIST=1
                         continue 2
@@ -857,7 +843,7 @@ parse_lists(){
 # return 1|0
 search_array(){
     local INDEX=${4:-0} SIZE=$(eval "\${#$2[@]}")
-    for((;INDEX < SIZE;INDEX++));do
+    for ((;INDEX < SIZE;INDEX++));do
         if [ "$1" = $(eval "\${$2[$INDEX]}") ];then
             if [ -n "$3" ];then
                 eval "$3=$INDEX"

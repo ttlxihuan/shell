@@ -118,6 +118,23 @@ get_conf(){
     fi
     return 0
 }
+# 获取配置是否存在
+# @command has_conf $block [$item]
+# @param $block             配置区块名
+# @param $item              配置区块项名，不指则为块是否存在
+# return 1|0
+has_conf(){
+    local _BLOCK_NAME_ _CONF_NAME_
+    make_conf_key _BLOCK_NAME_ "$1"
+    if [ -n "$2" ];then
+        local _ITEM_NAME_
+        make_conf_key _ITEM_NAME_ "$2"
+        _CONF_NAME_="CONF_${_BLOCK_NAME_}_${_ITEM_NAME_}"
+    else
+        _CONF_NAME_="CONF_BLOCK_ITEMS_${_BLOCK_NAME_}"
+    fi
+    declare -p $_CONF_NAME_ >/dev/null 2>/dev/null
+}
 # 循环配置项并调用函数
 # @command each_conf $func [$block]
 # @param $func              循环成功逐个调用函数
