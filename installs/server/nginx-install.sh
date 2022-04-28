@@ -118,21 +118,24 @@ if [ ! -d "vhosts" ]; then
     cat > ssl <<conf
 # 此文件为共用文件，用于其它 server 块引用
 # 多个不同域名证书需要单独指定证书文件，而不能在此指定证书文件
-# 常规https配置
+# 注意：ssl连接握手前还不知道具体域名，当有请求时先使用默认的证书再逐个配置，所以过多个不同域名（主域名不同）的证书建议使用不同的IP或服务器分开
+
+# 常规https配置，此配置不建议开启
 # ssl                  on;
 
 # 注意修改证书名
-# 从1.15.9版本开始且OpenSSL-1.0.2以上文件名可以使用变量
+# 从1.15.9版本开始且OpenSSL-1.0.2以上证书文件名可以使用变量（使用变量会导致每次请求重新加载证书，会额外增加开销）
 ssl_certificate      certs/ssl.pem;
 ssl_certificate_key  certs/ssl.key;
 
-# ssl_session_cache    shared:SSL:1m;
+# 配置会话缓存，1m大概4000个会话
+ssl_session_cache    shared:SSL:1m;
 ssl_session_timeout  5m;
 
 # ssl_ciphers  HIGH:!aNULL:!MD5;
 # ssl_prefer_server_ciphers  on;
 # 强制必需使用https
-if ( \$scheme = http ) {
+if (\$scheme = "http") {
     return 301 https://\$host\$request_uri;
 }
 
@@ -232,10 +235,10 @@ conf
 # 使用时建议复制文件并去掉文件名后缀 .default
 # 开启后视需求修改：域名、ssl、根目录、独立日志
 server {
-    # 配置端口号
+    # 配置http端口号
     listen 80;
 
-    # 配置https
+    # 配置https端口号
     # listen 443 ssl;
     # include vhosts/ssl;
 
@@ -251,6 +254,25 @@ server {
 
     # 引用PHP基础配置
     include vhosts/php;
+}
+conf
+    cat > deny.ip.conf.default <<conf
+# 此文件为拒绝IP直接访问配置，很多漏洞就是通过IP扫描，屏蔽直接IP访问减少部分安全事件泄露和扫描次数
+# 使用时直接去掉文件名后缀 .default 即可，此配置不影响正常域名访问，仅仅是限制IP直接访问
+# 注意：同一IP地址和端口号只允许一个服务指定 default_server
+server {
+    # 配置http端口号
+    listen 80 default_server;
+
+    # 配置https端口号
+    listen 443 default_server;
+
+    # 配置无效访问域名
+    # 此域名配置会在其它域名匹配不上时使用
+    server_name "";
+
+    # 非标准代码444直接关闭连接，即终端无任何正常响应数据
+    return 444;
 }
 conf
     cat > upstream.conf.default <<conf
