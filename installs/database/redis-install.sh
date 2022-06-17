@@ -132,7 +132,7 @@ sudo_msg redis ./src/redis-server redis.conf
 # 创建集群
 if [ -n "$ARGV_cluster_hosts" ];then
     # CLUSTER_MEET=''
-    # for((INDEX=0;INDEX < ${#CLUSTER_HOSTS[@]};INDEX++));do
+    # for ((INDEX=0;INDEX < ${#CLUSTER_HOSTS[@]};INDEX++));do
     #     CLUSTER_IP=${CLUSTER_HOSTS[$INDEX]/:.*$/}
     #     CLUSTER_PORT=${CLUSTER_HOSTS[$INDEX]/:.*$/}
     #     CLUSTER_MEET=$CLUSTER_MEET"CLUSTER MEET $CLUSTER_IP $CLUSTER_PORT\n"

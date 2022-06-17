@@ -547,7 +547,7 @@ add_local_run(){
     for RUN_FILE in `find $1 -executable`; do
         if (($# > 1));then
             SET_ALLOW=0
-            for((NUM=1;NUM<=$#;NUM++));do
+            for ((NUM=1;NUM<=$#;NUM++));do
                 if [[ ${RUN_FILE##*/} == ${@:$NUM:1} ]];then
                     SET_ALLOW=1
                     break

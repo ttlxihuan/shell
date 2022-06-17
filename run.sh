@@ -37,11 +37,15 @@ search_shell_set(){
     echo -e "$2" >> $RUN_SHELL_CACHE_FILE
     echo -e "$RUN_SHELL_LISTS" >> $RUN_SHELL_CACHE_FILE
 }
+
 # 首次自动写缓存
 if [ ! -e $RUN_SHELL_CACHE_FILE ];then
-    search_shell_set installs '可用安装脚本名：'
-    search_shell_set tools '可用工具脚本名：'
+    (source ${CURRENT_SHELL_BASH}/includes/basic.sh || exit;
+    info_msg '脚本初始化处理中，将生成脚本使用名单并缓存，不会产生任何其它操作！';
+    search_shell_set installs '可用安装脚本名：';
+    search_shell_set tools '可用工具脚本名：')
 fi
+
 # 参数信息配置
 SHELL_RUN_DESCRIPTION='运行脚本，调用内置安装和工具脚本统一入口'
 SHELL_RUN_HELP="

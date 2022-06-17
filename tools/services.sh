@@ -31,7 +31,7 @@ DEFINE_TOOL_PARAMS='
 [-f, --conf="etc/services.conf", {required|file}]指定配置文件，相对脚本根目录
 '
 
-source ${CURRENT_SHELL_BASH}includes/tool.sh $1 || exit
+source ${CURRENT_SHELL_BASH}includes/tool.sh || exit
 
 # 操作服务
 # @command handle_service $name

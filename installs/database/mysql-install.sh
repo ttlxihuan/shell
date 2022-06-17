@@ -593,7 +593,7 @@ else
 fi
 
 # 重复多次尝试启动服务
-for((LOOP_NUM=1;LOOP_NUM<5;LOOP_NUM++))
+for ((LOOP_NUM=1;LOOP_NUM<5;LOOP_NUM++))
 do
    info_msg "第${LOOP_NUM}次尝试启动mysql";
    run_msg $OPEN_SERVICE
@@ -610,7 +610,7 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
     info_msg "初始密码: $TEMP_PASSWORD"
     if [ -n "$TEMP_PASSWORD" ]; then
         run_msg "mysql -uroot --password=\"$TEMP_PASSWORD\" -h127.0.0.1 --connect-expired-password -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'\" 2>&1"
-        for((LOOP_NUM=1;LOOP_NUM<10;LOOP_NUM++))
+        for ((LOOP_NUM=1;LOOP_NUM<10;LOOP_NUM++))
         do
             info_msg "第${LOOP_NUM}次尝试修改密码";
             UPDATE_PASSWORD=$(run_msg mysql -uroot --password="$TEMP_PASSWORD" -h127.0.0.1 --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'" '2>&1')
