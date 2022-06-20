@@ -79,7 +79,7 @@ install_agent_command(){
     cat > $AGENT_COMMAND_DIR$1 <<EOF
 #!/bin/bash
 # 代理命令，当命令操作限制目录时终止命令继续，防止核心目录或文件被破坏
-(source $AGENT_SHELL_PATH && echo "${_SYS_COMMAND_PATHS[0]} \$@")
+(source "$AGENT_SHELL_PATH"; ${_SYS_COMMAND_PATHS[0]} \$ARGVS_STR)
 EOF
     chmod +x $AGENT_COMMAND_DIR$1
     info_msg "安装 $1 代理命令成功"
@@ -99,6 +99,7 @@ uninstall_agent_command(){
     for _COMMAND in ${AGENT_COMMANDS[@]};do
         if check_install_agent_command $_COMMAND;then
             ${_SYS_COMMAND_PATHS[0]} -f $AGENT_COMMAND_DIR$_COMMAND
+            info_msg "卸载 $1 代理命令成功"
         else
             warn_msg "未找到代理命令 $_COMMAND"
         fi
