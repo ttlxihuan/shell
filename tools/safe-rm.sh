@@ -79,7 +79,7 @@ install_agent_command(){
     cat > $AGENT_COMMAND_DIR$1 <<EOF
 #!/bin/bash
 # 代理命令，当命令操作限制目录时终止命令继续，防止核心目录或文件被破坏
-(source "$AGENT_SHELL_PATH"; ${_SYS_COMMAND_PATHS[0]} \$ARGVS_STR)
+( ARVG_NUM=$#; source "$AGENT_SHELL_PATH"; eval "${_SYS_COMMAND_PATHS[0]} \$ARGVS_STR" )
 EOF
     chmod +x $AGENT_COMMAND_DIR$1
     info_msg "安装 $1 代理命令成功"

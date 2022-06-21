@@ -79,8 +79,8 @@ $(cat /etc/safe-rm.conf)
 EOF
 # 目录参数匹配
 ARGVS_STR=''
-# 去掉自动追加进来的参数
-if [ "$_" = "${BASH_SOURCE[${#BASH_SOURCE[@]}-1]}" -a "$1" = '-i' ];then
+# 直接使用入口文件名调用会在source内部自动增加 -i 参数，必需在处理前校验并剥离掉
+if (( $ARVG_NUM < $# ));then
     shift
 fi
 for AVG_ITEM; do
