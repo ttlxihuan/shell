@@ -939,6 +939,68 @@ safe_realpath(){
         eval $_NAME="\$_PATH"
     done
 }
+# 容量格式化
+# @command size_format $var_name $size
+# @param $var_name              格式化写入变量名
+# @param $size                  容量值，以B为单位
+# @param $to_unit               转到目标单位
+# return 1|0
+size_switch(){
+    local UNIT_POWER UNIT_BASE=1024 UNIT_SWITCH=("$2" "${3:-B}") UNIT_SWITCH_UNIT=() INDEX
+    for ((INDEX=0;INDEX<=1;INDEX++));do
+        case "${UNIT_SWITCH[$INDEX]}" in
+            *E|*EB)
+                UNIT_SWITCH_UNIT[$INDEX]=6
+                ;;
+            *P|*PB)
+                UNIT_SWITCH_UNIT[$INDEX]=5
+                ;;
+            *T|*TB)
+                UNIT_SWITCH_UNIT[$INDEX]=4
+                ;;
+            *G|*GB)
+                UNIT_SWITCH_UNIT[$INDEX]=3
+                ;;
+            *M|*MB)
+                UNIT_SWITCH_UNIT[$INDEX]=2
+                ;;
+            *K|*KB)
+                UNIT_SWITCH_UNIT[$INDEX]=1
+                ;;
+            *B)
+                UNIT_SWITCH_UNIT[$INDEX]=0
+                ;;
+            *[^A-Z])
+                UNIT_SWITCH_UNIT[$INDEX]=0
+                ;;
+            *)
+                error_exit "未知存储容量单位：${UNIT_SWITCH[$INDEX]}"
+                ;;
+        esac
+    done
+    if (( ${UNIT_SWITCH_UNIT[0]} >= ${UNIT_SWITCH_UNIT[1]} ));then
+        math_compute $1 "${2//[^0-9\.]/} * ($UNIT_BASE ^ (${UNIT_SWITCH_UNIT[0]} - ${UNIT_SWITCH_UNIT[1]}))" ${4:-2}
+    else
+        math_compute $1 "${2//[^0-9\.]/} / ($UNIT_BASE ^ (${UNIT_SWITCH_UNIT[1]} - ${UNIT_SWITCH_UNIT[0]}))" ${4:-2}
+    fi
+}
+# 容量整理
+# @command size_format $var_name $size
+# @param $var_name              格式化写入变量名
+# @param $size                  容量值，以B为单位
+# return 1|0
+size_format(){
+    local UNIT_POWER=0 CURRENT_SIZE=$2 UNIX_NAMES=('B' 'K' 'M' 'G' 'T' 'P' 'E') VALUE_SIZE
+    while ((CURRENT_SIZE >= 1024)); do
+        ((CURRENT_SIZE=CURRENT_SIZE/1024))
+        ((UNIT_POWER++))
+    done
+    if [ -z "${UNIX_NAMES[$UNIT_POWER]}" ];then
+        error_exit "未知存储容量大小：${2}"
+    fi
+    math_compute VALUE_SIZE "${2} / (1024 ^ $UNIT_POWER)" 2
+    eval "$1=$VALUE_SIZE${UNIX_NAMES[$UNIT_POWER]}"
+}
 if [ "$(basename "$0")" = "$(basename "${BASH_SOURCE[0]}")" ];then
     error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
 fi

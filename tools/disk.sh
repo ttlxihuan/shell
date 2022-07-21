@@ -82,7 +82,6 @@ disk_format(){
     # 获取当前存在的分区
     local START_SECTOR END_SECTOR='' PARTS_PATH=$(lsblk -nl $2|awk '$6 == "part" && !$7{print "/dev/"$1}') DISL_SIZE=$(lsblk -nlb $2|awk '$6 == "disk"{print $4}')
     if [ "$USE_GPT" = 1 ];then
-        info_msg "即将对磁盘 $2 进行分区，分区工具 parted"
         local PART_INDEX=$(parted $2 -s print 2>&1|awk '{if(NR > 4){print $1}}'|grep -P '\d+'|tail -n 1)
         START_SECTOR=1
         if ((PART_INDEX > 1));then
@@ -93,7 +92,7 @@ disk_format(){
             # 如果不是第一个分区则需要定位结束位置
             if ((PART_INDEX > 1));then
                 local START_SECTOR_BIT
-                size_to_bit START_SECTOR_BIT $START_SECTOR
+                size_switch START_SECTOR_BIT $START_SECTOR
                 END_SECTOR=$((PART_SIZE + START_SECTOR_BIT))
             else
                 END_SECTOR=$PART_SIZE
@@ -107,6 +106,7 @@ disk_format(){
         else
             END_SECTOR='100%'
         fi
+        info_msg "即将对磁盘 $2 进行分区，分区号 $PART_INDEX ，，分区工具 parted"
         # 判断分区模式
         if ! parted $2 -s print|grep -qP '^Partition Table: gpt';then
             parted $2 <<EOF
@@ -126,7 +126,6 @@ align-check optimal $PART_INDEX
 quit
 EOF
     else
-        info_msg "即将对磁盘 $2 进行分区，扇区大小：$ARGV_sector_size，分区工具 fdisk"
         local PART_INDEX=`echo -e "1\n2\n3\n4\n$(fdisk -l $2 2>&1|grep -oP "^$2[1-4]+"|grep -oP '\d+$')"|sort|grep -P '\d+'|uniq -u|head -n 1`
         if [ -n "$SECTOR_NUM" ];then
             if fdisk -l $2 2>&1|grep -P '^Units'|grep -qP '1\s*\*\s*\d+';then
@@ -143,7 +142,7 @@ EOF
             fi
             # 超出总大小则改为空
             local END_SECTOR_BIT
-            size_to_bit END_SECTOR_BIT $END_SECTOR
+            size_switch END_SECTOR_BIT $END_SECTOR
             if ((END_SECTOR_BIT >= DISL_SIZE));then
                 END_SECTOR=''
             fi
@@ -157,6 +156,7 @@ EOF
         if (( PART_INDEX > 3 ));then
             PART_TYPE='e'
         fi
+        info_msg "即将对磁盘 $2 进行分区，分区号 $PART_INDEX ，扇区大小：$ARGV_sector_size，分区工具 fdisk"
         fdisk -b $ARGV_sector_size $2 2>&1 <<EOF
 n
 $PART_TYPE
@@ -252,59 +252,6 @@ part_mount(){
     fi
     return 1
 }
-# 容量整理
-# @command size_format $var_name $size
-# @param $var_name              格式化写入变量名
-# @param $size                  容量值，以B为单位
-# return 1|0
-size_format(){
-    local _SIZE
-    if(($2 >= 1099511627776));then
-        _SIZE=$[$2 / 1099511627776]'T'
-    elif(($2 >= 1073741824));then
-        _SIZE=$[$2 / 1073741824]'G'
-    elif(($2 >= 1048576));then
-        _SIZE=$[$2 / 1048576]'M'
-    elif(($2 >= 1024));then
-        _SIZE=$[$2 / 1024]'K'
-    else
-        _SIZE=$2'B'
-    fi
-    eval "$1=\$_SIZE"
-}
-# 大小转以位为单位
-# @command use_gpt $var_name $size
-# @param $var_name              写入变量
-# @param $size                  容量值，默认以B为单位
-# return 1|0
-size_to_bit(){
-    local SIZE_UNIT
-    case $2 in
-        *T|*TB)
-            SIZE_UNIT=1099511627776
-            ;;
-        *G|*GB)
-            SIZE_UNIT=1073741824
-            ;;
-        *M|*MB)
-            SIZE_UNIT=1048576
-            ;;
-        *K|*KB)
-            SIZE_UNIT=1024
-            ;;
-        *B)
-            SIZE_UNIT=1
-            ;;
-        *)
-            SIZE_UNIT=1
-            ;;
-    esac
-
-    info_msg "参数：$@"
-    info_msg "计算：$SIZE_UNIT * ${2//[^0-9\.]/}"
-
-    math_compute $1 "$SIZE_UNIT * ${2//[^0-9\.]/}"
-}
 # 使用GPT分区模式，如果系统不支持则跳过
 # @command use_gpt $disk $size
 # @param $disk                  要格式化的硬盘
@@ -317,7 +264,7 @@ use_gpt(){
         info_msg "使用GPT分区模式创建分区"
     else
         # 容量超过2TB时需要使用GPT分区模式，且分区工具使用parted
-        USE_GPT=$(( ${2} > 1099511627776 * 2048 ))
+        math_compute USE_GPT "${2} > (1024 ^ 4 * 2)"
         [ "$USE_GPT" = 1 ] && info_msg "空间超过2TB将自动强制使用GPT分区模式创建分区"
     fi
     # 安装必备工具
@@ -326,7 +273,7 @@ use_gpt(){
 # 参数验证
 SECTOR_NUM='' PART_SIZE=''
 if [ "$ARGV_part_size" != '0' ];then
-    size_to_bit PART_SIZE $ARGV_part_size
+    size_switch PART_SIZE $ARGV_part_size
     if (( $ARGV_sector_size > $PART_SIZE ));then
         error_exit "--part-size 分区大小不能小于扇区大小"
     else
