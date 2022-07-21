@@ -61,10 +61,8 @@ parse_conf(){
                     break
                 fi
             done
-            continue
-        fi
         # 提取块值
-        if [ -n "$BLOCK_NAME" ];then
+        elif [ -n "$BLOCK_NAME" ];then
             if [[ "$CONF_LINE" =~ ^[[:space:]]*[~!@#\$%\^\&\*_\-\+/|:\.\?[:alnum:]]+[[:space:]]*= ]];then
                 ITEM_NAME=${CONF_LINE%%=*}
                 # 去掉配置前面的空格

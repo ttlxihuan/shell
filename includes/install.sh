@@ -88,10 +88,7 @@ parse_use_memory(){
             CURRENT_UNIT=${2:${#FREE_MAX_MEMORY}}
         fi
         if (( FREE_MAX_MEMORY > 0 )) && [ "$CURRENT_UNIT" != "$USE_UNIT" ];then
-            local CURRENT_UNIT_VAL USE_UNIT_VAL UNIT_B=1 UNIT_K=1024 UNIT_M=1048576 UNIT_G=1073741824 UNIT_T=1099511627776
-            eval 'CURRENT_UNIT_VAL=$UNIT_'$CURRENT_UNIT
-            eval 'USE_UNIT_VAL=$UNIT_'$USE_UNIT
-            FREE_MAX_MEMORY=$((FREE_MAX_MEMORY * CURRENT_UNIT_VAL / USE_UNIT_VAL))
+            size_switch FREE_MAX_MEMORY "$FREE_MAX_MEMORY" "$USE_UNIT"
         fi
         if (( FREE_MAX_MEMORY <= 0 ));then
             warn_msg "当前系统可用物理内存不足1${USE_UNIT}，跳过配置处理"
