@@ -256,10 +256,10 @@ server {
     include vhosts/php;
 }
 conf
-    cat > deny.ip.conf.default <<conf
-# 此文件为拒绝IP直接访问配置，很多漏洞就是通过IP扫描，屏蔽直接IP访问减少部分安全事件泄露和扫描次数
-# 使用时直接去掉文件名后缀 .default 即可，此配置不影响正常域名访问，仅仅是限制IP直接访问
-# 注意：同一IP地址和端口号只允许一个服务指定 default_server
+    cat > deny.other.conf.default <<conf
+# 此文件为拒绝IP直接访问或未知域名配置，很多漏洞就是通过IP扫描，屏蔽直接IP访问减少部分安全事件泄露和扫描次数
+# 使用时直接去掉文件名后缀 .default 即可，此配置不影响正常域名访问，仅限制没配置的域名地址不可访问
+# 注意：同一监听IP地址和端口号只允许一个服务配置为 default_server
 server {
     # 配置http端口号
     listen 80 default_server;

@@ -106,14 +106,10 @@ disk_format(){
         else
             END_SECTOR='100%'
         fi
-        info_msg "即将对磁盘 $2 进行分区，分区号 $PART_INDEX ，，分区工具 parted"
+        info_msg "即将对磁盘 $2 进行分区，分区号 ${PART_INDEX:-1} ，分区工具 parted"
         # 判断分区模式
         if ! parted $2 -s print|grep -qP '^Partition Table: gpt';then
-            parted $2 <<EOF
-mklabel gpt
-yes
-quit
-EOF
+            parted $2 -s mklabel gpt
         fi
         # 分区类型，分区个数限制基本没有（个数很多），主分区最少一个
         local PART_TYPE='primary'
@@ -122,7 +118,7 @@ EOF
         fi
         parted $2 <<EOF
 mkpart $PART_TYPE $ARGV_type ${START_SECTOR:-1} $END_SECTOR
-align-check optimal $PART_INDEX
+align-check optimal ${PART_INDEX:-1}
 quit
 EOF
     else
@@ -167,16 +163,21 @@ wq
 EOF
     fi
     partprobe
-    # 格式化完后再获取唯一多出来的分区
-    PARTS_PATH="$PARTS_PATH\n"`lsblk -nl $2|awk '$6 == "part" && !$7{print "/dev/"$1}'`
-    PART_PATH=$(printf "$PARTS_PATH"|sort|uniq -u)
-    if [ -n "$PART_PATH" ];then
-        info_msg "成功创建主分区：$PART_PATH"
-        part_format $PART_PATH
-        eval "$1=\$PART_PATH"
-        return 0
-    fi
-    warn_msg "分区 $2 失败！"
+    info_msg "获取创建的新分区信息"
+    # 尝试多次获取是否分区成功
+    local PART_PATH ATTEMPT=3
+    while (( ATTEMPT-- > 0)); do
+        # 格式化完后再获取唯一多出来的分区
+        PART_PATH=$(printf "$PARTS_PATH\n$(lsblk -nl $2|awk '$6 == "part" && !$7{print "/dev/"$1}')"|sort|uniq -u)
+        if [ -n "$PART_PATH" ];then
+            info_msg "成功创建主分区：$PART_PATH"
+            part_format $PART_PATH
+            eval "$1=\$PART_PATH"
+            return 0
+        fi
+        sleep 1s
+    done
+    warn_msg "获取 $2 创建新分区信息失败，请手动查询是否创建分区成功并核对分区大小是否正常，如果分区信息不正常建议删除后重建！"
     return 1
 }
 # 格式化分区
