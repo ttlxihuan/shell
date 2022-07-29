@@ -573,7 +573,7 @@ EOF
                     OPTIONS_TEMP=${OPTIONS[$INDEX]}
                     if [ "$OPTIONS_TEMP" != "`printf '%s' "$OPTIONS_TEMP"|sed -r "s/$NAME_TEMP($|,)//"`" ];then
                         NAME=${OPTIONS_TEMP#*--}
-                        if [[ -z "$VALUE" && "$NAME_TEMP" =~ ^-[a-z0-9]$ ]];then
+                        if [[ -z "$VALUE" && "$NAME_TEMP" =~ ^-[A-Za-z0-9]$ ]];then
                             ((ARG_NUM++))
                             eval "VALUE=\${$2[$ARG_NUM]}"
                         fi
