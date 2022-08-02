@@ -77,12 +77,13 @@ while read -r _CONF;do
 done <<EOF
 $(cat /etc/safe-rm.conf)
 EOF
-# 目录参数匹配
-ARGVS_STR=''
 # 直接使用入口文件名调用会在source内部自动增加 -i 参数，必需在处理前校验并剥离掉
-if (( $ARVG_NUM < $# ));then
+# 如果非直接调用不建议单独使用-i参数在前面否则会被剥离
+if [ "$1"  = '-i' ];then
     shift
 fi
+# 目录参数匹配
+ARGVS_STR=''
 for AVG_ITEM; do
     # 参数组装，方便特殊参数
     ARV_ITEM=${AVG_ITEM//\\/\\\\}

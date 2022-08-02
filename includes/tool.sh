@@ -76,7 +76,7 @@ parse_conf(){
         else
             warn_msg "第${CONF_LINENO}行，没有找到区块：$CONF_LINE"
         fi
-    done < $1
+    done < $CONF_FILE
     # 必需区块验证
     if [ ${#REQUIRED_BLOCK[@]} != '0' ];then
         error_exit "未找到区块配置：${REQUIRED_BLOCK[@]}"

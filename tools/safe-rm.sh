@@ -14,14 +14,16 @@ SHELL_RUN_HELP="
 删除或移动操作往往是不经意的，但造成的后果却是沉重的。
 "
 DEFINE_TOOL_PARAMS='
-[action, {required|in:install,uninstall}]脚本处理动作，安装或卸载
+[action, {required|in:install,uninstall}]脚本处理动作：
+#  install    安装
+#  uninstall  卸载
 [--skip-rm]跳过处理rm命令安装或卸载
 [--skip-mv]跳过处理mv命令安装或卸载
 [-f, --force]强制操作安装或卸载
 [--rename-prefix="danger-"]重命名对应系统命令前缀（将原来命令增加前缀）。
 #重命名可防止直接使用系统命令。
 '
-source ${CURRENT_SHELL_BASH}includes/tool.sh || exit
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 
 # 代理处理脚本
 AGENT_SHELL_PATH=/usr/local/safe-agent-run.sh
@@ -79,7 +81,7 @@ install_agent_command(){
     cat > $AGENT_COMMAND_DIR$1 <<EOF
 #!/bin/bash
 # 代理命令，当命令操作限制目录时终止命令继续，防止核心目录或文件被破坏
-( ARVG_NUM=$#; source "$AGENT_SHELL_PATH"; eval "${_SYS_COMMAND_PATHS[0]} \$ARGVS_STR" )
+( source "$AGENT_SHELL_PATH"; eval ${_SYS_COMMAND_PATHS[0]} \$ARGVS_STR )
 EOF
     chmod +x $AGENT_COMMAND_DIR$1
     info_msg "安装 $1 代理命令成功"
