@@ -107,6 +107,8 @@ if (( REDIS_MAX_MEMORY > 0 ));then
 fi
 # 最大连接数据
 # sed -i -r "s/^(\s*#)?\s*(maxclients )/\220000/" redis.conf
+# 指定PID
+sed -i -r "s,^\s*#?\s*(pidfile ).*,\1 redis_$ARGV_port.pid," redis.conf
 # 开启自动保存到硬盘持久化配置
 if [ -n "$ARGV_save" ];then
     sed -i -r "s/^\s*#?\s*(save )\s*60\s*[0-9]+$/\1 ${ARGV_save/,/ }/" redis.conf # 开启60秒内有50次修改自动保存到硬盘
@@ -126,8 +128,13 @@ if [ -n "$ARGV_cluster_hosts" ];then
 fi
 mkdirs data redis
 
-# 启动服务
-sudo_msg redis ./src/redis-server redis.conf
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./src/redis-server ./redis.conf"
+SERVICES_CONFIG[$SERVICES_CONFIG_USER]="redis"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./data/redis_$ARGV_port.pid"
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 # 创建集群
 if [ -n "$ARGV_cluster_hosts" ];then

@@ -37,9 +37,16 @@ handle_service(){
     if ! has_conf "$1";then
         error_exit "未知服务：$1";
     fi
-    local HANDLE_INFO
+    local HANDLE_INFO BASE_PATH
     get_conf HANDLE_INFO "$1" info
     tag_msg "${HANDLE_INFO:-$1}"
+    get_conf BASE_PATH "$1" "base-path"
+    BASE_PATH=${BASE_PATH:-$SHELL_WROK_TEMP_PATH}
+    if [ -d "${BASE_PATH}" ];then
+        cd "${BASE_PATH}"
+    else
+        warn_msg "$1 base-path 配置目录不存在：${BASE_PATH}"
+    fi
     handle_run "$1" "$ARGU_action"
 }
 # 运行命令
@@ -99,11 +106,11 @@ handle_run(){
             # 获取重启命令
             if has_conf "$1" "restart-run";then
                 try_run_command "$1" "restart-run"
+                handle_run "$1" status
             else
                 handle_run "$1" stop
                 handle_run "$1" start
             fi
-            handle_run "$1" status
         ;;
         stop)
             # 获取停止命令
@@ -167,6 +174,7 @@ get_handle_pid(){
         # 获取进程PID文件
         local PID_FILE
         if get_conf PID_FILE "$2" "pid-file";then
+
             if [ -n "$PID_FILE"  -a -e "$PID_FILE" ];then
                 _PID=$(cat $PID_FILE)
             fi

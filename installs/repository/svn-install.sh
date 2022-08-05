@@ -137,8 +137,12 @@ else
     fi
 fi
 # apr 多版本处理
-if if_many_version apr$APR_DIFF-config --version;then
+if if_many_version "apr$APR_DIFF-config" --version;then
+    info_msg "存在多个 apr$APR_DIFF-config"
     for APR_PATH in $(which -a apr$APR_DIFF-config); do
+
+        info_msg "$APR_PATH"
+
         if [ -z "$MIN_APR_DEVEL_VERSION" ] || if_version $($APR_PATH --version|grep -oP '\d+(\.\d+){2}'|head -1) '>=' $MIN_APR_DEVEL_VERSION;then
             CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-apr=\"$APR_PATH\""
             break
@@ -146,7 +150,7 @@ if if_many_version apr$APR_DIFF-config --version;then
     done
 fi
 # apr-util 多版本处理
-if if_many_version apr$APR_DIFF-config --version;then
+if if_many_version "apr-util$APR_DIFF-config" --version;then
     for APR_PATH in $(which -a apu$APR_DIFF-config); do
         if [ -z "$MIN_APR_DEVEL_VERSION" ] || if_version $($APR_PATH --version|grep -oP '\d+(\.\d+){2}'|head -1) '>=' $MIN_APR_DEVEL_VERSION;then
             CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-apr-util=\"$APR_PATH\""
@@ -154,6 +158,7 @@ if if_many_version apr$APR_DIFF-config --version;then
         fi
     done
 fi
+
 cd $SVN_CONFIGURE_PATH
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
@@ -176,9 +181,9 @@ chown -R svnserve:svnserve $INSTALL_PATH$SVN_VERSION
 
 # 添加服务配置
 SERVICES_CONFIG=()
-SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="$INSTALL_PATH$SVN_VERSION/bin/svnserve -d -r $ARGV_work_dir --pid-file $INSTALL_PATH$SVN_VERSION/run/svnserve.pid"
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./bin/svnserve -d -r $ARGV_work_dir --pid-file ./run/svnserve.pid"
 SERVICES_CONFIG[$SERVICES_CONFIG_USER]="svnserve"
-SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="$INSTALL_PATH$SVN_VERSION/run/svnserve.pid"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./run/svnserve.pid"
 # 服务并启动服务
 add_service SERVICES_CONFIG
 

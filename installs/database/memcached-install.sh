@@ -86,14 +86,26 @@ add_user memcached
 cd $INSTALL_PATH$MEMCACHED_VERSION
 # 配置文件处理
 # info_msg "memcached 配置文件修改"
-# 启动服务
-RUN_OPTIONS='-d -u memcached -l 127.0.0.1 -p 11211 -c 10000 -P ./run/memcached.pid'
+
+# 指定启动参数
+PID_FILE=$INSTALL_PATH$MEMCACHED_VERSION/run/memcached.pid
+RUN_OPTIONS='-d -u memcached -l 127.0.0.1 -p 11211 -c 10000 -P '$PID_FILE
 if ((MEMCACHED_MAX_MEMORY > 0));then
     RUN_OPTIONS=$RUN_OPTIONS" -m ${MEMCACHED_MAX_MEMORY}M"
 fi
-run_msg ./bin/memcached $RUN_OPTIONS
+
+mkdirs ./run
+if [ ! -e "$PID_FILE" ];then
+    echo '' > $PID_FILE
+fi
+
+chown -R "memcached":"memcached" ./*
+
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./bin/memcached $RUN_OPTIONS"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./run/memcached.pid"
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 info_msg "安装成功：$INSTALL_NAME-$MEMCACHED_VERSION"
-
-
-

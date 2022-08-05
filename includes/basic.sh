@@ -356,14 +356,16 @@ if_command(){
 if_many_version(){
     if if_command $1;then
         local ITEM NEXT_VERSION PREV_VERSION
-        for ITEM in `which -a "$1" 2>/dev/null`; do
-            NEXT_VERSION=`$ITEM ${@:2} 2>&1`
+        while read ITEM;do
+            NEXT_VERSION=$("$ITEM" ${@:2} 2>&1)
             if [ -z "$PREV_VERSION" ];then
                 PREV_VERSION=$NEXT_VERSION
             elif test "$NEXT_VERSION" != "$PREV_VERSION";then
                 return 0
             fi
-        done
+        done <<EOF
+$(which -a "$1" 2>/dev/null)
+EOF
     fi
     return 1
 }
@@ -923,6 +925,7 @@ run_shell(){
     shift
     source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
     run_msg bash $RUN_SHELL_PATH ${ARGVS_ARRAY[@]}
+    if_error "脚本运行失败： $RUN_SHELL_PATH"
 }
 # 运行安装脚本
 # @command run_install_shell $name $version_num [$other ...]

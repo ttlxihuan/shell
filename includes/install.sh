@@ -597,19 +597,22 @@ SERVICES_CONFIG_STOP_RUN=5
 SERVICES_CONFIG_STATUS_RUN=6
 # 获取服务状态命令，如果未配置将判断pid进程是否存在
 SERVICES_CONFIG_USER=7
+# 获取服务状态运行根目录，默认为当前安装目录
+SERVICES_CONFIG_BASE_PATH=8
 # 服务配置键名对应位置
-SERVICES_CONFIG_KEYS=('info' 'start-run' 'restart-run' 'pid-file' 'pid-run' 'stop-run' 'status-run' 'user')
+SERVICES_CONFIG_KEYS=('info' 'start-run' 'restart-run' 'pid-file' 'pid-run' 'stop-run' 'status-run' 'user' 'base-path')
 # 添加安装的服务
 # @command add_service $config_name
 # @param  $config_name          配置数组名
 # return 1|0
 add_service(){
-    local SERVICES_TOOL CONFIG_FILE CONFIG_NAME SERVICE_RUN BLOCK_NAME EXIST_CONF=0
+    local SERVICES_TOOL CONFIG_FILE CONFIG_NAME SERVICE_RUN SERVICE_BASE_PATH BLOCK_NAME EXIST_CONF=0
     eval CONFIG_NAME="\${$1[$SERVICES_CONFIG_NAME]}"
     eval SERVICE_RUN="\${$1[$SERVICES_CONFIG_START_RUN]}"
+    eval "$1[$SERVICES_CONFIG_BASE_PATH]=\${$1[$SERVICES_CONFIG_BASE_PATH]-\"\$INSTALL_PATH\$INSTALL_VERSION\"}"
     if [ -z "$CONFIG_NAME" ];then
         CONFIG_NAME="$INSTALL_NAME-$INSTALL_VERSION"
-        SERVICES_CONFIG[$SERVICES_CONFIG_NAME]="$CONFIG_NAME"
+        eval $1[$SERVICES_CONFIG_NAME]="$CONFIG_NAME"
     fi
     if [ -z "$SERVICE_RUN" ];then
         error_exit "服务启动命令未指定！"
@@ -625,6 +628,8 @@ add_service(){
     done <<EOF
 $(grep -nP '^\s*\[.+\]' $CONFIG_FILE|grep -oP '(^\d+)|([~!@#\$%\^\&\*_\-\+/|:\.\?[:alnum:]]+)')
 EOF
+    # 锁定配置文件
+    
     # 写服务配置
     if [ "$EXIST_CONF" = '0' ];then
         echo "" >> $CONFIG_FILE
