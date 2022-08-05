@@ -159,15 +159,27 @@ cd $SVN_CONFIGURE_PATH
 configure_install $CONFIGURE_OPTIONS
 
 cd $INSTALL_PATH$SVN_VERSION
+
+# 创建用户
+add_user svnserve
+
 # 基本项配置
 if [ -n "$ARGV_work_dir" ];then
     # 创建库存目录
     mkdirs $ARGV_work_dir;
-    # 创建用户
-    add_user svnserve
     chown -R svnserve:svnserve $ARGV_work_dir
-    # 启动服务
-    sudo_msg svnserve ./bin/svnserve -d -r $ARGV_work_dir
 fi
+
+mkdirs $INSTALL_PATH$SVN_VERSION/run/
+
+chown -R svnserve:svnserve $INSTALL_PATH$SVN_VERSION
+
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="$INSTALL_PATH$SVN_VERSION/bin/svnserve -d -r $ARGV_work_dir --pid-file $INSTALL_PATH$SVN_VERSION/run/svnserve.pid"
+SERVICES_CONFIG[$SERVICES_CONFIG_USER]="svnserve"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="$INSTALL_PATH$SVN_VERSION/run/svnserve.pid"
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 info_msg "安装成功：svn-$SVN_VERSION"

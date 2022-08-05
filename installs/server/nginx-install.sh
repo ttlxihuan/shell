@@ -434,11 +434,14 @@ cd $INSTALL_PATH$NGINX_VERSION/sbin
 if [ -n "`./nginx -t|grep error`" ]; then
     info_msg "nginx 配置文件错误，请注意修改"
 else
-    if [ -n "ps aux|grep nginx" ]; then
-        run_msg ./nginx
-    else
-        run_msg ./nginx -s reload
-    fi
+    # 添加服务配置
+    SERVICES_CONFIG=()
+    SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="$INSTALL_PATH$NGINX_VERSION/sbin/nginx"
+    SERVICES_CONFIG[$SERVICES_CONFIG_STOP_RUN]="$INSTALL_PATH$NGINX_VERSION/sbin/nginx -s stop"
+    SERVICES_CONFIG[$SERVICES_CONFIG_RESTART_RUN]="$INSTALL_PATH$NGINX_VERSION/sbin/nginx -s reload"
+    SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="$INSTALL_PATH$NGINX_VERSION/logs/nginx.pid"
+    # 服务并启动服务
+    add_service SERVICES_CONFIG
 fi
 
 # 安装成功

@@ -54,8 +54,18 @@ info_msg "hbase 配置文件修改"
 # sed  conf/hbase-site.xml
 # 添加必需环境变量
 sed -i -r 's/^#?\s*(export\s+JAVA_HOME=\s*).*$/\1'$(which java|sed 's,/bin/java,,'|sed 's,/,\\/,')'/' conf/hbase-env.sh
+# 指定PID
+sed -i -r "s,^#?\s*(export\s+HBASE_PID_DIR\s*=).*$,\1$(echo "$INSTALL_PATH$HBASE_VERSION/tmp"|sed 's/\//\\\//g')," conf/hbase-env.sh
+# 增加gc选项
+sed -i -r "s,^#?\s*(export\s+HBASE_OPTS\s*).*$,\1=-XX:ParallelGCThreads=$TOTAL_THREAD_NUM," conf/hbase-env.sh
 
-# 启动服务
-sudo_msg hbase ./bin/start-hbase.sh
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="$INSTALL_PATH$HBASE_VERSION/bin/start-hbase.sh"
+SERVICES_CONFIG[$SERVICES_CONFIG_STOP_RUN]="$INSTALL_PATH$HBASE_VERSION/bin/stop-hbase.sh"
+SERVICES_CONFIG[$SERVICES_CONFIG_USER]="hbase"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="$INSTALL_PATH$HBASE_VERSION/tmp/hbase-hbase-master.pid"
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 info_msg "安装成功：$INSTALL_NAME-$HBASE_VERSION"

@@ -28,7 +28,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 # 代理处理脚本
 AGENT_SHELL_PATH=/usr/local/safe-agent-run.sh
 AGENT_CONF_PATH=/etc/safe-rm.conf
-AGENT_COMMAND_DIR=/usr/local/bin/
+AGENT_COMMAND_DIR=/usr/sbin/
 
 # 重命名系统命令
 # @command rename_sys_command $source $target

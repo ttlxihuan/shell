@@ -90,7 +90,8 @@ parse_use_memory(){
         if (( FREE_MAX_MEMORY > 0 )) && [ "$CURRENT_UNIT" != "$USE_UNIT" ];then
             size_switch FREE_MAX_MEMORY "$FREE_MAX_MEMORY" "$USE_UNIT"
         fi
-        if (( FREE_MAX_MEMORY <= 0 ));then
+        math_compute FREE_MAX_MEMORY "$FREE_MAX_MEMORY <= 0"
+        if [ "$FREE_MAX_MEMORY" = '1' ];then
             warn_msg "当前系统可用物理内存不足1${USE_UNIT}，跳过配置处理"
         fi
     fi
@@ -268,11 +269,11 @@ download_software(){
     fi
     chdir shell-install
     # 重新下载再安装
-    if [ "$ARGV_reset" = '3' -a -e "$FILE_NAME" ];then
+    if [ "$ARGV_download" = 'reset' -a -e "$FILE_NAME" ];then
         info_msg "删除下载文件重新下载：$FILE_NAME"
         rm -f $FILE_NAME
     fi
-    if [[ "$ARGV_reset" =~ ^[2-3]$ ]] && [ -d "$DIR_NAME" ];then
+    if [[ "$ARGV_download" =~ ^(reset|again)$ ]] && [ -d "$DIR_NAME" ];then
         info_msg "删除解压目录重新解压：$DIR_NAME"
         rm -rf $DIR_NAME
     fi
@@ -499,22 +500,6 @@ copy_install(){
         chown -R "$1":"$1" ./*
     fi
 }
-# 运行安装脚本
-# @command run_install_shell $name $version_num [$other ...]
-# @param $name              安装脚本名，比如：gcc
-# @param $version_num       安装版本号
-# @param $other             其它安装参数集
-# return 1|0
-run_install_shell(){
-    local INSTALL_FILE_PATH
-    find_project_file install "$1" INSTALL_FILE_PATH
-    if [ -z "$2" ]; then
-        error_exit "安装shell脚本必需指定的安装的版本号参数"
-    fi
-    run_msg bash $INSTALL_FILE_PATH ${@:2} --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH}
-    if_error "安装shell脚本失败：$1"
-    source /etc/profile
-}
 # 添加环境配置
 # @command add_path $path $env_name
 # @param $path          要添加的目录
@@ -578,7 +563,7 @@ add_pkg_config(){
 # @param $password      用户密码，不指定则不创建密码
 # return 0
 add_user(){
-    if id "$1" 2>&1|grep -q "($1)"; then
+    if has_user "$1"; then
          info_msg "用户：$1 已经存在无需再创建";
     else
         local RUN_FILE='/sbin/nologin'
@@ -586,6 +571,7 @@ add_user(){
             RUN_FILE=$2
         fi
         useradd -M -U -s $RUN_FILE $1
+        if_error "用户 $1 创建失败"
         if [ -n "$3" ];then
             if echo "$3"|passwd --stdin $1; then
                 info_msg "创建用户：$1 密码: $3"
@@ -593,6 +579,68 @@ add_user(){
         fi
     fi
     return 0
+}
+# 服务配置键名
+# 配置服务名
+SERVICES_CONFIG_NAME=0
+# 启动服务命令，必需指定否则不能启动服务
+SERVICES_CONFIG_START_RUN=1
+# 重启服务命令，可选，不指定会调用停止再启动
+SERVICES_CONFIG_RESTART_RUN=2
+# 服务对应的pid文件，当没有指定stop-run和status-run时必选否则无法获取状态或停止操作
+SERVICES_CONFIG_PID_FILE=3
+# 获取pid命令，属于动态提取pid，功能与pid-file一样，指定pid-file时此配置无效
+SERVICES_CONFIG_PID_RUN=4
+# 服务停止命令，如果未配置将取pid进行杀进程
+SERVICES_CONFIG_STOP_RUN=5
+# 获取服务状态命令，如果未配置将判断pid进程是否存在
+SERVICES_CONFIG_STATUS_RUN=6
+# 获取服务状态命令，如果未配置将判断pid进程是否存在
+SERVICES_CONFIG_USER=7
+# 服务配置键名对应位置
+SERVICES_CONFIG_KEYS=('info' 'start-run' 'restart-run' 'pid-file' 'pid-run' 'stop-run' 'status-run' 'user')
+# 添加安装的服务
+# @command add_service $config_name
+# @param  $config_name          配置数组名
+# return 1|0
+add_service(){
+    local SERVICES_TOOL CONFIG_FILE CONFIG_NAME SERVICE_RUN BLOCK_NAME EXIST_CONF=0
+    eval CONFIG_NAME="\${$1[$SERVICES_CONFIG_NAME]}"
+    eval SERVICE_RUN="\${$1[$SERVICES_CONFIG_START_RUN]}"
+    if [ -z "$CONFIG_NAME" ];then
+        CONFIG_NAME="$INSTALL_NAME-$INSTALL_VERSION"
+        SERVICES_CONFIG[$SERVICES_CONFIG_NAME]="$CONFIG_NAME"
+    fi
+    if [ -z "$SERVICE_RUN" ];then
+        error_exit "服务启动命令未指定！"
+    fi
+    find_project_file etc services CONFIG_FILE
+    # 只判断块名是否存在，不存在就增加，存在就跳过
+    while read BLOCK_NAME;do
+        if [ "$BLOCK_NAME" = "$CONFIG_NAME" ];then
+            warn_msg "服务管理已经配置 $CONFIG_NAME ，跳过写配置处理！"
+            EXIST_CONF=1
+            break
+        fi
+    done <<EOF
+$(grep -nP '^\s*\[.+\]' $CONFIG_FILE|grep -oP '(^\d+)|([~!@#\$%\^\&\*_\-\+/|:\.\?[:alnum:]]+)')
+EOF
+    # 写服务配置
+    if [ "$EXIST_CONF" = '0' ];then
+        echo "" >> $CONFIG_FILE
+        echo "[$CONFIG_NAME]" >> $CONFIG_FILE
+        local CONFIG_VAL INDEX
+        for ((INDEX=0;INDEX<${#SERVICES_CONFIG_KEYS[@]};INDEX++));do
+            eval CONFIG_VAL="\${$1[$INDEX]}"
+            if [ -n "$CONFIG_VAL" ];then
+                echo "${SERVICES_CONFIG_KEYS[$INDEX]}=$CONFIG_VAL" >> $CONFIG_FILE
+            fi
+        done
+    fi
+    # 搜索服务管理脚本
+    find_project_file tool services SERVICES_TOOL
+    # 启动服务
+    run_msg bash $SERVICES_TOOL start "$CONFIG_NAME"
 }
 # 初始化安装
 # @command init_install $min_version $get_version_url $get_version_match [$get_version_rule]
@@ -629,16 +677,13 @@ init_install(){
     if has_run_shell "$INSTALL_NAME-install" ;then
         error_exit "$INSTALL_NAME 在安装运行中"
     fi
-    if [ -n "$ARGV_reset" ] && ! [[ "$ARGV_reset" =~ [0-3] ]];then
-        error_exit "--reset 未知重装参数值：$ARGV_reset"
-    fi
     # 安装目录
     INSTALL_PATH="$INSTALL_BASE_PATH/$INSTALL_NAME/"
     info_msg "即将安装：$INSTALL_NAME-$INSTALL_VERSION"
     info_msg "工作目录: $SHELL_WROK_TEMP_PATH"
     info_msg "安装目录: $INSTALL_PATH"
     if [ -e "$INSTALL_PATH$INSTALL_VERSION/" ] && find "$INSTALL_PATH$INSTALL_VERSION/" -type f -executable|grep -qP "$INSTALL_NAME|bin";then
-        if [ -z "$ARGV_reset" -o "$ARGV_reset" = '0' ];then
+        if [ "$ARGV_action" = 'install' ];then
             error_exit "$INSTALL_PATH$INSTALL_VERSION/ 安装目录不是空的，终止安装"
         else
             warn_msg "$INSTALL_PATH$INSTALL_VERSION/ 安装目录不是空的，即将强制重新安装：$INSTALL_NAME-$INSTALL_VERSION"
@@ -669,11 +714,13 @@ DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
 #传指定版本号则安装指定版本
 [--install-path='/usr/local', {required_with:ARGU_version|path}]安装根目录，规则：安装根目录/软件名/版本号
 #没有特殊要求建议安装根目录不设置到非系统所在硬盘目录下
-[-r, --reset=0, {required|in:0,1,2,3}]重新安装，默认0
-# 0 标准安装
-# 1 重新安装
-# 2 重新解压再安装
-# 3 重新下载解压再安装
+[-A, --action='install', {required|in:install,reinstall}]处理类型，默认 install
+#   install     标准安装
+#   reinstall   重新安装（覆盖安装）
+[-D, --download='continue', {required|in:continue,reset,again}]下载方式，默认 continue
+#   continue    延续下载，已经下载或解压跳过
+#   again       重新解压并延续下载，
+#   reset       重新解压和下载
 [--disk-space=ask, {required|in:ask,ignore,stop}]安装磁盘分区空间不够用时处理
 #   ask     空间不足时询问操作
 #   ignore  忽略空间不足
@@ -777,5 +824,5 @@ safe_realpath INSTALL_BASE_PATH
 if [ -z "$INSTALL_BASE_PATH" ] || [ ! -d "$INSTALL_BASE_PATH" ];then
     error_exit '安装根目录无效：'$INSTALL_BASE_PATH
 fi
-
+# 安装根目录
 INSTALL_BASE_PATH=$(cd $INSTALL_BASE_PATH; pwd)

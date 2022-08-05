@@ -5,16 +5,13 @@
 # 参数信息配置
 SHELL_RUN_DESCRIPTION='服务启停管理'
 SHELL_RUN_HELP="
-查看服务状态：
-    bash $0 name
-        name    服务名
-
-重启服务：
-    bash $0 name restart
-        name    服务名
+操作指定服务服务：
+    bash $0 action name
+        action  操作名
+        name    服务名，多逗号分开
 
 操作所有服务服务：
-    bash $0 @ALL action
+    bash $0 action
         action  操作名
 
 安装脚本安装后会自动写入服务处理配置，方便服务启停操作。
@@ -59,14 +56,28 @@ run_command(){
         else
             run_msg "$RUN_COMMAND"
         fi
-        if [ $? = '0' ];then
-            info_msg "$2 操作成功"
-        else
-            warn_msg "$2 操作失败"
-        fi
     else
         error_exit "$1 没有配置 ${2} 命令";
     fi
+}
+# 尝试运行命令，如果失败会多次尝试运行
+# @command handle_run $name $action
+# @param $name          要操作的服务名
+# @param $action        要操作动作名
+# return 0|1
+try_run_command(){
+    local LOOP_NUM
+    # 重复多次尝试
+    for ((LOOP_NUM=1;LOOP_NUM<=3;LOOP_NUM++)); do
+        # 获取重动命令
+        run_command "$1" "$2"
+        if [ "$?" = '0' ];then
+            sleep 1s
+            break;
+        fi
+        warn_msg "运行 $2 失败，第 ${LOOP_NUM} 次重试"
+        sleep ${LOOP_NUM}s;
+    done
 }
 # 操作处理
 # @command handle_run $name $action
@@ -80,34 +91,25 @@ handle_run(){
                 warn_msg "服务已经启动"
                 return 1
             else
-                local LOOP_NUM
-                # 重复多次尝试启动服务
-                for ((LOOP_NUM=2;LOOP_NUM<5;LOOP_NUM++)); do
-                    # 获取重动命令
-                    run_command "$1" "start-run"
-                    sleep ${LOOP_NUM}s;
-                    if handle_run "$1" status >/dev/null;then
-                        break;
-                    else
-                        warn_msg "第${LOOP_NUM}次尝试启动 $1";
-                    fi
-                done
+                try_run_command "$1" "start-run"
+                handle_run "$1" status
             fi
         ;;
         restart)
             # 获取重启命令
             if has_conf "$1" "restart-run";then
-                run_command "$1" "restart-run"
+                try_run_command "$1" "restart-run"
             else
                 handle_run "$1" stop
                 handle_run "$1" start
             fi
+            handle_run "$1" status
         ;;
         stop)
             # 获取停止命令
             if handle_run "$1" status >/dev/null;then
                 if has_conf "$1" "stop-run";then
-                    run_command "$1" "stop-run"
+                    try_run_command "$1" "stop-run"
                 else
                     # 获取进程PID命令
                     local RUN_PID
@@ -126,11 +128,7 @@ handle_run(){
                         done
                     fi
                 fi
-                if handle_run "$1" status >/dev/null;then
-                    error_exit "服务停止失败"
-                else
-                    info_msg "服务停止成功"
-                fi
+                handle_run "$1" status
             else
                 warn_msg "服务未运行，无需关闭"
             fi
@@ -143,7 +141,7 @@ handle_run(){
                 # 获取进程PID命令
                 local RUN_PID
                 if get_handle_pid RUN_PID "$1";then
-                    info_msg "服务运行中"
+                    info_msg "服务在运行中"
                     return 0
                 fi
                 warn_msg "服务未运行"
@@ -193,6 +191,9 @@ if [ -z "$ARGU_name" ];then
     # 全部处理
     each_conf handle_service
 else
-    # 单独处理
-    handle_service "$ARGU_name"
+    # 指定处理
+    parse_lists NAMES_ARRAY "$ARGU_name" ',' '\S+'
+    for ((INDEX=0;INDEX<${#NAMES_ARRAY[@]};INDEX++));do
+        handle_service "${NAMES_ARRAY[$INDEX]}"
+    done
 fi

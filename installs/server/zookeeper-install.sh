@@ -51,8 +51,15 @@ mkdirs run zookeeper
 # 修改配置
 sed -i -r "s/^(dataDir=).*$/\1$(echo "$INSTALL_PATH$ZOOKEEPER_VERSION/"|sed 's/\//\\\//g')run/" ./conf/zoo.cfg
 
-# 启动服务端服务
-sudo_msg zookeeper ./bin/zkServer.sh --config ./conf start
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="$INSTALL_PATH$ZOOKEEPER_VERSION/bin/zkServer.sh --config $INSTALL_PATH$ZOOKEEPER_VERSION/conf start"
+SERVICES_CONFIG[$SERVICES_CONFIG_USER]="zookeeper"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="$INSTALL_PATH$ZOOKEEPER_VERSION/run/zookeeper_server.pid"
+SERVICES_CONFIG[$SERVICES_CONFIG_STOP_RUN]="$INSTALL_PATH$ZOOKEEPER_VERSION/bin/zkServer.sh --config $INSTALL_PATH$ZOOKEEPER_VERSION/conf stop"
+SERVICES_CONFIG[$SERVICES_CONFIG_RESTART_RUN]="$INSTALL_PATH$ZOOKEEPER_VERSION/bin/zkServer.sh --config $INSTALL_PATH$ZOOKEEPER_VERSION/conf restart"
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 RUN_STATUS_OUT=`find $INSTALL_PATH$ZOOKEEPER_VERSION/logs/ -name 'zookeeper*.out'|tail -n 1`
 if [ -e "$RUN_STATUS_OUT" ];then

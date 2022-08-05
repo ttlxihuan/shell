@@ -80,19 +80,6 @@ if [ "$ARGV_update" = '1' ];then
     bash $0 >/dev/null
     info_msg '脚本信息更新完成'
 else
-    RUN_SHELL_FILE=$(find $CURRENT_SHELL_BASH/installs $CURRENT_SHELL_BASH/tools -name $ARGU_script_name'.sh')    
-    if [ -n "$RUN_SHELL_FILE" ];then
-        RUN_SHELL_FILE=$(cd $(dirname $RUN_SHELL_FILE); pwd)/$(basename $RUN_SHELL_FILE)
-        shift
-        ARGVS_STR=''
-        for ((INDEX=1;INDEX<=$#;INDEX++));do
-            ARV_ITEM="${@:$INDEX:1}"
-            ARV_ITEM=${ARV_ITEM//\\/\\\\}
-            ARV_ITEM=${ARV_ITEM//\"/\\\"}
-            ARGVS_STR="$ARGVS_STR "'"'$ARV_ITEM'"'
-        done
-        run_msg bash $RUN_SHELL_FILE $ARGVS_STR
-    else
-        error_exit "脚本 $ARGU_script_name 不存在，查看可以通过运行：bash $0 -h"
-    fi
+    source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
+    eval run_shell ${ARGVS_ARRAY[@]}
 fi

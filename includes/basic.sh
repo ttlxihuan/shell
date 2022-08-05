@@ -57,6 +57,19 @@ get_os(){
         echo $(source /etc/os-release;echo "$ID $VERSION_ID"|tr '[:upper:]' '[:lower:]')
     fi
 }
+# 判断防火墙是否
+# @command has_iptables_run
+# return 1|0
+has_iptables_run(){
+    #开启服务
+    if [ -z "`systemctl --version 2>/dev/null|grep "bash: systemctl:"`" ];then
+        service iptables status 2>/dev/null|grep 'not running'
+    else
+        # 默认没有iptables.service服务可以自己安装 ，否则需要使用 systemctl stop firewalld 来处理
+        # yum install iptables-services
+        systemctl status iptables 2>/dev/null|grep 'Active: inactive (dead)'
+    fi
+}
 # 获取当前IP地址，内网是局域IP，写入全局变量SERVER_IP
 # @command get_ip
 # return 1|0
@@ -70,6 +83,13 @@ get_ip(){
     else
         warn_msg '没有ifconfig命令，无法获取当前IP，将使用默认地址：'$SERVER_IP
     fi
+}
+# 判断是否存在指定用户或组
+# @command has_user $user
+# @param $user          用户名
+# return 1|0
+has_user(){
+    test "$(id "$1" 2>/dev/null|grep -oP "\([^\)]+\)"|head -n 1)" = "($1)"
 }
 # 判断上一个命令的成功与否输出错误并退出
 # @command if_error $error_str
@@ -112,6 +132,14 @@ run_msg(){
     eval $@
 }
 # 使用指定用户运行命令并输出信息
+# 特别注意：
+#       /etc/sudoers 配置不可随意将其它账户指定为NOPASSWD，会存在很大的安全隐患
+#       如果配置其它账号则root账号最好设置复杂的密码，并且定期更换
+#       如果需要增加账号需要修改 /etc/sudoers 配置增加 
+#           username ALL=(ALL) ALL
+#           或者
+#           username ALL=命令目录集
+#       也可以指定用户组
 # @command sudo_msg $user $command
 # @param $user          执行命令的用户
 # @param $command       执行命令
@@ -124,16 +152,8 @@ sudo_msg(){
     # 判断运行sudo权限
     if [ -z "$1" ];then
         error_exit "sudo运行用户为空"
-    elif ! id "$1" 2>&1|grep -q "($1)";then
+    elif ! has_user "$1";then
         error_exit "sudo运行用户${1}不存在"
-    fi
-    if ! grep -q "^${CURRENT_USERNAME} " /etc/sudoers;then
-        # 开放调用sudo命令权限
-        if ! [ -w /etc/sudoers ] && ! chmod u+w /etc/sudoers;then
-            error_exit "/etc/sudoers 配置文件不可写，无法添加 ${CURRENT_USERNAME} 配置权限，请手动添加权限！"
-        fi
-        echo "${CURRENT_USERNAME} ALL=(ALL) ALL" >> /etc/sudoers
-        chmod u-w /etc/sudoers
     fi
     run_msg sudo -u $1 ${@:2}
 }
@@ -145,7 +165,7 @@ sudo_msg(){
 # @param $type          打印类型，默认是 INFO
 # return 1
 tag_msg(){
-    local TAG_TEXT=${2-#} LINE_SIZE=${3:-100} MSG_TYPE=${4:-INFO} TAG_STR=''
+    local TAG_TEXT=${2-#} LINE_SIZE=${3:-100} MSG_TYPE=${4:-TAG} TAG_STR=''
     local DIFF_BOTH=$(( (LINE_SIZE - ${#1} -2) / 2 ))
     if (( DIFF_BOTH > ${#TAG_TEXT} ));then
         TAG_STR="$(printf "%$(( DIFF_BOTH / ${#TAG_TEXT} ))s"|sed "s/ /$TAG_TEXT/g")"
@@ -674,7 +694,7 @@ validate_shell_param(){
         for ((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX+=2));do
             get_param_string "${RULE_VALUES[$INDEX]}" RULE_VALUES[$INDEX]
         done
-        [[ ! "$RULE_NAME" =~ ^(int|float|string)$ || "${RULE_VALUES[0]}" =~ ^([1-9][0-9]*|[0-9])*$ && "${RULE_VALUES[2]}" =~ ^([1-9][0-9]*|[0-9])*$ ]] ||
+        [[ ! "$RULE_NAME" =~ ^(int|float|string)$ || "${RULE_VALUES[0]}" =~ ^(-?[1-9][0-9]*|[0-9])*$ && "${RULE_VALUES[2]}" =~ ^(-?[1-9][0-9]*|[0-9])*$ ]] ||
             error_exit "脚本参数 ${ARG_NAME} 校验规则错误，选项必需是数值范围：${RULE_TEXT}"
         LISTS_STR=''
         case "$RULE_NAME" in
@@ -784,16 +804,21 @@ stripc_slashes(){
     done
 }
 # 给指定变量添加转义
-# @command addc_slashes $string_name [...]
-# @param $string_name       要添加的字符串变量名
+# @command addc_slashes $string_name [$character_mask]
+# @param $string_name       要转义的字符串变量
+# @param $character_mask    要转义的字符串，默认是：\s$~|&()[]"'\
+#                           指定多个字符时必需使用|连接
 # return 1|0
 addc_slashes(){
-    local VAL_NAME
-    for VAL_NAME in $@;do
-        eval $VAL_NAME="\$(printf '%s' \"\${$VAL_NAME}\"|sed -r 's/(\s|>|<|&|!|\\||^[\-~]|\\\\)/\\\\\\1/g')"
-    done
+    local _STRING _MASKS='\s|\$|~|\||&|\(|\)|<|>|\[|\]|\\|"|'"'"
+    if [ -n "$2" ];then
+        _MASKS=$2
+    fi
+    eval _STRING=\${$1}
+    _STRING=$(printf '%s' "${_STRING}"|sed -r 's/('$_MASKS')/\\\1/g')
+    eval $1=\$_STRING
 }
-# 通过变量名获取shell脚本选项信息
+# 通过变量名获取shell脚本选项信息（解析匹配脚本全局参数）
 # @command get_shell_option $name $set_opt $set_val
 # @param $name              要解析变量名
 # @param $set_opt           解析选项成功写入变量名
@@ -820,17 +845,22 @@ parse_lists(){
     local ITEM NEXT INDEX PARSE_STRING=`printf '%s' "$2"|sed -r "s/(^\s+|\s+$)//g"` PARSE_ARRAY=()
     eval "$1=()"
     while [ -n "$PARSE_STRING" ]; do
-        NEXT=`printf '%s' "$PARSE_STRING"|grep -oP "^.*?$3"`
-        ITEM=`printf '%s' "$NEXT"|sed -r "s/(^\s+|\s*$3$)//g"`
-        if [ -z "$ITEM" ] || ! printf '%s' "$ITEM"|grep -qP "^$4$";then
-            return $((`printf '%s' "$2"|wc -m` - `printf '%s' "$PARSE_STRING"|wc -m` + 1))
+        NEXT=$(printf '%s' "$PARSE_STRING"|grep -oP "^.*?$3")
+        ITEM=$(printf '%s' "$NEXT"|sed -r "s/(^\s+|\s*$3$)//g")
+        if [ -z "$ITEM" ];then
+            NEXT="$PARSE_STRING"
+            ITEM="$PARSE_STRING"
         fi
-        PARSE_STRING=${PARSE_STRING:`printf '%s' "$NEXT"|wc -m`}
-        # 去重处理
-        if search_array "$ITEM" "$1";then
-            continue
+        if printf '%s' "$ITEM"|grep -qP "^$4$";then
+            PARSE_STRING=${PARSE_STRING:$(printf '%s' "$NEXT"|wc -m)}
+            # 去重处理
+            if search_array "$ITEM" "$1";then
+                continue
+            fi
+            eval "$1[\${#$1[@]}]"="\$ITEM"
+        else
+            warn_msg "集合拆分未识别内容： $ITEM"
         fi
-        eval "$1[\${#$1[@]}]"="\$ITEM"
     done
     return 0
 }
@@ -842,16 +872,18 @@ parse_lists(){
 # @param $start_index       指定搜索开始位置，默认为0
 # return 1|0
 search_array(){
-    local INDEX=${4:-0} SIZE=$(eval "\${#$2[@]}")
+    local INDEX=${4:-0} SIZE=$(eval "echo \${#$2[@]}")
     for ((;INDEX < SIZE;INDEX++));do
-        if [ "$1" = $(eval "\${$2[$INDEX]}") ];then
+        if [ "$1" = $(eval "echo \${$2[$INDEX]}") ];then
             if [ -n "$3" ];then
                 eval "$3=$INDEX"
             fi
             return 0
         fi
     done
-    eval "$3=-1"
+    if [ -n "$3" ];then
+        eval "$3=-1"
+    fi
     return 1
 }
 # 是否正在运行指定脚本
@@ -876,6 +908,34 @@ has_run_shell(){
 $(ps aux|grep -P "(bash|sh|source|${BASH})\s+(.*/)?$1\.sh$RUN_PARAMS"|awk '{if($2 != '$$'){print "/proc/"$2"/exe"}}')
 EOF
     return 1
+}
+# 运行指定内置脚本
+# @command find_project_file $name [$options ...]
+# @param $name              脚本名称，不需要后缀
+# @param $var_noptionsame   脚本运行参数
+# return 1|0
+run_shell(){
+    local ARGVS_ARRAY RUN_SHELL_PATH=$(cd "$CURRENT_SHELL_BASH";find ./installs ./tools -name "$1.sh") 
+    if [ -z "$RUN_SHELL_PATH" ];then
+        error_exit "不存在 $1 内置脚本"
+    fi
+    RUN_SHELL_PATH=$(cd $(dirname $RUN_SHELL_PATH); pwd)/$(basename $RUN_SHELL_PATH)
+    shift
+    source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
+    run_msg bash $RUN_SHELL_PATH ${ARGVS_ARRAY[@]}
+}
+# 运行安装脚本
+# @command run_install_shell $name $version_num [$other ...]
+# @param $name              安装脚本名，比如：gcc
+# @param $version_num       安装版本号
+# @param $other             其它安装参数集
+# return 1|0
+run_install_shell(){
+    local INSTALL_FILE_PATH ARGVS_ARRAY
+    source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
+    run_shell "$1-install" ${ARGVS_ARRAY[@]} --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH}
+    if_error "安装 $1 失败"
+    source /etc/profile
 }
 # 搜索项目中对应文件
 # @command find_project_file $type $name $var_name

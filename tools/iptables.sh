@@ -104,21 +104,11 @@ DOMAIN_IPS="";
 CLIENT_IP="";
 
 info_msg "验证防火墙运行状态";
-#开启服务
-if [ -z "`systemctl --version 2>&1|grep "bash: systemctl:"`" ];then
-    if [ -z "`service iptables status|grep 'not running'`" ];then
-        info_msg "iptables 服务在运行中";
-    else
-        error_exit "iptables 服务未运行";
-    fi
+#判断是否防火墙服务
+if has_iptables_run;then
+    info_msg "iptables 服务在运行中";
 else
-    # 默认没有iptables.service服务可以自己安装 ，否则需要使用 systemctl stop firewalld 来处理
-    # yum install iptables-services
-    if [ -z "`systemctl status iptables|grep 'Active: inactive (dead)'`" ];then
-        info_msg "iptables 服务在运行中";
-    else
-        error_exit "iptables 服务未运行";
-    fi
+    error_exit "iptables 服务未运行";
 fi
 
 #添加IP到配置文件中
