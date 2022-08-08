@@ -352,20 +352,26 @@ if_command(){
 # @command if_many_version $name $option1 [$option2 ...]
 # @param $name          命令名
 # @param $option1       命令对比参数，一般以版本号对比
+#                       如果不指定则有多个命令即算
 # return 1|0
 if_many_version(){
-    if if_command $1;then
-        local ITEM NEXT_VERSION PREV_VERSION
-        while read ITEM;do
-            NEXT_VERSION=$("$ITEM" ${@:2} 2>&1)
-            if [ -z "$PREV_VERSION" ];then
-                PREV_VERSION=$NEXT_VERSION
-            elif test "$NEXT_VERSION" != "$PREV_VERSION";then
-                return 0
-            fi
-        done <<EOF
+    if if_command "$1";then
+        if [ $# = 1 ];then
+            (( $(which -a "$1" 2>/dev/null|wc -l) > 1 ))
+            return $?
+        else
+            local ITEM NEXT_VERSION PREV_VERSION
+            while read ITEM;do
+                NEXT_VERSION=$("$ITEM" ${@:2} 2>&1)
+                if [ -z "$PREV_VERSION" ];then
+                    PREV_VERSION=$NEXT_VERSION
+                elif test "$NEXT_VERSION" != "$PREV_VERSION";then
+                    return 0
+                fi
+            done <<EOF
 $(which -a "$1" 2>/dev/null)
 EOF
+        fi
     fi
     return 1
 }
@@ -917,11 +923,12 @@ EOF
 # @param $var_noptionsame   脚本运行参数
 # return 1|0
 run_shell(){
-    local ARGVS_ARRAY RUN_SHELL_PATH=$(cd "$CURRENT_SHELL_BASH";find ./installs ./tools -name "$1.sh") 
+    info_msg "${@}"
+    local ARGVS_ARRAY RUN_SHELL_PATH=$(cd "$SHELL_WROK_BASH_PATH";find ./installs ./tools -name "$1.sh") 
     if [ -z "$RUN_SHELL_PATH" ];then
         error_exit "不存在 $1 内置脚本"
     fi
-    RUN_SHELL_PATH=$(cd $(dirname $RUN_SHELL_PATH); pwd)/$(basename $RUN_SHELL_PATH)
+    safe_realpath RUN_SHELL_PATH
     shift
     source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
     run_msg bash $RUN_SHELL_PATH ${ARGVS_ARRAY[@]}
@@ -934,10 +941,10 @@ run_shell(){
 # @param $other             其它安装参数集
 # return 1|0
 run_install_shell(){
-    local INSTALL_FILE_PATH ARGVS_ARRAY
+    local INSTALL_NAME="$1-install" ARGVS_ARRAY
+    shift
     source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
-    run_shell "$1-install" ${ARGVS_ARRAY[@]} --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH}
-    if_error "安装 $1 失败"
+    eval run_shell "$INSTALL_NAME" ${ARGVS_ARRAY[@]} --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH}
     source /etc/profile
 }
 # 搜索项目中对应文件

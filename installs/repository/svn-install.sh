@@ -136,27 +136,38 @@ else
         packge_manager_run install -APR_DEVEL_PACKGE_NAMES
     fi
 fi
+# 必需以pkg-config所有目录为准，否则编译容易失败
 # apr 多版本处理
-if if_many_version "apr$APR_DIFF-config" --version;then
+if if_many_version "apr$APR_DIFF-config";then
     info_msg "存在多个 apr$APR_DIFF-config"
-    for APR_PATH in $(which -a apr$APR_DIFF-config); do
-
-        info_msg "$APR_PATH"
-
-        if [ -z "$MIN_APR_DEVEL_VERSION" ] || if_version $($APR_PATH --version|grep -oP '\d+(\.\d+){2}'|head -1) '>=' $MIN_APR_DEVEL_VERSION;then
-            CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-apr=\"$APR_PATH\""
-            break
-        fi
-    done
+    get_lib_install_path "apr$APR_DIFF" APR_PATH
+    APR_PATH="${APR_PATH:-'/usr/'}bin/apr$APR_DIFF-config"
+    if [ ! -e "${APR_PATH}" ];then
+        for _APR_PATH in $(which -a apr$APR_DIFF-config); do
+            if [ -z "$MIN_APR_DEVEL_VERSION" ] || if_version $($_APR_PATH --version|grep -oP '\d+(\.\d+){2}'|head -1) '>=' $MIN_APR_DEVEL_VERSION;then
+                APR_PATH=$_APR_PATH
+            fi
+        done
+    fi
+    if [ -e "${APR_PATH}" ];then
+        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-apr=\"$APR_PATH\""
+    fi
 fi
 # apr-util 多版本处理
-if if_many_version "apr-util$APR_DIFF-config" --version;then
-    for APR_PATH in $(which -a apu$APR_DIFF-config); do
-        if [ -z "$MIN_APR_DEVEL_VERSION" ] || if_version $($APR_PATH --version|grep -oP '\d+(\.\d+){2}'|head -1) '>=' $MIN_APR_DEVEL_VERSION;then
-            CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-apr-util=\"$APR_PATH\""
-            break
-        fi
-    done
+if if_many_version "apu$APR_DIFF-config";then
+    info_msg "存在多个 apu$APR_DIFF-config"
+    get_lib_install_path "apr-util$APR_DIFF" APR_PATH
+    APR_PATH="${APR_PATH:-'/usr/'}bin/apu$APR_DIFF-config"
+    if [ ! -e "${APR_PATH}" ];then
+        for _APR_PATH in $(which -a apu$APR_DIFF-config); do
+            if [ -z "$MIN_APR_DEVEL_VERSION" ] || if_version $($_APR_PATH --version|grep -oP '\d+(\.\d+){2}'|head -1) '>=' $MIN_APR_DEVEL_VERSION;then
+                APR_PATH=$_APR_PATH
+            fi
+        done
+    fi
+    if [ -e "${APR_PATH}" ];then
+        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-apr-util=\"$APR_PATH\""
+    fi
 fi
 
 cd $SVN_CONFIGURE_PATH

@@ -135,7 +135,7 @@ handle_run(){
                         done
                     fi
                 fi
-                handle_run "$1" status
+                ! handle_run "$1" status
             else
                 warn_msg "服务未运行，无需关闭"
             fi

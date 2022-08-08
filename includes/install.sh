@@ -244,7 +244,7 @@ download_file(){
         if [ $? != '0' ];then
             local TEMP_FILENAME=`date +'%Y_%m_%d_%H_%M_%S'`_error_"$FILE_NAME"
             mv "$FILE_NAME" "$TEMP_FILENAME"
-            error_exit "下载失败: $1 ，保存文件名：$TEMP_FILENAME，终止继续执行"
+            warn_msg "下载失败: $1 ，保存文件名：$TEMP_FILENAME，终止继续执行"
         fi
         info_msg "下载文件成功，保存目录：`pwd`/$FILE_NAME"
     else

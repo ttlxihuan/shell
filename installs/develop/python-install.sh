@@ -52,7 +52,7 @@ fi
 if if_lib 'zlib' '>=' '1.2.8'; then
     info_msg 'zlib ok'
 else
-    download_software http://zlib.net/zlib-1.2.11.tar.gz
+    download_software http://zlib.net/fossils/zlib-1.2.11.tar.gz
     configure_install --prefix=$INSTALL_BASE_PATH"/zlib/1.2.11"
     cd $PYTHON_SHELL_WROK_TEMP_PATH
 fi

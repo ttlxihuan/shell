@@ -114,8 +114,31 @@ if [ -n "$APR_MIN_VERSION" ];then
 fi
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
-# 启动服务
-run_msg apachectl -k start
+
+cd $INSTALL_PATH$APACHE_VERSION
+info_msg '修改apache基本配置'
+# 这里没有配置处理，需要了解下
+# 开启rewrite
+sed -i -r 's,^\s*#\s*(LoadModule\s+rewrite_module\s+modules/mod_rewrite\.so),\1,' conf/httpd.conf
+# 开启代理
+sed -i -r 's,^\s*#\s*(LoadModule\s+proxy_module\s+modules/mod_proxy\.so),\1,' conf/httpd.conf
+sed -i -r 's,^\s*#\s*(LoadModule\s+proxy_fcgi_module\s+modules/mod_proxy_fcgi\.so),\1,' conf/httpd.conf
+sed -i -r 's,^\s*#\s*(LoadModule\s+proxy_http_module\s+modules/mod_proxy_http\.so),\1,' conf/httpd.conf
+# 开启vhost
+sed -i -r 's,^\s*#\s*(LoadModule\s+vhost_alias_module\s+modules/mod_vhost_alias\.so),\1,' conf/httpd.conf
+sed -i -r 's,^\s*#\s*(Include\s+conf/extra/httpd-vhosts\.conf),\1,' conf/httpd.conf
+sed -i -r 's,^([^#].+),#\1,g' conf/extra/httpd-vhosts.conf
+# 配置默认域名
+sed -i -r 's,^\s*#\s*\s*(ServerName\s+).*$,\1 localhost:80,' conf/httpd.conf
+
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./bin/apachectl -k start"
+SERVICES_CONFIG[$SERVICES_CONFIG_RESTART_RUN]="./bin/apachectl -k restart"
+SERVICES_CONFIG[$SERVICES_CONFIG_STOP_RUN]="./bin/apachectl -k stop"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./logs/httpd.pid"
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 # 添加执行文件连接
 ln -svf $INSTALL_PATH$APACHE_VERSION/bin/apachectl /usr/local/bin/httpd
