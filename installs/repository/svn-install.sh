@@ -17,6 +17,16 @@
 # CentOS 6.4+
 # Ubuntu 15.04+
 #
+# 常见错误：
+#   1、svnserve: error while loading shared libraries: __vdso_time: invalid mode for dlopen(): Invalid argument
+#       此错误一般是系统的glibc有变动（安装有多版本或更新降版系统自带版本）造成的，glibc是系统内核基本动态库，几乎所有程序均需要调整此库
+#       如果修更新glibc版本导致系统不兼容会导致系统无法正常使用，一般不建议变更glibc版本
+#       恢复原来版本可通过包管理器进行重新安装，然后清除其它版本动态库
+#       通过命令 find / -name libc.so.6 排查是否有多个动态里链接到不同 libc-*.*.so （注意：* 是版本号数字），
+#       有就统一调整为一个版本并删除多余的 libc.so.6 库链接文件和库文件（如果不删除编译时可能会重新自动链接到其它版本glibc库中），并且在安装多个版本glibc后再安装的软件有可能异常（异常就需要重新安装）
+#       再重新编译安装svn
+#   2、svn: E200030: SQLite compiled for 3.36.0, but running with 3.6.20
+#       目录需要把安装目录里的 libsqlite3.so.0.8.6 复制到 /usr/lib64 目录才能编译完成并正常使用svn
 # 下载地址
 # https://tortoisesvn.net/downloads.html
 #
@@ -29,6 +39,8 @@ DEFINE_INSTALL_PARAMS="
 "
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
+# 编译默认项（这里的配置会随着编译版本自动生成编译项）
+DEFAULT_OPTIONS='?utf8proc=internal ?lz4=internal'
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
@@ -38,55 +50,35 @@ install_storage_require 1 1 4
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$SVN_VERSION "
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='?utf8proc=internal ?lz4=internal '$ARGV_options
 # ************** 编译安装 ******************
 # 下载svn包
 download_software https://archive.apache.org/dist/subversion/subversion-$SVN_VERSION.tar.gz
 # 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
+# 额外动态需要增加的选项
+EXTRA_OPTIONS=()
 # 暂存编译目录
 SVN_CONFIGURE_PATH=`pwd`
 # 安装依赖
 info_msg "安装相关已知依赖"
-# 安装openssl
-if if_lib "openssl";then
-    info_msg 'openssl ok'
-else
-    packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
-fi
-# 安装zlib
-if if_lib 'libzip';then
-    info_msg 'libzip ok'
-else
-    packge_manager_run install -ZLIB_DEVEL_PACKGE_NAMES
-fi
-# sqlite 处理，多个版本时容易出问题，svn: E200030: SQLite compiled for 3.36.0, but running with 3.6.20
-# 目录需要把安装目录里的 libsqlite3.so.0.8.6 复制到 /usr/lib64 目录才能编译完成并正常使用svn
+
+# 安装验证 openssl
+install_openssl
+
+# 安装验证 zlib
+install_zlib
+
+# sqlite 处理
 SQLITE_MINIMUM_VER=`grep -oP 'SQLITE_MINIMUM_VER="\d+(\.\d+)+"' ./configure|grep -oP '\d+(\.\d+)+'`
-if [ -z "$SQLITE_MINIMUM_VER" ] || if_version "$SQLITE_MINIMUM_VER" "<" "3.0.0";then
-    packge_manager_run install -SQLITE_DEVEL_PACKGE_NAMES
-elif ! if_command sqlite3 || if_version "$SQLITE_MINIMUM_VER" ">" "`sqlite3 --version`";then
-    # 获取最新版
-    get_version SPLITE3_PATH https://www.sqlite.org/download.html '(\w+/)+sqlite-autoconf-\d+\.tar\.gz' '.*'
-    SPLITE3_VERSION=`echo $SPLITE3_PATH|grep -oP '\d+\.tar\.gz$'|grep -oP '\d+'`
-    info_msg "安装：sqlite3-$SPLITE3_VERSION"
-    # 下载
-    download_software https://www.sqlite.org/$SPLITE3_PATH
-    # 编译安装
-    configure_install --prefix=/usr/local --enable-shared
-else
-    info_msg 'sqlite ok'
-fi
+# 安装验证 sqlite
+install_sqlite "$SQLITE_MINIMUM_VER"
 # sqlite3 多版本处理
-if [ -n "$SQLITE_MINIMUM_VER" ] && if_version "$SQLITE_MINIMUM_VER" ">=" "3.0.0" && if_many_version sqlite3 --version;then
-    get_lib_install_path sqlite3 SQLITE_PKG_PATH
-    if [ -n "$SQLITE_PKG_PATH" ];then
-        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-sqlite=\"$SQLITE_PKG_PATH\""
+if [ -n "$SQLITE_MINIMUM_VER" ] && if_many_version sqlite3 --version;then
+    if [ -n "$INSTALL_sqlite3_PATH" ];then
+        EXTRA_OPTIONS[${#EXTRA_OPTIONS[@]}]="?sqlite=$(dirname ${INSTALL_sqlite3_PATH%/*})"
     fi
 fi
 # 安装apr和apr-util
-APR_DIFF='-1'
 if [ -e 'INSTALL' ];then
     # 获取最低版本
     MIN_APR_DEVEL_VERSION=$(grep -oP 'Apache Portable Runtime \d+(\.\d+)+ or newer' INSTALL|grep -oP '\d+(\.\d+)+')
@@ -94,83 +86,23 @@ if [ -e 'INSTALL' ];then
         until echo "$MIN_APR_DEVEL_VERSION"|grep -qP '\d+(\.\d+){2,}';do
             MIN_APR_DEVEL_VERSION="$MIN_APR_DEVEL_VERSION.0"
         done
-        for ITEM_APR in : -util:_UTIL;do
-            if ! if_lib "apr${ITEM_APR%:*}$APR_DIFF" '>=' $MIN_APR_DEVEL_VERSION;then
-                packge_manager_run install -APR${ITEM_APR#*:}_DEVEL_PACKGE_NAMES
-            fi
-            if if_lib "apr${ITEM_APR%:*}$APR_DIFF" '>=' $MIN_APR_DEVEL_VERSION;then
-                info_msg "apr${ITEM_APR%:*} ok"
-            else
-                # 安装指定版本的apr和apr-util
-                VERSION_MATCH=`echo $MIN_APR_DEVEL_VERSION'.\d+.\d+.\d+'|awk -F '.' '{print $1,$2,$NF}' OFS='\\\.'`
-                # 获取相近高版本
-                get_version APR_VERSION https://archive.apache.org/dist/apr/ "apr-$VERSION_MATCH\.tar\.gz"
-                info_msg "下载：apr-$APR_VERSION"
-                # 下载
-                download_software https://archive.apache.org/dist/apr/apr-$APR_VERSION.tar.gz
-                # 安装
-                configure_install --prefix="$INSTALL_BASE_PATH/apr/$APR_VERSION"
-                # 增加选项
-                CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-apr=\"$(pwd)\""
-                # 获取相近高版本
-                get_version APR_UTIL_VERSION https://archive.apache.org/dist/apr/ "apr-util-$VERSION_MATCH\.tar\.gz"
-                info_msg "下载：apr-util-$APR_UTIL_VERSION"
-                # 下载
-                download_software https://archive.apache.org/dist/apr/apr-util-$APR_UTIL_VERSION.tar.gz
-                # 安装
-                configure_install --prefix="$INSTALL_BASE_PATH/apr-util/$APR_UTIL_VERSION" --with-apr="$INSTALL_BASE_PATH/apr/$APR_VERSION"
-                break
-            fi
-        done
-    fi
-else
-    # 安装apr-util
-    if if_lib 'apr-util'$APR_DIFF;then
-        info_msg 'apr-util ok'
-    else
-        packge_manager_run install -APR_UTIL_DEVEL_PACKGE_NAMES
-    fi
-    if if_lib 'apr'$APR_DIFF;then
-        info_msg 'apr ok'
-    else
-        packge_manager_run install -APR_DEVEL_PACKGE_NAMES
     fi
 fi
+install_apr "$MIN_APR_DEVEL_VERSION"
+install_apr_util "$MIN_APR_DEVEL_VERSION"
 # 必需以pkg-config所有目录为准，否则编译容易失败
 # apr 多版本处理
-if if_many_version "apr$APR_DIFF-config";then
-    info_msg "存在多个 apr$APR_DIFF-config"
-    get_lib_install_path "apr$APR_DIFF" APR_PATH
-    APR_PATH="${APR_PATH:-'/usr/'}bin/apr$APR_DIFF-config"
-    if [ ! -e "${APR_PATH}" ];then
-        for _APR_PATH in $(which -a apr$APR_DIFF-config); do
-            if [ -z "$MIN_APR_DEVEL_VERSION" ] || if_version $($_APR_PATH --version|grep -oP '\d+(\.\d+){2}'|head -1) '>=' $MIN_APR_DEVEL_VERSION;then
-                APR_PATH=$_APR_PATH
-            fi
-        done
-    fi
-    if [ -e "${APR_PATH}" ];then
-        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-apr=\"$APR_PATH\""
-    fi
+if if_many_version "apr-1-config" --version && [ -n "$INSTALL_apr_1_config_PATH" ];then
+    EXTRA_OPTIONS[${#EXTRA_OPTIONS[@]}]="?apr=$INSTALL_apr_1_config_PATH"
 fi
 # apr-util 多版本处理
-if if_many_version "apu$APR_DIFF-config";then
-    info_msg "存在多个 apu$APR_DIFF-config"
-    get_lib_install_path "apr-util$APR_DIFF" APR_PATH
-    APR_PATH="${APR_PATH:-'/usr/'}bin/apu$APR_DIFF-config"
-    if [ ! -e "${APR_PATH}" ];then
-        for _APR_PATH in $(which -a apu$APR_DIFF-config); do
-            if [ -z "$MIN_APR_DEVEL_VERSION" ] || if_version $($_APR_PATH --version|grep -oP '\d+(\.\d+){2}'|head -1) '>=' $MIN_APR_DEVEL_VERSION;then
-                APR_PATH=$_APR_PATH
-            fi
-        done
-    fi
-    if [ -e "${APR_PATH}" ];then
-        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-apr-util=\"$APR_PATH\""
-    fi
+if if_many_version "apu-1-config" --version && [ -n "$INSTALL_apu_1_config_PATH" ];then
+    EXTRA_OPTIONS[${#EXTRA_OPTIONS[@]}]="?apr-util=$INSTALL_apu_1_config_PATH"
 fi
 
 cd $SVN_CONFIGURE_PATH
+# 解析额外选项
+parse_options CONFIGURE_OPTIONS ${EXTRA_OPTIONS[@]}
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 

@@ -121,10 +121,10 @@ DEFINE_INSTALL_PARAMS="
 [-s, --swapoff]禁用虚拟内存，开启后会自动关闭虚拟内存相关配置
 [-n, --cluster-name='']指定集群名，注意在主或数据节点中必需包含当前地址
 [-t, --node-type='auto']指定当前节点类型：
-#master 主节点
-#data 数据节点
-#all 主和数据节点
-#auto 自动提取节点集配置
+# master 主节点
+# data 数据节点
+# all 主和数据节点
+# auto 自动提取节点集配置
 [-N, --node-name='']指定当前节点在集群中的唯一名，不指定则是集群名+ip
 [-m, --master-hosts='']指定主节点集用逗号分开，仅支持IP地址
 #如果包含当前节点则自动过滤，没有指定集群名此参数无效
@@ -137,6 +137,8 @@ DEFINE_INSTALL_PARAMS="
 #指定对应的大小，单位（B,K,M,G,T），比如：4G
 #不指定单位为B，最大空间30G，超过将截断
 #指定为0时即不配置内存
+[-U, --username='']
+[-P, --password='']
 "
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
@@ -202,33 +204,17 @@ else
     TAR_FILE_NAME=""
 fi
 download_software https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-$ELASTICSEARCH_VERSION$TAR_FILE_NAME.tar.gz elasticsearch-$ELASTICSEARCH_VERSION$(echo "$TAR_FILE_NAME"|sed -r 's/-linux-.*$//')
-# 安装java
-packge_manager_run install -JAVA_PACKGE_NAMES
-if ! if_command java;then
-    error_exit '安装java失败'
-fi
+# 暂存编译目录
+ELASTICSEARCH_CONFIGURE_PATH=$(pwd)
 
+# 安装验证 java
+install_java
+
+cd $ELASTICSEARCH_CONFIGURE_PATH
 # 复制安装包并创建用户
 copy_install elasticsearch
 
 mkdirs data elasticsearch
-
-#info_msg "系统限制相关配置文件修改"
-# 修改系统限制配置文件
-#if [ -e '/etc/security/limits.conf' ] && ! grep -qP '^elasticsearch soft nofile' /etc/security/limits.conf;then
-#    echo 'elasticsearch soft nofile 65536' > /etc/security/limits.conf
-#    echo 'elasticsearch hard nofile 65536' > /etc/security/limits.conf
-#fi
-#if [ -e '/etc/sysctl.conf' ] && ! grep -qP '^vm\.max_map_count=' /etc/sysctl.conf;then
-#    echo 'vm.max_map_count=262144' > /etc/sysctl.conf
-#    sysctl -p
-#fi
-#if [ -d '/etc/security/limits.d/' ];then
-#    LIMITS_CONFIG=`find /etc/security/limits.d/ -name '*nproc.conf'|tail -n 1`
-#    if [ -n "$LIMITS_CONFIG" ] && ! grep -qP '^(\*|elasticsearch)\s+soft\s+nproc\s+4096' $LIMITS_CONFIG;then
-#        echo 'elasticsearch     soft    nproc     4096' > $LIMITS_CONFIG
-#    fi
-#fi
 
 info_msg "elasticsearch 配置文件修改"
 
@@ -310,9 +296,48 @@ if [ -n "$ARGV_cluster_name" ];then
         sed -i -r "s/^#?(gateway\.recover_after_nodes:).*$/\1 $NODES_NUM/" ./config/elasticsearch.yml
     fi
 fi
+if grep -qP '^logger\.xpack' ./config/*.properties; then
+    # xpack 安全配置处理
+    CA_FILE="./config/certs/elastic-stack-ca.p12"
+    CERT_FILE="./config/certs/elastic-stack-cert.p12"
+    # 生成证书
+    if [ ! -e $CA_FILE ];then
+        ./bin/elasticsearch-certutil ca --pass '' --out $CA_FILE
+    fi
+    if [ -e $CA_FILE -a ! -e $CERT_FILE ];then
+        ./bin/elasticsearch-certutil cert --pass '' --out $CERT_FILE --ca $CA_FILE --ca-pass ''
+        # 创建授权密码
+        ./bin/elasticsearch-keystore create 
+    fi
 
-# 启动服务
-sudo_msg elasticsearch ./bin/elasticsearch -d
+    
+# 这里没有配置处理，需要了解下
+#
+#
+#
+#
+
+
+
+
+
+    echo '# -------------- xpack --------------' >> ./config/elasticsearch.yml
+    if [ -e $CA_FILE -a -e $CA_FILE ];then
+        echo 'xpack.security.transport.ssl.enabled: true' >> ./config/elasticsearch.yml
+        echo 'xpack.security.transport.ssl.verification_mode: certificate' >> ./config/elasticsearch.yml
+        echo 'xpack.security.transport.ssl.keystore.path: certs/elastic-stack-cert.p12' >> ./config/elasticsearch.yml
+        echo 'xpack.security.transport.ssl.truststore.path: certs/elastic-stack-cert.p12' >> ./config/elasticsearch.yml
+    else
+        echo 'xpack.security.transport.ssl.enabled: false' >> ./config/elasticsearch.yml
+    fi
+fi
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./bin/elasticsearch -d --pidfile ./logs/elasticsearch_server.pid"
+SERVICES_CONFIG[$SERVICES_CONFIG_USER]="elasticsearch"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./logs/elasticsearch_server.pid"
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 # 安装 kibana
 if [ "$ARGV_tool" = 'kibana' ];then
@@ -326,9 +351,22 @@ if [ "$ARGV_tool" = 'kibana' ];then
     download_software https://artifacts.elastic.co/downloads/kibana/$KIBANA_PATH_NAME.tar.gz $KIBANA_DIR_NAME
     # 复制安装包并创建用户
     copy_install kibana "$INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION"
+
+    # 修改配置
+    KIBANA_PID="./logs/kibana_server.pid"
+    sed -i -r "s,^#\s*(pid.file:).*,\1 $KIBANA_PID," config/kibana.yml
     # 启动kibana
-    sudo_msg kibana "nohup ./bin/kibana -d 2>&1 >/dev/null &"
-    info_msg "kibana 管理地址：http://$SERVER_IP:5601"
+
+    # 添加服务配置
+    SERVICES_CONFIG_KIBANA=()
+    SERVICES_CONFIG_KIBANA[$SERVICES_CONFIG_NAME]="kibana-$ELASTICSEARCH_VERSION"
+    SERVICES_CONFIG_KIBANA[$SERVICES_CONFIG_BASE_PATH]="$INSTALL_BASE_PATH/kibana/$ELASTICSEARCH_VERSION"
+    SERVICES_CONFIG_KIBANA[$SERVICES_CONFIG_START_RUN]="nohup ./bin/kibana 2>&1 >>./logs/kibana_server.log &"
+    SERVICES_CONFIG_KIBANA[$SERVICES_CONFIG_USER]="kibana"
+    SERVICES_CONFIG_KIBANA[$SERVICES_CONFIG_PID_FILE]="$KIBANA_PID"
+    # 服务并启动服务
+    add_service SERVICES_CONFIG_KIBANA
+
 fi
 
 info_msg "安装成功：elasticsearch-$ELASTICSEARCH_VERSION"

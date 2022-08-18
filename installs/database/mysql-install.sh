@@ -170,17 +170,13 @@ INSTALL_CMAKE=`cat CMakeLists.txt 2>&1|grep -P 'yum\s+install\s+cmake\d?' -o|gre
 if [ -z "$INSTALL_CMAKE" ];then
     INSTALL_CMAKE="cmake"
 fi
-if if_lib "openssl";then
-    info_msg 'openssl ok'
-else
-    # 安装openssl-dev
-    packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
-fi
-if if_lib 'ncurses';then
-    info_msg 'ncurses ok'
-else
-    packge_manager_run install -NCURSES_DEVEL_PACKGE_NAMES
-fi
+
+# 安装验证 openssl
+install_openssl
+
+# 安装验证 ncurses
+install_ncurses
+
 # 新增加的压缩功能，指定使用系统zstd库
 # if if_version "$MYSQL_VERSION" ">=" "8.0.18" && [ -d 'extra/zstd' ];then
 #     if ! if_command zstd; then
@@ -193,47 +189,30 @@ fi
 #         CMAKE_CONFIG=$CMAKE_CONFIG" -DWITH_ZSTD=system"
 #     fi
 # fi
-packge_manager_run remove mariadb*
+package_manager_run remove mariadb*
+
 # 获取当前安装要求最低gcc版本
 GCC_MIN_VERSION=`grep -P 'GCC \d+(\.\d+)+' cmake/os/Linux.cmake -o|grep -P '\d+(\.\d+)+' -o|tail -n 1`
-if [[ "$GCC_MIN_VERSION" =~ ^"\d+\.\d+"$ ]];then
-    GCC_MIN_VERSION="$GCC_MIN_VERSION.0"
-fi
-# 获取当前安装的gcc版本
-for ITEM in `which -a gcc`; do
-    GCC_CURRENT_VERSION=`$ITEM -v 2>&1|grep -oP '\d+(\.\d+){2}'|tail -n 1`
-    if if_version $GCC_MIN_VERSION '<=' $GCC_CURRENT_VERSION;then
-        if if_many_version gcc -v;then
-            GCC_INSTALL=`echo $ITEM|grep -oP '/([\w+\.]+/)+'`
-            CMAKE_CONFIG="-DCMAKE_C_COMPILER="$GCC_INSTALL"gcc -DCMAKE_CXX_COMPILER="$GCC_INSTALL"g++ $CMAKE_CONFIG"
-        fi
-        break
-    fi
-done
-if ! if_command gcc || if_version $GCC_MIN_VERSION '>' $GCC_CURRENT_VERSION;then
-    run_install_shell gcc $GCC_MIN_VERSION
-    if_error '安装失败：gcc-$GCC_MIN_VERSION'
-    CMAKE_CONFIG="-DCMAKE_C_COMPILER=/usr/local/gcc/$GCC_MIN_VERSION/bin/gcc -DCMAKE_CXX_COMPILER=/usr/local/gcc/$GCC_MIN_VERSION/bin/g++ $CMAKE_CONFIG"
-fi
+# 补齐版本号
+repair_version GCC_MIN_VERSION
+# 安装验证 GCC
+install_gcc "$GCC_MIN_VERSION"
+CMAKE_CONFIG="-DCMAKE_C_COMPILER=${INSTALL_gcc_PATH%/*}/gcc -DCMAKE_CXX_COMPILER=${INSTALL_gcc_PATH%/*}g++ $CMAKE_CONFIG"
+
 # 编译缓存文件删除
 if [ -e "CMakeCache.txt" ];then
     rm -f CMakeCache.txt
 fi
+
 # 安装编译器
 if ! if_command $INSTALL_CMAKE && [[ "$INSTALL_CMAKE" == "cmake3" ]];then
-    # get_version CMAKE_MAX_VERSION "https://cmake.org/files/" "v3\.\d+"
-    # get_version CMAKE_VERSION "https://cmake.org/files/v$CMAKE_MAX_VERSION" "cmake-\d+\.\d+\.\d+"
-    # 3.22.0以上版本文件路径不一样，暂时不安装太高版本
-    CMAKE_MAX_VERSION='3.21'
-    CMAKE_VERSION='3.21.3'
-    download_software "https://cmake.org/files/v$CMAKE_MAX_VERSION/cmake-$CMAKE_VERSION.tar.gz"
-    # 编译安装
-    configure_install --prefix=$INSTALL_BASE_PATH/cmake3/$CMAKE_VERSION
-    ln -svf /$INSTALL_BASE_PATH/cmake3/$CMAKE_VERSION/bin/cmake /usr/bin/$INSTALL_CMAKE
-    cd $MYSQL_CONFIGURE_PATH
+    install_cmake '3.0.0'
 else
-    tools_install $INSTALL_CMAKE
+    install_cmake '' '2.8.12'
 fi
+
+cd $MYSQL_CONFIGURE_PATH
+
 # 编译安装
 cmake_install $INSTALL_CMAKE ../ -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH$MYSQL_VERSION -DMYSQL_DATADIR=$INSTALL_PATH$MYSQL_VERSION/database -DSYSCONFDIR=$INSTALL_PATH$MYSQL_VERSION/etc -DSYSTEMD_PID_DIR=$INSTALL_PATH$MYSQL_VERSION/run -DMYSQLX_UNIX_ADDR=$INSTALL_PATH$MYSQL_VERSION/run/mysqlx.sock -DMYSQL_UNIX_ADDR=$INSTALL_PATH$MYSQL_VERSION/run/mysql.sock $CMAKE_CONFIG $ARGV_options
 
@@ -592,17 +571,12 @@ else
     OPEN_SERVICE="service mysqld start"
 fi
 
-# 重复多次尝试启动服务
-for ((LOOP_NUM=1;LOOP_NUM<5;LOOP_NUM++))
-do
-   info_msg "第${LOOP_NUM}次尝试启动mysql";
-   run_msg $OPEN_SERVICE
-   if [ -z "`netstat -ntlp|grep mysql`" ]; then
-       sleep 5;
-   else
-       break;
-   fi
-done
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="$OPEN_SERVICE"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]=""
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 # 修改密码，建立主从复制
 if [ -n "`netstat -ntlp|grep mysql`" ]; then
@@ -610,14 +584,13 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
     info_msg "初始密码: $TEMP_PASSWORD"
     if [ -n "$TEMP_PASSWORD" ]; then
         run_msg "mysql -uroot --password=\"$TEMP_PASSWORD\" -h127.0.0.1 --connect-expired-password -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'\" 2>&1"
-        for ((LOOP_NUM=1;LOOP_NUM<10;LOOP_NUM++))
-        do
+        for ((LOOP_NUM=1;LOOP_NUM<10;LOOP_NUM++)); do
             info_msg "第${LOOP_NUM}次尝试修改密码";
             UPDATE_PASSWORD=$(run_msg mysql -uroot --password="$TEMP_PASSWORD" -h127.0.0.1 --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'" '2>&1')
             if [[ "$UPDATE_PASSWORD" =~ "ERROR" ]]; then
                 info_msg $UPDATE_PASSWORD
                 info_msg "修改mysql初始密码失败"
-                sleep 5;
+                sleep 5s;
             else
                 info_msg "新mysql密码: $MYSQL_ROOT_PASSWORD"
                 info_msg "新mysql密码已经写入配置文件中备注"

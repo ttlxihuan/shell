@@ -75,8 +75,9 @@ if ! echo "$GCC_VERSION"|grep -qP '^\d+\.\d+\.\d+$';then
 fi
 # 注意GCC不建议安装过高的版本，否则容易造成编译异常
 if if_version "$GCC_VERSION" '>' "$GCC_CURRENT_VERSION" || ( if_version "${GCC_VERSION%%.*}" '<' "${GCC_CURRENT_VERSION%%.*}" && (ask_select ASK_INPUT "安装要求GCC版本是 $GCC_VERSION 已安装 $GCC_CURRENT_VERSION ，版本偏高可能导致编译失败，是否安装 GCC-$GCC_VERSION 再编译？"  || [ "$ASK_INPUT" = 'y' ]) ); then
-    run_install_shell gcc $GCC_VERSION
-    if_error '安装失败：gcc'
+    if ! install_range_version -GCC_C_PACKAGE_NAMES "$GCC_VERSION";then
+        run_install_shell gcc $GCC_VERSION
+    fi
 else
     info_msg 'GCC OK'
 fi
@@ -98,26 +99,19 @@ fi
 if if_version $PYTHON_VERSION '>' "$PYTHON_CURRENT_VERSION"; then
     # 安装对应的新版本
     run_install_shell python $PYTHON_VERSION
-    if_error '安装失败：python'
 else
     info_msg 'python OK'
 fi
-if if_lib "openssl";then
-    info_msg 'openssl ok'
-else
-    # 安装openssl-dev
-    packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
-fi
-if if_lib "libcurl";then
-    info_msg 'libcurl ok'
-else
-    # 安装 curl-dev
-    packge_manager_run install -CURL_DEVEL_PACKGE_NAMES
-fi
+
+# 安装验证 openssl
+install_openssl
+
+# 安装验证 curl
+install_curl
 
 # lzma 依赖 mongodb-5.0.3
 # Cannot find system library 'lzma' required for use with libunwind
-# packge_manager_run install libunwind-devel
+# package_manager_run install libunwind-devel
 
 # 编译安装
 if [ -e "etc/pip/compile-requirements.txt" ];then
@@ -877,8 +871,13 @@ mkdirs data
 mkdirs logs
 chown -R mongodb:mongodb ./*
 
-# 启动服务器
-sudo_msg mongodb ./bin/mongod -f ./etc/mongod.conf
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./bin/mongod -f ./etc/mongod.conf"
+SERVICES_CONFIG[$SERVICES_CONFIG_USER]="mongodb"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]=""
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 # 安装成功
 info_msg "安装成功：mongodb-$MONGODB_VERSION";

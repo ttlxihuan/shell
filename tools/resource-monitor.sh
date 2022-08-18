@@ -196,23 +196,6 @@ EOF
         resources_warn ${TEMP[0]} NETC
     done
 }
-# 存在选项
-# @command in_options $dist $options [...]
-# @param $dist          源选项
-# @param $options       选项集
-# return 0|1
-in_options(){
-    if (( $# < 2));then
-        return 0
-    fi
-    local INDEX
-    for ((INDEX=2;INDEX<=$#;INDEX++));do
-        if [ "${@:$INDEX:1}" = "$1" ];then
-            return 0
-        fi
-    done
-    return 1
-}
 # 资源数据报警处理
 # @command resources_warn $path $name [...]
 # @param $path      要处理的资源路径
@@ -229,12 +212,10 @@ resources_warn(){
 # 触发报警
 # @command trigger_warn $as
 # @param $as            触发别名
-#                                   $item_name      区块内项名
-#                                   $item_value     区块内项值
 # return 0|1
 trigger_warn(){
     local WARN_RESOURCE=${2%%:*} 
-    if ! in_options $WARN_RESOURCE $ONLY_WARN;then
+    if ! search_array "$WARN_RESOURCE" ONLY_WARN;then
         return 1
     fi
     # 提取必要数据
@@ -287,7 +268,7 @@ trigger_warn(){
 # return 0|1
 persist_warn(){
     local NAME
-    make_conf_key NAME "$1"
+    make_key NAME "$1"
     if [ -z "$3" ];then
         # 删除匹配行
         grep -qP "^$NAME=.*" $ARGV_cache_file && sed -i -r "/^$NAME=.*/d" $ARGV_cache_file
@@ -342,7 +323,7 @@ debug_show(){
 parse_conf $ARGV_conf condition msg exec
 # 必要命令判断
 if ! if_command sar || ! if_command iostat;then
-    packge_manager_run install sysstat
+    package_manager_run install sysstat
     if [ -e '/etc/default/sysstat' ];then
         sed -i -r 's/^ENABLED="false"/ENABLED="true"/' /etc/default/sysstat
         service sysstat restart

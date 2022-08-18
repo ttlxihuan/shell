@@ -26,6 +26,8 @@
 ####################################################################################
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
+# 编译默认项（这里的配置会随着编译版本自动生成编译项）
+DEFAULT_OPTIONS='rewrite ?cgi ?asis ssl ?proxy-scgi proxy proxy-http so ?threads'
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
@@ -35,13 +37,13 @@ install_storage_require 3 1 4
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$APACHE_VERSION "
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='rewrite ?cgi ?asis ssl ?proxy-scgi proxy proxy-http so ?threads '"?--datadir=$INSTALL_PATH$APACHE_VERSION "$ARGV_options
 # ************** 编译安装 ******************
 # 下载apache包
 download_software http://archive.apache.org/dist/httpd/httpd-$APACHE_VERSION.tar.gz
 # 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options ?--datadir=$INSTALL_PATH$APACHE_VERSION
+# 额外动态需要增加的选项
+EXTRA_OPTIONS=()
 # 安装依赖
 info_msg "安装相关已知依赖"
 APACHE_SHELL_WROK_TEMP_PATH=`pwd`
@@ -51,34 +53,20 @@ if in_options ssl $CONFIGURE_OPTIONS;then
     # apache2.x不兼容openssl1.0.x及以上的版本
     # 注意openssl-0.9.8版本从 a~f 等一些版本在部分服务器中MD5编译不通过需要增加no-asm选项
     # no-asm： 是在交叉编译过程中不使用汇编代码代码加速编译过程，原因是它的汇编代码是对arm格式不支持的。
-    # packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
     if if_version "$APACHE_VERSION" "<" "2.3.0";then
         OPENSSL_VERSION='0.9.7c'
     else
         OPENSSL_VERSION='0.9.8c'
     fi
-    if if_lib "openssl" ">=" $OPENSSL_VERSION;then
-        info_msg 'openssl ok'
-    else
-        OPENSSL_VERSION='1.1.1'
-        download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
-        OPENSSL_PATH=`pwd`
-        # # 添加编译文件连接
-        # if [ ! -e './configure' ];then
-        #     cp ./config ./configure
-        #     if_error '创建编译文件失败'
-        # fi
-        # # 编译安装
-        # configure_install no-asm -fPIC --prefix=$OPENSSL_PATH
-        cd $APACHE_SHELL_WROK_TEMP_PATH
-        parse_options CONFIGURE_OPTIONS "?--with-ssl=$OPENSSL_PATH ?--with-openssl=$OPENSSL_PATH"
+    # 安装验证 openssl
+    if ! install_openssl "$OPENSSL_VERSION" '' '1.1.1' 1;then
+        EXTRA_OPTIONS[${#EXTRA_OPTIONS[@]}]="?ssl=`pwd` ?openssl=`pwd`"
     fi
 fi
-if if_lib 'libpcre';then
-    info_msg 'pcre ok'
-else
-    packge_manager_run install -PCRE_DEVEL_PACKGE_NAMES
-fi
+
+# 安装验证 libpcre
+install_libpcre
+
 # 获取最小版本，注意apr与apr-util是配套的，对应的大版本号必需一样，否则编译容易失败
 # 部分版本编译时要求apr版本较低如果按指定的大版本去配置会出现编译失败，比如apache-2.3.x开始需要更高的apr
 APR_MIN_VERSION=`grep -oiP 'APR version \d+\.\d+\.\d+' ./configure|sort -Vrb|head -n 1|grep -oP '\d+\.\d+\.\d+'`
@@ -86,32 +74,31 @@ if if_version "$APACHE_VERSION" ">" "2.3.0" && if_version "$APR_MIN_VERSION" "<"
     APR_MIN_VERSION='1.4.0'
 fi
 if [ -n "$APR_MIN_VERSION" ];then
-    # 下载apr
-    VERSION_MATCH=`echo $APR_MIN_VERSION'.\d+.\d+.\d+'|awk -F '.' '{print $1,$2,$NF}' OFS='\\\.'`
-    if [ ! -d "$APACHE_SHELL_WROK_TEMP_PATH/srclib/apr" ];then
-        # 获取最新版
-        get_version APR_VERSION https://archive.apache.org/dist/apr/ "apr-$VERSION_MATCH\.tar\.gz"
-        info_msg "下载：apr-$APR_VERSION"
-        # 下载
-        download_software https://archive.apache.org/dist/apr/apr-$APR_VERSION.tar.gz
+    if ! install_apr "$APR_MIN_VERSION" "" "" 1;then
         # 复制到编译目录
         mv `pwd` $APACHE_SHELL_WROK_TEMP_PATH/srclib/apr
     fi
-    # 下载apr-util
-    if [ ! -d "$APACHE_SHELL_WROK_TEMP_PATH/srclib/apr-util" ]; then
-        # 获取最新版
-        get_version APR_UTIL_VERSION https://archive.apache.org/dist/apr/ "apr-util-$VERSION_MATCH\.tar\.gz"
-        info_msg "下载：apr-util-$APR_UTIL_VERSION"
-        # 下载
-        download_software https://archive.apache.org/dist/apr/apr-util-$APR_UTIL_VERSION.tar.gz
+    if ! install_apr_util "$APR_MIN_VERSION" "" "" 1;then
         # 复制到编译目录
         mv `pwd` $APACHE_SHELL_WROK_TEMP_PATH/srclib/apr-util
     fi
-    cd $APACHE_SHELL_WROK_TEMP_PATH
-    if [ -d './srclib/apr' ] || [ -d './srclib/apr-util' ];then
-        CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS"--with-included-apr"
+    if [ -d "$APACHE_SHELL_WROK_TEMP_PATH/srclib/apr" ] || [ -d "$APACHE_SHELL_WROK_TEMP_PATH/srclib/apr-util" ];then
+        EXTRA_OPTIONS[${#EXTRA_OPTIONS[@]}]="?included-apr"
+    else
+        # apr 多版本处理
+        if if_many_version "apr-1-config" --version && [ -n "$INSTALL_apr_1_config_PATH" ];then
+            EXTRA_OPTIONS[${#EXTRA_OPTIONS[@]}]="?apr=$INSTALL_apr_1_config_PATH"
+        fi
+        # apr-util 多版本处理
+        if if_many_version "apu-1-config" --version && [ -n "$INSTALL_apu_1_config_PATH" ];then
+            EXTRA_OPTIONS[${#EXTRA_OPTIONS[@]}]="?apr-util=$INSTALL_apu_1_config_PATH"
+        fi
     fi
 fi
+
+cd $APACHE_SHELL_WROK_TEMP_PATH
+# 解析额外选项
+parse_options CONFIGURE_OPTIONS ${EXTRA_OPTIONS[@]}
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 

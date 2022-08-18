@@ -83,13 +83,15 @@ install_storage_require 1 1 4
 # ************** 编译安装 ******************
 # 下载redis包
 download_software http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
+# 暂存编译目录
+REDIS_CONFIGURE_PATH=`pwd`
 
 # 新版的redis需要更高的GCC
-if if_version "$REDIS_VERSION" ">=" "6.0.0" && if_version "`cc --version|grep -oP '\d+(\.\d+){2}'|head -1`" "<" "5.1.0";then
-    run_install_shell gcc 7.5.0
-    if_error 'install gcc fail'
+if if_version "$REDIS_VERSION" ">=" "6.0.0";then
+    install_gcc "5.1.0" "7.5.0" '7.5.0'
 fi
 
+cd $REDIS_CONFIGURE_PATH
 # 编译
 make_install '' $ARGV_options
 

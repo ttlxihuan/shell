@@ -81,5 +81,5 @@ if [ "$ARGV_update" = '1' ];then
     info_msg '脚本信息更新完成'
 else
     source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
-    eval run_shell ${ARGVS_ARRAY[@]}
+    eval run_shell ${CALL_SAFE_ARGVS[@]}
 fi

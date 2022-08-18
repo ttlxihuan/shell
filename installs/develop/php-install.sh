@@ -52,9 +52,11 @@
 ##################################### 安装处理 #####################################
 ####################################################################################
 # 域名
-PHP_HOST='cn2.php.net'
+PHP_HOST='www.php.net'
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
+# 编译默认项（这里的配置会随着编译版本自动生成编译项）
+DEFAULT_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 ?swoole ?pcntl gmp'
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
@@ -64,8 +66,6 @@ install_storage_require 1 1 4
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 ?swoole ?pcntl gmp '$ARGV_options
 # 配置编译安装pecl扩展块信息，只有指定了才会认定为pecl扩展包，并且需要在上面的选项中添加上（需要指定为询问安装比如 ?swoole），否则不会进行安装或安装异常
 # 如果扩展包源文件已经放到PHP编译目录中则同PHP一起编译安装
 # 如果没有则在PHP编译安装完成后再通过phpize方式安装
@@ -79,11 +79,11 @@ download_software https://$PHP_HOST/distributions/php-$PHP_VERSION.tar.gz
 # 暂存编译目录
 PHP_CONFIGURE_PATH=`pwd`
 # 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
 # 安装依赖
 info_msg "安装相关已知依赖"
 # ca-certificates 根证书更新
-packge_manager_run install -CA_CERT_PACKGE_NAMES
+package_manager_run install -CA_CERT_PACKAGE_NAMES
 # ***选项处理&选项依赖安装***
 # fpm 附加选项增加
 if in_options fpm $CONFIGURE_OPTIONS;then
@@ -95,7 +95,7 @@ if in_options mcrypt $CONFIGURE_OPTIONS;then
         info_msg 'libmcrypt ok'
     else
         # 安装 libmcrypt
-        packge_manager_run install -LIBMCRYPT_DEVEL_PACKGE_NAMES
+        package_manager_run install -LIBMCRYPT_DEVEL_PACKAGE_NAMES
         if ! if_command libmcrypt-config;then
             # 下载
             download_software https://nchc.dl.sourceforge.net/project/mcrypt/Libmcrypt/2.5.8/libmcrypt-2.5.8.tar.gz "libmcrypt-2.5.8"
@@ -106,38 +106,19 @@ if in_options mcrypt $CONFIGURE_OPTIONS;then
 fi
 # iconv扩展
 if ! in_options !iconv $CONFIGURE_OPTIONS;then
-    if ! if_command iconv;then
-        # 安装iconv
-        # 获取最新版
-        get_version LIBICONV_VERSION http://ftp.gnu.org/pub/gnu/libiconv/ 'libiconv-\d+\.\d+\.tar\.gz' '\d+\.\d+'
-        info_msg "安装：libiconv-$LIBICONV_VERSION"
-        # 下载
-        download_software http://ftp.gnu.org/pub/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz
-        # 编译安装
-        configure_install --prefix=$INSTALL_BASE_PATH/libiconv/$LIBICONV_VERSION --enable-shared
-    elif if_many_version iconv --version;then
+    # 安装验证 iconv
+    install_iconv
+    #if if_many_version iconv --version;then
         # 安装多个版本需要指定安装目录
-        CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-iconv=`which iconv|grep -oP '/([^/]+/)+'|grep -oP '(/[^/]+)+'` "
-    else
-        info_msg 'libiconv ok'
-    fi
+    #    CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-iconv=${INSTALL_iconv_PATH} "
+    #fi
 fi
 # gmp扩展
 if in_options gmp $CONFIGURE_OPTIONS;then
-    if ldconfig -p|grep -q '/libgmp\.so' && find /usr/include/ -name 'gmp.h'|grep 'gmp' && find /usr/local/include/ -name 'gmp.h'|grep 'gmp';then
-        info_msg 'gmp ok'
-    else
-        # 安装gmp
-        get_version GMP_VERSION https://gmplib.org/download/gmp/ 'gmp-\d+(\.\d+)+\.tar\.bz2'
-        info_msg "安装：gmp-$GMP_VERSION"
-        # 下载
-        download_software https://gmplib.org/download/gmp/gmp-$GMP_VERSION.tar.bz2
-        # 编译安装
-        configure_install --prefix=$INSTALL_BASE_PATH/gmp/$GMP_VERSION --enable-shared
-
-        # 安装gmp-dev
-        packge_manager_run install -GMP_DEVEL_PACKGE_NAMES
-    fi
+    # 提取gmp最低版本
+    GMP_MIN_VERSION=$(grep -oP 'GNU MP Library version \d+(\.\d+)+' $PHP_CONFIGURE_PATH/configure|grep -oP '\d+(\.\d+)+'|tail -n 1)
+    # 安装验证 gmp
+    install_gmp "$GMP_MIN_VERSION"
 fi
 # gd 扩展使用
 if in_options gd $CONFIGURE_OPTIONS;then
@@ -145,13 +126,13 @@ if in_options gd $CONFIGURE_OPTIONS;then
         info_msg 'libpng ok'
     else
         # 安装png-dev
-        packge_manager_run install -PNG_DEVEL_PACKGE_NAMES
+        package_manager_run install -PNG_DEVEL_PACKAGE_NAMES
     fi
     if if_lib 'freetype2';then
         info_msg 'freetype2 ok'
     else
         # 安装freetype
-        packge_manager_run install -FREETYPE_DEVEL_PACKGE_NAMES
+        package_manager_run install -FREETYPE_DEVEL_PACKAGE_NAMES
     fi
     # jpeg扩展使用
     if in_options jpeg $CONFIGURE_OPTIONS;then
@@ -161,7 +142,7 @@ if in_options gd $CONFIGURE_OPTIONS;then
                 info_msg 'libjpeg ok'
             else
                 # 获取最新版
-                get_version JPEG_PATH http://www.ijg.org/files/ 'jpegsrc\.v\d+c\.tar\.gz' '.*'
+                get_download_version JPEG_PATH http://www.ijg.org/files/ 'jpegsrc\.v\d+c\.tar\.gz' '.*'
                 JPEG_VERSION=`echo $JPEG_PATH|grep -oP '\d+c\.tar\.gz$'|grep -oP '\d+'`
                 info_msg "安装：jpeg-$JPEG_VERSION"
                 # 下载
@@ -171,89 +152,38 @@ if in_options gd $CONFIGURE_OPTIONS;then
             fi
         else
             # 安装jpeg-dev
-            packge_manager_run install -JPEG_DEVEL_PACKGE_NAMES
+            package_manager_run install -JPEG_DEVEL_PACKAGE_NAMES
         fi
     fi
 fi
 # zip 扩展使用
 if in_options zip $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 7.3.0;then
-        if if_lib "libzip";then
-            info_msg 'libzip ok'
-        else
-            # 安装libzip-dev
-            packge_manager_run install -ZIP_DEVEL_PACKGE_NAMES
-        fi
-    elif ! if_lib "libzip" ">=" "1.2.0";then
-        # 这里需要判断是否达到版本要求，达到了就不需要再安装了
-        # libzip-1.4+ 版本需要使用cmake更高版本来安装，而cmake需要c++11安装相对麻烦
-        # libzip-1.3+ 编译不能通过会提示 错误:‘LIBZIP_VERSION’未声明(在此函数内第一次使用)
-        # 目前安装 1.2 版本可以通过编译
-        LIBZIP_VERSION="1.2.0"
-        info_msg "安装：libzip-$LIBZIP_VERSION"
-        download_software https://libzip.org/download/libzip-$LIBZIP_VERSION.tar.gz
-        # 删除旧包
-        packge_manager_run remove -ZIP_DEVEL_PACKGE_NAMES
-        # 安装zlib-dev
-        packge_manager_run install -ZLIB_DEVEL_PACKGE_NAMES
-        # 编译安装
-        configure_install --prefix=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
-        #cp /usr/local/lib/libzip/include/zipconf.h /usr/local/include/zipconf.h
+        MIN_LIBZIP_VERSION=''
     else
-        info_msg 'libzip ok'
+        MIN_LIBZIP_VERSION='1.2.0'
     fi
+    install_zip "$MIN_LIBZIP_VERSION"
 fi
 # openssl 扩展使用
 if in_options openssl $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 7.0.0;then
-        if if_lib "openssl";then
-            info_msg 'openssl ok'
-        else
-            # 安装openssl-dev
-            packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
-        fi
+        MIN_OPENSSL_VERSION=''
+        MAX_OPENSSL_VERSION=''
     else
-        # 安装 openssl
-        if if_lib "openssl" ">=" "1.0.2";then
-            info_msg 'openssl ok'
-        else
-            # 获取较新版
-            # get_version OPENSSL_VERSION https://www.openssl.org/source/ 'openssl-\d+\.\d+\.\d+[a-z]*\.tar\.gz[^\.]' '\d+\.\d+\.\d+[a-z]*'
-            # 使用固定较新版本，版本过新有兼容问题
-            OPENSSL_VERSION='1.1.1g'
-            info_msg "安装：openssl-$OPENSSL_VERSION"
-            # 下载
-            download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
-            # 移除不要的组件
-            packge_manager_run remove openssl -OPENSSL_DEVEL_PACKGE_NAMES
-            # 添加编译文件连接
-            if [ ! -e './configure' ];then
-                cp ./config ./configure
-                if_error 'open make configure fail'
-            fi
-            # 编译安装
-            configure_install --prefix=$INSTALL_BASE_PATH/openssl/$OPENSSL_VERSION
-        fi
+        MIN_OPENSSL_VERSION='1.0.2'
+        MAX_OPENSSL_VERSION='1.1.1g'
     fi
+    install_openssl "$MIN_OPENSSL_VERSION" "$MAX_OPENSSL_VERSION" "$MAX_OPENSSL_VERSION"
 fi
 # curl 扩展使用
 if in_options curl $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 8.0.0;then
-        if ! if_lib "libcurl";then
-            # 安装 curl-dev
-            packge_manager_run install -CURL_DEVEL_PACKGE_NAMES
-        fi
+        MIN_CURL_VERSION=''
     elif ! if_lib "libcurl" '>=' '7.29.0';then
-        # 安装较高版本
-        # 获取最新版
-        get_version LIBCURL_VERSION https://curl.se/download.html 'curl-\d+(\.\d+)+\.tar\.gz'
-        info_msg "安装：libcurl-$LIBCURL_VERSION"
-        # 下载
-        download_software https://curl.se/download/curl-$LIBCURL_VERSION.tar.gz
-        # 编译安装
-        configure_install --prefix=$INSTALL_BASE_PATH/curl/$LIBCURL_VERSION --enable-libcurl-option --with-openssl
+        MIN_CURL_VERSION='7.29.0'
     fi
-    info_msg 'libcurl ok'
+    install_curl "$MIN_CURL_VERSION"
     # 获取libcurl安装目录
     get_lib_install_path libcurl LIBCURL_INSTALL_PATH
     if [ -n "$LIBCURL_INSTALL_PATH" ];then
@@ -263,21 +193,11 @@ fi
 # sqlite3 扩展使用
 if ! in_options !sqlite3 $CONFIGURE_OPTIONS || ! in_options !pdo-sqlite $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '>=' 7.4.0;then
-        if if_lib "sqlite3" ">" "3.7.4"; then
-            info_msg 'sqlite3 ok'
-        else
-            # 安装tcl
-            packge_manager_run install -TCL_PACKGE_NAMES
-            # 获取最新版
-            get_version SPLITE3_PATH https://www.sqlite.org/download.html '(\w+/)+sqlite-autoconf-\d+\.tar\.gz' '.*'
-            SPLITE3_VERSION=`echo $SPLITE3_PATH|grep -oP '\d+\.tar\.gz$'|grep -oP '\d+'`
-            info_msg "安装：sqlite3-$SPLITE3_VERSION"
-            # 下载
-            download_software https://www.sqlite.org/$SPLITE3_PATH
-            # 编译安装
-            configure_install --prefix=$INSTALL_BASE_PATH/sqlite/$SPLITE3_VERSION --enable-shared
-        fi
+        MIN_SQLITE_VERSION='3.7.4'
+    else
+        MIN_SQLITE_VERSION='3.0.0'
     fi
+    install_sqlite "$MIN_SQLITE_VERSION"
 fi
 # xml 扩展使用
 if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;then
@@ -286,33 +206,20 @@ if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;the
     else
         MIN_LIBXML2_VERSION='2.7.6'
     fi
-    # 安装libxml2
-    if if_lib "libxml-2.0" ">=" "$MIN_LIBXML2_VERSION";then
-        info_msg 'libxml ok'
-    else
-        # 获取最新版
-        get_version LIBXML2_VERSION "ftp://xmlsoft.org/libxml2/" 'libxml2-sources-\d+\.\d+\.\d+\.tar\.gz'
-        info_msg "安装：libxml2-$LIBXML2_VERSION"
-        # 下载
-        download_software ftp://xmlsoft.org/libxml2/libxml2-sources-$LIBXML2_VERSION.tar.gz libxml2-$LIBXML2_VERSION
-        # 安装 python-dev
-        # 部分低版系统环境不好，所以直接禁止编译到python中
-        # packge_manager_run install -PYTHON_DEVEL_PACKGE_NAMES
-        # 编译安装
-        configure_install --prefix=$INSTALL_BASE_PATH/libxml2/$LIBXML2_VERSION --with-python=no
-    fi
+    # 安装验证 libxml2
+    install_libxml2 "$MIN_LIBXML2_VERSION"
+
     # 获取libxml安装目录
     get_lib_install_path libxml-2.0 LIBXML2_INSTALL_PATH
-    if [ -n "$LIBXML2_INSTALL_PATH" ];then
+    if [ -n "$INSTALL_LIBXML2_PATH" ];then
         CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-libxml-dir=$LIBXML2_INSTALL_PATH "
     fi
 fi
 # 安装swoole，要求gcc-4.8+
 # php编译gcc版本不能过高，暂时限制在 4.8.5
 GCC_VERSION=$(gcc --version|grep -oP '\d+(\.\d+){2}'|head -1)
-if (in_add_options swoole $ADD_OPTIONS && if_version $GCC_VERSION '<' '4.8.0') || if_version $GCC_VERSION '>' '4.8.5';then
-    # 默认安装 6.5.0 版本的，方便兼容其它安装
-    run_install_shell gcc 4.8.5
+if (in_parse_options swoole $DEFAULT_OPTIONS $ARGV_options && if_version $GCC_VERSION '<' '4.8.0') || if_version $GCC_VERSION '>' '4.8.5';then
+    install_gcc "4.8.0" "4.8.5"
 fi
 # apxs2 扩展使用
 #if in_options apxs2 $CONFIGURE_OPTIONS;then
@@ -330,7 +237,7 @@ if if_version $PHP_VERSION '>=' 7.4.0;then
 #                info_msg 'bison ok'
 #            else
 #                # 获取最新版
-#                get_version BISON_VERSION http://ftp.gnu.org/gnu/bison/ 'bison-\d+\.\d+\.tar\.gz'
+#                get_download_version BISON_VERSION http://ftp.gnu.org/gnu/bison/ 'bison-\d+\.\d+\.tar\.gz'
 #                info_msg "安装：bison-$BISON_VERSION"
 #                # 下载
 #                download_software http://ftp.gnu.org/gnu/bison/bison-$BISON_VERSION.tar.gz
@@ -343,13 +250,14 @@ if if_version $PHP_VERSION '>=' 7.4.0;then
     # 安装高版本的依赖
     if ! if_lib "oniguruma";then
         # 安装oniguruma-dev
-        packge_manager_run install -ONIGURUMA_DEVEL_PACKGE_NAMES
+        package_manager_run install -ONIGURUMA_DEVEL_PACKAGE_NAMES
         if ! if_lib "oniguruma"; then
             if [ ! -e "/usr/include/oniguruma.h" ];then
                 # 下载
                 download_software https://github.com/kkos/oniguruma/archive/v6.9.4.tar.gz oniguruma-6.9.4
                 if [ ! -e 'configure' ];then
-                    packge_manager_run install autoconf automake libtool
+                    install_autoconf
+                    package_manager_run install automake libtool
                     ./autogen.sh
                 fi
                 configure_install --prefix=$INSTALL_BASE_PATH/oniguruma/6.9.4
@@ -378,7 +286,6 @@ cd $PHP_CONFIGURE_PATH
 configure_install $CONFIGURE_OPTIONS
 # 创建用户组
 add_user phpfpm
-
 # 配置文件处理
 info_msg 'php 配置文件修改'
 cp -f php.ini-production $INSTALL_PATH$PHP_VERSION/lib/php.ini
@@ -453,38 +360,27 @@ do
         EXT_VERSION="`echo $EXT_OPTIONS|awk '{print $1}'`"
         EXT_ADD_OPTIONS="`echo $EXT_OPTIONS|awk '{$1=""; print}'`"
     fi
-    if in_add_options $EXT_NAME $ADD_OPTIONS && ! $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "^$EXT_NAME\$";then
+    if in_parse_options $EXT_NAME $DEFAULT_OPTIONS $ARGV_options && ! $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "^$EXT_NAME\$";then
         info_msg "安装pecl扩展：$EXT_NAME"
         # 最低PHP版本处理
-        get_version MIN_PHP_VERSION "https://pecl.php.net/package/$EXT_NAME" "PHP Version: PHP \d+\.\d+\.\d+ or newer" "\d+\.\d+\.\d+"
+        get_download_version MIN_PHP_VERSION "https://pecl.php.net/package/$EXT_NAME" "PHP Version: PHP \d+\.\d+\.\d+ or newer" "\d+\.\d+\.\d+"
         if if_version $MIN_PHP_VERSION '>' $PHP_VERSION;then
             warn_msg "$EXT_NAME 需要 php 版本大于：$MIN_PHP_VERSION"
             continue
         fi
         if [ -z $EXT_VERSION ] || [[ $EXT_VERSION == "new" ]]; then
             info_msg "获取 $EXT_NAME 最新版本号"
-            get_version EXT_VERSION "https://pecl.php.net/package/$EXT_NAME" "$EXT_NAME-\d+\.\d+\.\d+.tgz" "\d+\.\d+\.\d+"
+            get_download_version EXT_VERSION "https://pecl.php.net/package/$EXT_NAME" "$EXT_NAME-\d+\.\d+\.\d+.tgz" "\d+\.\d+\.\d+"
         fi
         info_msg "安装：$EXT_NAME-$EXT_VERSION"
         # 下载
         download_software https://pecl.php.net/get/$EXT_NAME-$EXT_VERSION.tgz
         # 获取autoconf版本要求
         if [ -e "./configure.ac" ];then
+            PHP_EXT_CONFIGURE_PATH=$(pwd)
             AUTOCONF_MIN_VERSION=$(grep AC_PREREQ ./configure.ac|grep -oP '\d+(\.\d+)+');
-            tools_install autoconf
-            if if_version $(autoconf --version|grep -oP 'autoconf.*\d+(\.\d+)+'|grep -oP '\d+(\.\d+)+') '<' $AUTOCONF_MIN_VERSION;then
-                # 版本过低需要安装高版本的
-                packge_manager_run remove autoconf
-                PHP_EXT_CONFIGURE_PATH=$(pwd)
-                # 获取最新版
-                get_version AUTOCONF_VERSION http://ftp.gnu.org/gnu/autoconf/ 'autoconf-\d+(\.\d+)+\.tar\.gz'
-                info_msg "安装：autoconf-$AUTOCONF_VERSION"
-                # 下载
-                download_software http://ftp.gnu.org/gnu/autoconf/autoconf-$AUTOCONF_VERSION.tar.gz
-                # 编译安装
-                configure_install --prefix=$INSTALL_BASE_PATH/autoconf/$AUTOCONF_VERSION
-                cd "$PHP_EXT_CONFIGURE_PATH"
-            fi
+            install_autoconf $AUTOCONF_MIN_VERSION
+            cd "$PHP_EXT_CONFIGURE_PATH"
         fi
         # 通过phpize安装，生成configure编译文件
         $INSTALL_PATH$PHP_VERSION/bin/phpize
@@ -503,8 +399,12 @@ do
     fi
 done
 
-# 启动服务
-run_msg ./sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./run/php-fpm.pid"
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 # 添加执行文件连接
 add_local_run $INSTALL_PATH$PHP_VERSION/bin/ php

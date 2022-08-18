@@ -44,12 +44,12 @@ info_msg "安装相关已知依赖"
 # 安装libnl-dev
 if if_version $IPVSADM_VERSION '<' 1.27;then
     # 安装libnl-dev和popt-static
-    packge_manager_run install -LIBNL_DEVEL_PACKGE_NAMES -POPT_STATIC_PACKGE_NAMES
+    package_manager_run install -LIBNL_DEVEL_PACKAGE_NAMES -POPT_STATIC_PACKAGE_NAMES
 else
-    packge_manager_run install -LIBNL3_DEVEL_PACKGE_NAMES
+    package_manager_run install -LIBNL3_DEVEL_PACKAGE_NAMES
 fi
 # 安装popt-dev
-packge_manager_run install -POPT_DEVEL_PACKGE_NAMES
+package_manager_run install -POPT_DEVEL_PACKAGE_NAMES
 # 修改安装目录
 export BUILD_ROOT=$INSTALL_PATH$IPVSADM_VERSION
 # 编译
@@ -61,12 +61,17 @@ add_user ipvsadm
 cd $INSTALL_PATH$IPVSADM_VERSION
 # 配置文件处理
 info_msg "ipvsadm 配置文件修改"
+# 这里没有配置处理，需要了解下
+#
+#
+#
+#
 
-
-# 启动服务
-./sbin/ipvsadm
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./bin/ipvsadm"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]=""
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 info_msg "安装成功：$INSTALL_NAME-$IPVSADM_VERSION"
-
-
-

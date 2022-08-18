@@ -23,6 +23,8 @@
 ####################################################################################
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
+# 编译默认项（这里的配置会随着编译版本自动生成编译项）
+DEFAULT_OPTIONS='?!lz4 ?!zstd ?!xxhash ?!md2man'
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 
@@ -33,13 +35,11 @@ install_storage_require 1 1 1
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$RSYNC_VERSION "
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS="?!lz4 ?!zstd ?!xxhash ?!md2man $ARGV_options"
 # ************** 编译安装 ******************
-# 下载nodejs包
+# 下载rsync包
 download_software https://download.samba.org/pub/rsync/src/rsync-$RSYNC_VERSION.tar.gz
 # 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
 
 # 安装依赖
 info_msg "安装相关已知依赖"

@@ -10,6 +10,7 @@
 ############################################################################
 # 全局版本号
 readonly SHELL_RUN_VERSION='1.0.3'
+
 # 切换工作目录
 # @command chdir $path
 # @param $path      切换的子目录
@@ -32,57 +33,6 @@ mkdirs(){
         chown -R $2:$2 "$1"
     fi
     return 0
-}
-# 常规高精度公式计算
-# @command math_compute $result $formula [$scale]
-# @param $result            计算结果写入变量名
-# @param $formula           计算公式
-# @param $scale             计算小数精度位数，默认是0
-#                           支持运算：+-*/^%
-# return 1|0
-math_compute(){
-    tools_install bc
-    local SCALE_NUM=0
-    if [ -n "$3" ]; then
-        SCALE_NUM=$(printf '%s' "$3"|grep -oP '^\d+'|awk '{if($1 == ""){print "0"}else{print $1}}')
-    fi
-    RESULT_STR=`echo "scale=$SCALE_NUM; $2"|bc|sed 's/\\\\//'|awk -F '.' '{if($1 ~ "[+-]" || $1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
-    eval "$1='$RESULT_STR'"
-}
-# 获取系统名及版本号
-# @command get_os
-# return 1|0
-get_os(){
-    if [ -e '/etc/os-release' ];then
-        echo $(source /etc/os-release;echo "$ID $VERSION_ID"|tr '[:upper:]' '[:lower:]')
-    fi
-}
-# 判断防火墙是否
-# @command has_iptables_run
-# return 1|0
-has_iptables_run(){
-    #开启服务
-    if [ -z "`systemctl --version 2>/dev/null|grep "bash: systemctl:"`" ];then
-        service iptables status 2>/dev/null|grep 'not running'
-    else
-        # 默认没有iptables.service服务可以自己安装 ，否则需要使用 systemctl stop firewalld 来处理
-        # yum install iptables-services
-        systemctl status iptables 2>/dev/null|grep 'Active: inactive (dead)'
-    fi
-}
-# 获取当前IP地址，内网是局域IP，写入全局变量SERVER_IP
-# @command get_ip
-# return 1|0
-get_ip(){
-    SERVER_IP='127.0.0.1'
-    if ! if_command ifconfig;then
-        packge_manager_run install net-tools
-    fi
-    if if_command ifconfig;then
-        SERVER_IP=`ifconfig|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o -m 1|head -n 1`
-    else
-        warn_msg '没有ifconfig命令，无法获取当前IP，将使用默认地址：'$SERVER_IP
-    fi
 }
 # 判断是否存在指定用户或组
 # @command has_user $user
@@ -252,92 +202,6 @@ ask_select(){
     eval "$1=\$INPUT"
     return 1
 }
-# 询问许可操作
-# @command ask_permit $msg
-# @param $msg               询问提示文案
-# return 1|0
-ask_permit(){
-    local ASK_INPUT
-    ask_select ASK_INPUT "$1" || [ "$ASK_INPUT" = 'y' -o "$ASK_INPUT" = 'Y' ]
-    return $?
-}
-# 获取文件系统的信息
-# 此命令主要是处理很长的存储名可能会换行导致awk处理错位
-# 虚拟机常见，通过修正可以让存储名与对应的信息保持在一行中
-# @command df_awk $options
-# @param $options         选项参数
-# return 1|0
-df_awk(){
-    #去掉首行标题，合并截断行
-    df $@|awk '{if(NR > 1){if(NF==1){prev=$1}else{{print prev,$1,$2,$3,$4,$5,$6,$7}prev=""}}}'
-}
-# 包管理系统运行
-# @command packge_manager_run $command $packge_name
-# @param $command       执行的命令
-# @param $packge_name   操作的包名，或变量名，变量名前面需要增加 - 如 packge_manager_run install -PACKGE_NAME
-# return 1|0
-packge_manager_run(){
-    local COMMAND_STR
-    case $1 in
-        install)
-            COMMAND_STR=${PACKGE_MANAGER_INSTALL_COMMAND[$PACKGE_MANAGER_INDEX]}
-        ;;
-        remove)
-            COMMAND_STR=${PACKGE_MANAGER_REMOVE_COMMAND[$PACKGE_MANAGER_INDEX]}
-        ;;
-        search)
-            COMMAND_STR=${PACKGE_MANAGER_SEARCH_COMMAND[$PACKGE_MANAGER_INDEX]}
-        ;;
-        *)
-            error_exit "未知包管理命令: $1"
-        ;;
-    esac
-    if [ -z "$2" ];then
-        error_exit "最少指定一个要安装的包名"
-    fi
-    local NAME COMMAND_ARRAY_VAL PACKGE_NAME COMMAND_ARRAY
-    for NAME in ${@:2}; do
-        if [ ${NAME:0:1} = '-' ];then
-            eval COMMAND_ARRAY="\${#${NAME:1}[@]}"
-            if [ "$COMMAND_ARRAY" -gt 1 ];then
-                COMMAND_ARRAY_VAL='${'${NAME:1}'['$[PACKGE_MANAGER_INDEX]']}'
-            elif [ "$COMMAND_ARRAY" -gt 0 ];then
-                COMMAND_ARRAY_VAL='${'${NAME:1}'[0]}'
-            else
-                error_exit "找不到配置的安装包名: $NAME"
-            fi
-            eval PACKGE_NAME="$COMMAND_ARRAY_VAL"
-            if [ "$PACKGE_NAME" = '-' -o "$PACKGE_NAME" = '' ];then
-                continue;
-            fi
-        else
-            PACKGE_NAME=$NAME
-        fi
-        if [ -z "$PACKGE_NAME" ];then
-            error_exit "安装包名解析为空: $NAME"
-        fi
-        run_msg "$COMMAND_STR $PACKGE_NAME 2>/dev/null"
-        if [ $? != '0' ];then
-            warn_msg "$COMMAND_STR $PACKGE_NAME 运行失败，可能会影响后续运行结果"
-        fi
-    done
-}
-# 工具集安装
-# @command tools_install $tool1 [$tool2 ...]
-# @param $tool1 ...     工具名集（工具名全部是通用的）
-# return 0
-tools_install(){
-    local TOOL
-    for TOOL in $*; do
-        if ! if_command $TOOL;then
-            packge_manager_run install $TOOL 2> /dev/null
-            if ! if_command $TOOL;then
-                error_exit "安装工具 $TOOL 失败"
-            fi
-        fi
-    done
-    return 0
-}
 # 判断命令是否存在
 # @command if_command $name
 # @param $name          包名
@@ -348,109 +212,73 @@ if_command(){
     fi
     return 1
 }
-# 判断命令是否存在多个不同版本
-# @command if_many_version $name $option1 [$option2 ...]
-# @param $name          命令名
-# @param $option1       命令对比参数，一般以版本号对比
-#                       如果不指定则有多个命令即算
+# 询问许可操作
+# @command ask_permit $msg
+# @param $msg               询问提示文案
 # return 1|0
-if_many_version(){
-    if if_command "$1";then
-        if [ $# = 1 ];then
-            (( $(which -a "$1" 2>/dev/null|wc -l) > 1 ))
-            return $?
+ask_permit(){
+    local ASK_INPUT
+    ask_select ASK_INPUT "$1" || [ "$ASK_INPUT" = 'y' -o "$ASK_INPUT" = 'Y' ]
+    return $?
+}
+# 生成相对唯一键名
+# @command make_key $set_value $name
+# @param $set_value         获取写入变量
+# @param $name              配置名
+# return 1|0
+make_key(){
+    eval $1=$(printf '%s' "$2"|md5sum -t|awk '{print $1}')
+}
+# 判断是否存在指定变量
+# @command has_variable $var_name
+# @param $var_name          要判断的变量名
+# return 1|0
+has_variable(){
+    declare -p $1 >/dev/null 2>/dev/null
+}
+# 给指定变量添加转义
+# @command addc_slashes $string_name [$character_mask]
+# @param $string_name       要转义的字符串变量
+# @param $character_mask    要转义的字符串，默认是：\s$~|&()[]"'\
+#                           指定多个字符时必需使用|连接
+# return 1|0
+addc_slashes(){
+    local _STRING _MASKS='\s|\$|~|\||&|\(|\)|<|>|\[|\]|\\|"|'"'"
+    if [ -n "$2" ];then
+        _MASKS=$2
+    fi
+    eval _STRING=\${$1}
+    _STRING=$(printf '%s' "${_STRING}"|sed -r 's/('$_MASKS')/\\\1/g')
+    eval $1=\$_STRING
+}
+# 全路径解析并转义特殊字符
+# @command safe_realpath $path
+# @param $path              要处理的目录变量名，处理完后会修改此变量
+# return 1|0
+safe_realpath(){
+    local _PATH _NAME
+    for _NAME;do
+        eval _PATH="\${$_NAME}"
+        if [ -z "$_PATH" ];then
+            _PATH="$SHELL_WROK_BASH_PATH"
         else
-            local ITEM NEXT_VERSION PREV_VERSION
-            while read ITEM;do
-                NEXT_VERSION=$("$ITEM" ${@:2} 2>&1)
-                if [ -z "$PREV_VERSION" ];then
-                    PREV_VERSION=$NEXT_VERSION
-                elif test "$NEXT_VERSION" != "$PREV_VERSION";then
-                    return 0
-                fi
-            done <<EOF
-$(which -a "$1" 2>/dev/null)
-EOF
+            case "$_PATH" in
+                \~|\~/*) # 用户工作目录
+                    _PATH="$(cd ~;pwd)/${_PATH:2}"
+                ;;
+                [^/]*) # 工作目录
+                    _PATH="$SHELL_WROK_BASH_PATH/$_PATH"
+                ;;
+            esac
         fi
-    fi
-    return 1
-}
-# 获取库安装目录
-# @command get_lib_install_path $name $path_val
-# @param $name          库名
-# @param $path_val      目录输入变量名
-# return 1|0
-get_lib_install_path(){
-    eval $2="$(pkg-config --libs-only-L "$1" 2>/dev/null|grep -oP '/([^/]+/)+')"
-}
-# 判断库是否存在
-# @command if_lib $name [$if $version]
-# @param $name          库名
-# @param $if            判断版本条件：>=,>,<=,<,==
-# @param $version       判断版本号
-# return 1|0
-if_lib(){
-    # ldconfig 是动态库管理工具，主要是通过配置文件 /etc/ld.so.conf 来管理动态库所在目录
-    # 安装pkg-config
-    # pkg-config 是三方库管理工具，以.pc为后缀的文件来配置不同的三方头文件或库文件
-    # 一般三方库需要有个以 -devel 为后缀的配置工具名安装后就会把以 .pc 为后缀的文件写到到 pkg-config 默认管理目录
-    # 例如：安装openssl后需要再安装openssl-devel才可以使用 pkg-config 查看 openssl
-    # 安装pkg-config
-    if ! if_command pkg-config;then
-        packge_manager_run install -PKGCONFIG_PACKGE_NAMES
-    fi
-    if ! if_command pkg-config;then
-        # 获取最新版
-        get_version PKG_CONFIG_VERSION https://pkg-config.freedesktop.org/releases/ 'pkg-config-\d+\.\d+\.tar\.gz'
-        info_msg "安装 pkg-config-$PKG_CONFIG_VERSION"
-        # 下载
-        download_software https://pkg-config.freedesktop.org/releases/pkg-config-$PKG_CONFIG_VERSION.tar.gz
-        # 编译安装
-        configure_install --with-internal-glib --prefix="$INSTALL_BASE_PATH/pkg-config/$PKG_CONFIG_VERSION"
-    fi
-    if pkg-config --exists "$1";then
-        if [ -n "$2" -a -n "$3" ] && ! pkg-config --cflags --libs "$1 $2 $3" >/dev/null;then
-            return 1
+        if [ -e "$_PATH" ];then
+            _PATH=$(cd "$(dirname "$_PATH")";pwd)/$(basename "$_PATH")
+        elif [ -e "$_PATH" ];then
+            _PATH=$(cd "$(dirname "$_PATH")";pwd)
         fi
-        return 0
-    fi
-    return 1
-}
-# 判断版本大小
-# @command if_version $version1 $if $version2
-# @param $version1  版本号1
-# @param $if        判断条件：>=,>,<=,<,==,!=
-# @param $version2  版本号2
-# return 1|0
-if_version(){
-    local RESULT VERSIONS=`echo -e "$1\n$3"|sort -Vrb`
-    case "$2" in
-        "==")
-            RESULT=`echo -e "$VERSIONS"|uniq|wc -l|grep 1`
-        ;;
-        "!=")
-            RESULT=`echo -e "$VERSIONS"|uniq|wc -l|grep 2`
-        ;;
-        ">")
-            RESULT=`echo -e "$VERSIONS"|uniq -u|head -n 1|grep "$1"`
-        ;;
-        ">=")
-            RESULT=`echo -e "$VERSIONS"|uniq|head -n 1|grep "$1"`
-        ;;
-        "<")
-            RESULT=`echo -e "$VERSIONS"|uniq -u|tail -n 1|grep "$1"`
-        ;;
-        "<=")
-            RESULT=`echo -e "$VERSIONS"|uniq|tail -n 1|grep "$1"`
-        ;;
-        *)
-            error_exit "未知版本判断条件：$2"
-        ;;
-    esac
-    if [ -n "$RESULT" ]; then
-        return 0;
-    fi
-    return 1;
+        addc_slashes _PATH
+        eval $_NAME="\$_PATH"
+    done
 }
 # 解析shell脚本参数
 # 命令参数解析成功后将写入参数名规则：
@@ -545,7 +373,7 @@ parse_shell_param(){
             DEFAULT_VALUE_STR=$(printf '%s' "$DEFAULT_VALUE_STR"|sed -r "s/(^=\s*)//")
             PARAM_SHOW_DEFINE="$PARAM_SHOW_DEFINE [= ${DEFAULT_VALUE_STR:-''}]"
             get_param_string "$DEFAULT_VALUE_STR" $ARG_NAME
-        elif ! declare -p $ARG_NAME 2>/dev/null >/dev/null;then
+        elif ! has_variable $ARG_NAME;then
             eval "$ARG_NAME=''"
         fi
         # 参数有验证写入待验证队列中
@@ -811,21 +639,6 @@ stripc_slashes(){
         eval $VAL_NAME="\$(echo -n -e \"\${$VAL_NAME}\")"
     done
 }
-# 给指定变量添加转义
-# @command addc_slashes $string_name [$character_mask]
-# @param $string_name       要转义的字符串变量
-# @param $character_mask    要转义的字符串，默认是：\s$~|&()[]"'\
-#                           指定多个字符时必需使用|连接
-# return 1|0
-addc_slashes(){
-    local _STRING _MASKS='\s|\$|~|\||&|\(|\)|<|>|\[|\]|\\|"|'"'"
-    if [ -n "$2" ];then
-        _MASKS=$2
-    fi
-    eval _STRING=\${$1}
-    _STRING=$(printf '%s' "${_STRING}"|sed -r 's/('$_MASKS')/\\\1/g')
-    eval $1=\$_STRING
-}
 # 通过变量名获取shell脚本选项信息（解析匹配脚本全局参数）
 # @command get_shell_option $name $set_opt $set_val
 # @param $name              要解析变量名
@@ -841,6 +654,231 @@ get_shell_option(){
     fi
     eval $2="$SHELL_OPTION_PREFIX${SHELL_OPTION_NAME//_/-}"
     eval $3=\${$1}
+}
+# 工具集安装
+# @command tools_install $tool1 [$tool2 ...]
+# @param $tool1 ...     工具名集（工具名全部是通用的）
+# return 0
+tools_install(){
+    local TOOL
+    for TOOL in $*; do
+        if ! if_command $TOOL;then
+            package_manager_run install $TOOL 2> /dev/null
+            if ! if_command $TOOL;then
+                error_exit "安装工具 $TOOL 失败"
+            fi
+        fi
+    done
+    return 0
+}
+# 包管理系统运行
+# @command package_manager_run $command $package_name
+# @param $command       执行的命令
+# @param $package_name   操作的包名，或变量名，变量名前面需要增加 - 如 package_manager_run install -PACKAGE_NAME
+# return 1|0
+package_manager_run(){
+    local COMMAND_STR
+    case $1 in
+        install)
+            COMMAND_STR=${PACKAGE_MANAGER_INSTALL_COMMAND[$PACKAGE_MANAGER_INDEX]}
+        ;;
+        remove)
+            COMMAND_STR=${PACKAGE_MANAGER_REMOVE_COMMAND[$PACKAGE_MANAGER_INDEX]}
+        ;;
+        info)
+            COMMAND_STR=${PACKAGE_MANAGER_INFO_COMMAND[$PACKAGE_MANAGER_INDEX]}
+        ;;
+        *)
+            error_exit "未知包管理命令: $1"
+        ;;
+    esac
+    if [ -z "$2" ];then
+        error_exit "最少指定一个要安装的包名"
+    fi
+    local NAME COMMAND_ARRAY_VAL PACKAGE_NAME COMMAND_ARRAY
+    for NAME in ${@:2}; do
+        if [ ${NAME:0:1} = '-' ];then
+            eval COMMAND_ARRAY="\${#${NAME:1}[@]}"
+            if [ "$COMMAND_ARRAY" -gt 1 ];then
+                COMMAND_ARRAY_VAL='${'${NAME:1}'['$[PACKAGE_MANAGER_INDEX]']}'
+            elif [ "$COMMAND_ARRAY" -gt 0 ];then
+                COMMAND_ARRAY_VAL='${'${NAME:1}'[0]}'
+            else
+                error_exit "找不到配置的安装包名: $NAME"
+            fi
+            eval PACKAGE_NAME="$COMMAND_ARRAY_VAL"
+            if [ "$PACKAGE_NAME" = '-' -o "$PACKAGE_NAME" = '' ];then
+                continue;
+            fi
+        else
+            PACKAGE_NAME=$NAME
+        fi
+        if [ -z "$PACKAGE_NAME" ];then
+            error_exit "安装包名解析为空: $NAME"
+        fi
+        run_msg "$COMMAND_STR $PACKAGE_NAME 2>/dev/null"
+        if [ $? != '0' ];then
+            warn_msg "$COMMAND_STR $PACKAGE_NAME 运行失败，可能会影响后续运行结果"
+        fi
+    done
+}
+# 判断系统适用哪个包管理器
+if if_command yum;then
+    PACKAGE_MANAGER_INDEX=0
+    # epel-release 第三方软件依赖库EPEL，给yum、rpm等工具使用
+    #yum -y install epel-release
+    # 创建元数据缓存
+    #yum makecache 2>&1 &>/dev/null
+    yum -y update nss 2>&1 &>/dev/null &
+elif if_command apt;then
+    PACKAGE_MANAGER_INDEX=1
+elif if_command dnf;then
+    PACKAGE_MANAGER_INDEX=2
+elif if_command pkg;then
+    PACKAGE_MANAGER_INDEX=3
+else
+    error_exit '暂无支持包管理，请确认系统信息，目前只支持：yum、apt'
+fi
+# 提取工作目录
+SHELL_WROK_BASH_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../"; pwd)"
+safe_realpath SHELL_WROK_BASH_PATH
+SHELL_WROK_INCLUDES_PATH="${SHELL_WROK_BASH_PATH}/includes"
+SHELL_WROK_INSTALLS_PATH="${SHELL_WROK_BASH_PATH}/installs"
+SHELL_WROK_TOOLS_PATH="${SHELL_WROK_BASH_PATH}/tools"
+SHELL_WROK_TEMP_PATH="${SHELL_WROK_BASH_PATH}/temp"
+SHELL_WROK_ETC_PATH="${SHELL_WROK_BASH_PATH}/etc"
+REGEXP_QUOTE_STRING="([\w\-]+|\\\\.)+|\"([^\"]+|\\\\.)*\"|'([^']+|\\\\.)*'"
+mkdirs "$SHELL_WROK_TEMP_PATH"
+
+# 包配置
+source "$SHELL_WROK_INCLUDES_PATH/config.sh" || exit
+# 提取参数
+source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
+# 解析参数
+parse_shell_param DEFINE_TOOL_PARAMS CALL_INPUT_ARGVS
+
+# 常规高精度公式计算
+# @command math_compute $result $formula [$scale]
+# @param $result            计算结果写入变量名
+# @param $formula           计算公式
+# @param $scale             计算小数精度位数，默认是0
+#                           支持运算：+-*/^%
+# return 1|0
+math_compute(){
+    tools_install bc
+    local SCALE_NUM=0
+    if [ -n "$3" ]; then
+        SCALE_NUM=$(printf '%s' "$3"|grep -oP '^\d+'|awk '{if($1 == ""){print "0"}else{print $1}}')
+    fi
+    RESULT_STR=`echo "scale=$SCALE_NUM; $2"|bc|sed 's/\\\\//'|awk -F '.' '{if($1 ~ "[+-]" || $1==""){print "0."$2}else{print $1"."$2}}'|sed 's/ //g'|grep -oP "^\d+(\.\d{0,$SCALE_NUM})?"|grep -oP '^\d+(\.\d*[1-9])?'`
+    eval "$1='$RESULT_STR'"
+}
+# 大小单位转换
+# @command size_format $var_name $size
+# @param $var_name              格式化写入变量名
+# @param $size                  容量值，以B为单位
+# @param $to_unit               转到目标单位
+# return 1|0
+size_switch(){
+    local UNIT_POWER UNIT_BASE=1024 UNIT_SWITCH=("$2" "${3:-B}") UNIT_SWITCH_UNIT=() INDEX
+    for ((INDEX=0;INDEX<=1;INDEX++));do
+        case "${UNIT_SWITCH[$INDEX]}" in
+            *E|*EB)
+                UNIT_SWITCH_UNIT[$INDEX]=6
+                ;;
+            *P|*PB)
+                UNIT_SWITCH_UNIT[$INDEX]=5
+                ;;
+            *T|*TB)
+                UNIT_SWITCH_UNIT[$INDEX]=4
+                ;;
+            *G|*GB)
+                UNIT_SWITCH_UNIT[$INDEX]=3
+                ;;
+            *M|*MB)
+                UNIT_SWITCH_UNIT[$INDEX]=2
+                ;;
+            *K|*KB)
+                UNIT_SWITCH_UNIT[$INDEX]=1
+                ;;
+            *B)
+                UNIT_SWITCH_UNIT[$INDEX]=0
+                ;;
+            *[^A-Z])
+                UNIT_SWITCH_UNIT[$INDEX]=0
+                ;;
+            *)
+                error_exit "未知存储容量单位：${UNIT_SWITCH[$INDEX]}"
+                ;;
+        esac
+    done
+    if (( ${UNIT_SWITCH_UNIT[0]} >= ${UNIT_SWITCH_UNIT[1]} ));then
+        math_compute $1 "${2//[^0-9\.]/} * ($UNIT_BASE ^ (${UNIT_SWITCH_UNIT[0]} - ${UNIT_SWITCH_UNIT[1]}))" ${4:-2}
+    else
+        math_compute $1 "${2//[^0-9\.]/} / ($UNIT_BASE ^ (${UNIT_SWITCH_UNIT[1]} - ${UNIT_SWITCH_UNIT[0]}))" ${4:-2}
+    fi
+}
+# 大小格式化到适合单位
+# @command size_format $var_name $size
+# @param $var_name              格式化写入变量名
+# @param $size                  容量值，以B为单位
+# return 1|0
+size_format(){
+    local UNIT_POWER=0 CURRENT_SIZE=$2 UNIX_NAMES=('B' 'K' 'M' 'G' 'T' 'P' 'E') VALUE_SIZE
+    while ((CURRENT_SIZE >= 1024)); do
+        ((CURRENT_SIZE=CURRENT_SIZE/1024))
+        ((UNIT_POWER++))
+    done
+    if [ -z "${UNIX_NAMES[$UNIT_POWER]}" ];then
+        error_exit "未知存储容量大小：${2}"
+    fi
+    math_compute VALUE_SIZE "${2} / (1024 ^ $UNIT_POWER)" 2
+    eval "$1=$VALUE_SIZE${UNIX_NAMES[$UNIT_POWER]}"
+}
+# 获取系统名及版本号
+# @command get_os
+# return 1|0
+get_os(){
+    if [ -e '/etc/os-release' ];then
+        echo $(source /etc/os-release;echo "$ID $VERSION_ID"|tr '[:upper:]' '[:lower:]')
+    fi
+}
+# 获取当前IP地址，内网是局域IP，写入全局变量SERVER_IP
+# @command get_ip
+# return 1|0
+get_ip(){
+    SERVER_IP='127.0.0.1'
+    if ! if_command ifconfig;then
+        package_manager_run install net-tools
+    fi
+    if if_command ifconfig;then
+        SERVER_IP=`ifconfig|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o -m 1|head -n 1`
+    else
+        warn_msg '没有ifconfig命令，无法获取当前IP，将使用默认地址：'$SERVER_IP
+    fi
+}
+# 判断防火墙是否
+# @command has_iptables_run
+# return 1|0
+has_iptables_run(){
+    #开启服务
+    if [ -z "`systemctl --version 2>/dev/null|grep "bash: systemctl:"`" ];then
+        service iptables status 2>/dev/null|grep 'not running'
+    else
+        # 默认没有iptables.service服务可以自己安装 ，否则需要使用 systemctl stop firewalld 来处理
+        # yum install iptables-services
+        systemctl status iptables 2>/dev/null|grep 'Active: inactive (dead)'
+    fi
+}
+# 获取文件系统的信息
+# 此命令主要是处理很长的存储名可能会换行导致awk处理错位
+# 虚拟机常见，通过修正可以让存储名与对应的信息保持在一行中
+# @command df_awk $options
+# @param $options         选项参数
+# return 1|0
+df_awk(){
+    #去掉首行标题，合并截断行
+    df $@|awk '{if(NR > 1){if(NF==1){prev=$1}else{{print prev,$1,$2,$3,$4,$5,$6,$7}prev=""}}}'
 }
 # 解析列表并去重再导出数组
 # @command parse_lists $export_name $string $separator $match
@@ -923,15 +961,14 @@ EOF
 # @param $var_noptionsame   脚本运行参数
 # return 1|0
 run_shell(){
-    info_msg "${@}"
-    local ARGVS_ARRAY RUN_SHELL_PATH=$(cd "$SHELL_WROK_BASH_PATH";find ./installs ./tools -name "$1.sh") 
+    local RUN_SHELL_PATH=$(cd "$SHELL_WROK_BASH_PATH";find ./installs ./tools -name "$1.sh") 
     if [ -z "$RUN_SHELL_PATH" ];then
         error_exit "不存在 $1 内置脚本"
     fi
     safe_realpath RUN_SHELL_PATH
     shift
     source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
-    run_msg bash $RUN_SHELL_PATH ${ARGVS_ARRAY[@]}
+    run_msg bash $RUN_SHELL_PATH ${CALL_SAFE_ARGVS[@]}
     if_error "脚本运行失败： $RUN_SHELL_PATH"
 }
 # 运行安装脚本
@@ -941,10 +978,10 @@ run_shell(){
 # @param $other             其它安装参数集
 # return 1|0
 run_install_shell(){
-    local INSTALL_NAME="$1-install" ARGVS_ARRAY
+    local INSTALL_NAME="$1-install"
     shift
     source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
-    eval run_shell "$INSTALL_NAME" ${ARGVS_ARRAY[@]} --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH}
+    eval run_shell "$INSTALL_NAME" ${CALL_SAFE_ARGVS[@]} --disk-space=${ARGV_disk_space} --memory-space=${ARGV_memory_space} --install-path=${INSTALL_BASE_PATH}
     source /etc/profile
 }
 # 搜索项目中对应文件
@@ -985,130 +1022,14 @@ find_project_file(){
         error_exit "在 $FIND_DIR 目录下搜索到 ${#FIND_LISTS[@]} 个匹配项"
     fi
 }
-# 全路径解析并转义特殊字符
-# @command safe_realpath $path
-# @param $path              要处理的目录变量名，处理完后会修改此变量
-# return 1|0
-safe_realpath(){
-    local _PATH _NAME
-    for _NAME in $@;do
-        eval _PATH="\${$_NAME}"
-        if [ -z "$_PATH" ];then
-            _PATH="$SHELL_WROK_BASH_PATH"
-        else
-            case "$_PATH" in
-                \~|\~/*) # 用户工作目录
-                    _PATH="$(cd ~;pwd)/${_PATH:2}"
-                ;;
-                [^/]*) # 工作目录
-                    _PATH="$SHELL_WROK_BASH_PATH/$_PATH"
-                ;;
-            esac
-        fi
-        addc_slashes _PATH
-        eval $_NAME="\$_PATH"
-    done
-}
-# 容量格式化
-# @command size_format $var_name $size
-# @param $var_name              格式化写入变量名
-# @param $size                  容量值，以B为单位
-# @param $to_unit               转到目标单位
-# return 1|0
-size_switch(){
-    local UNIT_POWER UNIT_BASE=1024 UNIT_SWITCH=("$2" "${3:-B}") UNIT_SWITCH_UNIT=() INDEX
-    for ((INDEX=0;INDEX<=1;INDEX++));do
-        case "${UNIT_SWITCH[$INDEX]}" in
-            *E|*EB)
-                UNIT_SWITCH_UNIT[$INDEX]=6
-                ;;
-            *P|*PB)
-                UNIT_SWITCH_UNIT[$INDEX]=5
-                ;;
-            *T|*TB)
-                UNIT_SWITCH_UNIT[$INDEX]=4
-                ;;
-            *G|*GB)
-                UNIT_SWITCH_UNIT[$INDEX]=3
-                ;;
-            *M|*MB)
-                UNIT_SWITCH_UNIT[$INDEX]=2
-                ;;
-            *K|*KB)
-                UNIT_SWITCH_UNIT[$INDEX]=1
-                ;;
-            *B)
-                UNIT_SWITCH_UNIT[$INDEX]=0
-                ;;
-            *[^A-Z])
-                UNIT_SWITCH_UNIT[$INDEX]=0
-                ;;
-            *)
-                error_exit "未知存储容量单位：${UNIT_SWITCH[$INDEX]}"
-                ;;
-        esac
-    done
-    if (( ${UNIT_SWITCH_UNIT[0]} >= ${UNIT_SWITCH_UNIT[1]} ));then
-        math_compute $1 "${2//[^0-9\.]/} * ($UNIT_BASE ^ (${UNIT_SWITCH_UNIT[0]} - ${UNIT_SWITCH_UNIT[1]}))" ${4:-2}
-    else
-        math_compute $1 "${2//[^0-9\.]/} / ($UNIT_BASE ^ (${UNIT_SWITCH_UNIT[1]} - ${UNIT_SWITCH_UNIT[0]}))" ${4:-2}
-    fi
-}
-# 容量整理
-# @command size_format $var_name $size
-# @param $var_name              格式化写入变量名
-# @param $size                  容量值，以B为单位
-# return 1|0
-size_format(){
-    local UNIT_POWER=0 CURRENT_SIZE=$2 UNIX_NAMES=('B' 'K' 'M' 'G' 'T' 'P' 'E') VALUE_SIZE
-    while ((CURRENT_SIZE >= 1024)); do
-        ((CURRENT_SIZE=CURRENT_SIZE/1024))
-        ((UNIT_POWER++))
-    done
-    if [ -z "${UNIX_NAMES[$UNIT_POWER]}" ];then
-        error_exit "未知存储容量大小：${2}"
-    fi
-    math_compute VALUE_SIZE "${2} / (1024 ^ $UNIT_POWER)" 2
-    eval "$1=$VALUE_SIZE${UNIX_NAMES[$UNIT_POWER]}"
-}
+
+# 获取总线程数
+TOTAL_THREAD_NUM=$(lscpu |grep '^CPU(s)'|grep -oP '\d+$')
+
+# 基本处理
 if [ "$(basename "$0")" = "$(basename "${BASH_SOURCE[0]}")" ];then
     error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
 fi
 if [ "$(whoami)" != 'root' ];then
     warn_msg '当前执行用户非 root 可能会影响脚本正常运行！'
-fi
-# 提取工作目录
-SHELL_WROK_BASH_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../"; pwd)"
-safe_realpath SHELL_WROK_BASH_PATH
-SHELL_WROK_INCLUDES_PATH="${SHELL_WROK_BASH_PATH}/includes"
-SHELL_WROK_INSTALLS_PATH="${SHELL_WROK_BASH_PATH}/installs"
-SHELL_WROK_TOOLS_PATH="${SHELL_WROK_BASH_PATH}/tools"
-SHELL_WROK_TEMP_PATH="${SHELL_WROK_BASH_PATH}/temp"
-SHELL_WROK_ETC_PATH="${SHELL_WROK_BASH_PATH}/etc"
-REGEXP_QUOTE_STRING="([\w\-]+|\\\\.)+|\"([^\"]+|\\\\.)*\"|'([^']+|\\\\.)*'"
-mkdirs "$SHELL_WROK_TEMP_PATH"
-# 加载配置
-source "$SHELL_WROK_INCLUDES_PATH/config.sh" || exit
-# 提取安装参数
-CALL_INPUT_ARGVS=()
-for ((INDEX=1;INDEX<=$#;INDEX++));do
-    CALL_INPUT_ARGVS[${#CALL_INPUT_ARGVS[@]}]="${@:$INDEX:1}"
-done
-unset INDEX
-# 判断系统适用哪个包管理器
-if if_command yum;then
-    PACKGE_MANAGER_INDEX=0
-    # epel-release 第三方软件依赖库EPEL，给yum、rpm等工具使用
-    #yum -y install epel-release
-    # 创建元数据缓存
-    #yum makecache 2>&1 &>/dev/null
-    yum -y update nss 2>&1 &>/dev/null &
-elif if_command apt;then
-    PACKGE_MANAGER_INDEX=1
-elif if_command dnf;then
-    PACKGE_MANAGER_INDEX=2
-elif if_command pkg;then
-    PACKGE_MANAGER_INDEX=3
-else
-    error_exit '暂无支持包管理，请确认系统信息，目前只支持：yum、apt'
 fi

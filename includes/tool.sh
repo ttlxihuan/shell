@@ -9,10 +9,13 @@
 # 所有脚本会强制增加两个参数 --help、--version 用来展示信息
 ############################################################################
 # 引用公共文件
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/basic.sh || exit
 if [ "$(basename "$0")" = "$(basename "${BASH_SOURCE[0]}")" ];then
     error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
 fi
+
+# 加载核心文件
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/basic.sh || exit
+
 # 解析通用ini格式配置文件
 # @command parse_conf $path [$block [...]]
 # @param $path              配置文件名
@@ -42,7 +45,7 @@ parse_conf(){
             if ! [[ -z "$CONF_LINE" || "$CONF_LINE" =~ ^[[:space:]]*# ]];then
                 warn_msg "第${CONF_LINENO}行，区块声明行不能包括非注释内容：$CONF_LINE"
             fi
-            make_conf_key BLOCK_NAME "$ITEM_NAME"
+            make_key BLOCK_NAME "$ITEM_NAME"
             BLOCK_ITEMS_NAME="CONF_BLOCK_ITEMS_$BLOCK_NAME"
             # 重复参数校验
             for ((INDEX=0; INDEX < ${#CONF_BLOCK_NAMES[@]}; INDEX++)); do
@@ -68,7 +71,7 @@ parse_conf(){
                 # 去掉配置前面的空格
                 ITEM_VALUE=$(printf '%s' "${CONF_LINE#*=}"|sed -r 's/^[[:space:]]+//')
                 eval "$BLOCK_ITEMS_NAME[\${#${BLOCK_ITEMS_NAME}[@]}]=\$ITEM_NAME"
-                make_conf_key ITEM_NAME "$ITEM_NAME"
+                make_key ITEM_NAME "$ITEM_NAME"
                 eval "CONF_${BLOCK_NAME}_${ITEM_NAME}=\${ITEM_VALUE}"
             else
                 warn_msg "第${CONF_LINENO}行，语法错误：$CONF_LINE"
@@ -82,14 +85,6 @@ parse_conf(){
         error_exit "未找到区块配置：${REQUIRED_BLOCK[@]}"
     fi
 }
-# 生成配置数据键名
-# @command make_conf_key $set_value $name
-# @param $set_value         获取写入变量
-# @param $name              配置名
-# return 1|0
-make_conf_key(){
-    eval $1=$(printf '%s' "$2"|md5sum -t|awk '{print $1}')
-}
 # 获取配置项数据
 # @command get_conf $set_value [$block] [$item]
 # @param $set_value         获取写入变量
@@ -99,10 +94,10 @@ make_conf_key(){
 get_conf(){
     if [ -n "$2" ];then
         local _BLOCK_NAME_ _CONF_NAME_
-        make_conf_key _BLOCK_NAME_ "$2"
+        make_key _BLOCK_NAME_ "$2"
         if [ -n "$3" ];then
             local _ITEM_NAME_
-            make_conf_key _ITEM_NAME_ "$3"
+            make_key _ITEM_NAME_ "$3"
             _CONF_NAME_="CONF_${_BLOCK_NAME_}_${_ITEM_NAME_}"
             eval "$1=\${$_CONF_NAME_}"
         else
@@ -123,15 +118,15 @@ get_conf(){
 # return 1|0
 has_conf(){
     local _BLOCK_NAME_ _CONF_NAME_
-    make_conf_key _BLOCK_NAME_ "$1"
+    make_key _BLOCK_NAME_ "$1"
     if [ -n "$2" ];then
         local _ITEM_NAME_
-        make_conf_key _ITEM_NAME_ "$2"
+        make_key _ITEM_NAME_ "$2"
         _CONF_NAME_="CONF_${_BLOCK_NAME_}_${_ITEM_NAME_}"
     else
         _CONF_NAME_="CONF_BLOCK_ITEMS_${_BLOCK_NAME_}"
     fi
-    declare -p $_CONF_NAME_ >/dev/null 2>/dev/null
+    has_variable $_CONF_NAME_
 }
 # 循环配置项并调用函数
 # @command each_conf $func [$block]
@@ -158,5 +153,3 @@ each_conf(){
         done
     fi
 }
-# 解析工具脚本参数
-parse_shell_param DEFINE_TOOL_PARAMS CALL_INPUT_ARGVS

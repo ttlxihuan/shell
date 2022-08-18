@@ -36,6 +36,8 @@
 ####################################################################################
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
+# 编译默认项（这里的配置会随着编译版本自动生成编译项）
+DEFAULT_OPTIONS=''
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 镜像地址，如果地址不可用可去 https://gcc.gnu.org/mirrors.html 找合适的地址
@@ -73,21 +75,25 @@ install_storage_require 4 3 4
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$GCC_VERSION "
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS=$ARGV_options
 # ************** 编译安装 ******************
 # 下载GCC包
 download_software $MIRRORS_URL/releases/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.gz
 # 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
 # 暂存编译目录
 GCC_CONFIGURE_PATH=`pwd`
 # 安装依赖
 info_msg "安装相关已知依赖"
 if ! if_command g++;then
-    packge_manager_run install -GCC_C_PACKGE_NAMES
+    package_manager_run install -GCC_C_PACKAGE_NAMES
 fi
-packge_manager_run install -BZIP2_PACKGE_NAMES -M4_PACKGE_NAMES
+
+# 安装验证 bzip2
+install_bzip2
+
+# 安装验证 m4
+install_m4
+
 # 部分版需要下载配置文件
 if [ ! -e "./configure" ] && [ -e "./contrib/download_prerequisites" ];then
     ./contrib/download_prerequisites
@@ -127,7 +133,10 @@ fi
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 # 动态库处理
-echo "$INSTALL_PATH$GCC_VERSION/lib64" >> /etc/ld.so.conf
+if [ ! -e /etc/ld.so.conf ] || ! grep -q "$INSTALL_PATH$GCC_VERSION/lib64" /etc/ld.so.conf;then
+    echo "$INSTALL_PATH$GCC_VERSION/lib64" >> /etc/ld.so.conf
+fi
+
 info_msg "移动文件 lib64/*.py"
 # 清除py文件，这些文件会影响共享的动态链接库ldconfig命令执行失败
 for PY_FILE in `find $INSTALL_PATH$GCC_VERSION/lib64/ -name "*.py"`
@@ -138,7 +147,7 @@ do
 done
 ldconfig
 
-packge_manager_run remove -GCC_C_PACKGE_NAMES
+package_manager_run remove -GCC_C_PACKAGE_NAMES
 
 # 添加启动连接，下载连接不加容易在其它工具使用时出现 C++ compiler None does not work 类似的错误
 add_local_run $INSTALL_PATH$GCC_VERSION/bin/ gcc c++ g++ cpp

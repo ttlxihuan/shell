@@ -29,6 +29,8 @@ DEFINE_INSTALL_TYPE='configure'
 DEFINE_INSTALL_PARAMS="
 
 "
+# 编译默认项（这里的配置会随着编译版本自动生成编译项）
+DEFAULT_OPTIONS=''
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 
@@ -39,14 +41,12 @@ install_storage_require 1 1 1
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$KEEPALIVED_VERSION "
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS=' '$ARGV_options
 # ************** 编译安装 ******************
 # 下载keepalived包
 download_software https://www.keepalived.org/software/keepalived-$KEEPALIVED_VERSION.tar.gz
 
 # 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
 
 # 暂存编译目录
 KEEPALIVED_CONFIGURE_PATH=$(pwd)
@@ -57,18 +57,18 @@ info_msg "安装相关已知依赖"
 if if_version "$KEEPALIVED_VERSION" '<' '2.0.0';then
     if if_version "$KEEPALIVED_VERSION" '<' '1.2.9';then
         # 安装popt-dev
-        packge_manager_run install -POPT_STATIC_PACKGE_NAMES -POPT_DEVEL_PACKGE_NAMES
+        package_manager_run install -POPT_STATIC_PACKAGE_NAMES -POPT_DEVEL_PACKAGE_NAMES
     else
-        packge_manager_run install -KERNEL_HEADERS_PACKGE_NAMES -GLIBC_DEVEL_PACKGE_NAMES
+        package_manager_run install -KERNEL_HEADERS_PACKAGE_NAMES -GLIBC_DEVEL_PACKAGE_NAMES
     fi
 fi
 
 if if_version "$KEEPALIVED_VERSION" '<' '1.3.0';then
-    packge_manager_run install -LIBNL_DEVEL_PACKGE_NAMES
+    package_manager_run install -LIBNL_DEVEL_PACKAGE_NAMES
 else
-    packge_manager_run install -LIBNL3_DEVEL_PACKGE_NAMES -LIBNL3_ROUTE_DEVEL_PACKGE_NAMES -LIBNFNETLINK_DEVEL_PACKGE_NAMES
+    package_manager_run install -LIBNL3_DEVEL_PACKAGE_NAMES -LIBNL3_ROUTE_DEVEL_PACKAGE_NAMES -LIBNFNETLINK_DEVEL_PACKAGE_NAMES
     # 安装其它依赖
-    packge_manager_run install -IPTABLES_DEVEL_PACKGE_NAMES -IPSET_DEVEL_PACKGE_NAMES
+    package_manager_run install -IPTABLES_DEVEL_PACKAGE_NAMES -IPSET_DEVEL_PACKAGE_NAMES
     # ipset版本不通过超过6.38（7.0开始修改了ipset_*之类函数定义），会报错：error: unknown type name ‘ipset_outfn’; did you mean ‘ipset_printfn’?
     # if if_command ipset &&  if_version $(ipset --version) '>=' '7.0';then
     #     download_software https://ipset.netfilter.org/ipset-6.38.tar.bz2
@@ -89,11 +89,11 @@ else
 fi
 
 
-# 安装openssl-dev
-packge_manager_run install -OPENSSL_DEVEL_PACKGE_NAMES
+# 安装验证 openssl
+install_openssl
 
 # 暂时没有看到效果，可能需要更新高版本，预计需要glibc-3.0+
-# packge_manager_run install -GLIBC_DEVEL_PACKGE_NAMES
+# package_manager_run install -GLIBC_DEVEL_PACKAGE_NAMES
 
 
 
@@ -105,7 +105,7 @@ cd $KEEPALIVED_CONFIGURE_PATH
 
 
 # 高版本依赖
-# packge_manager_run install -IPTABLES_DEVEL_PACKGE_NAMES -IPSET_DEVEL_PACKGE_NAMES -LIBNL3_DEVEL_PACKGE_NAMES -LIBNFNETLINK_DEVEL_PACKGE_NAMES
+# package_manager_run install -IPTABLES_DEVEL_PACKAGE_NAMES -IPSET_DEVEL_PACKAGE_NAMES -LIBNL3_DEVEL_PACKAGE_NAMES -LIBNFNETLINK_DEVEL_PACKAGE_NAMES
 
 # yum install -y file-devel net-snmp-devel glib2-devel pcre2-devel libnftnl-devel libmnl-devel systemd-devel kmod-devel
 # yum install glibc-devel
@@ -117,8 +117,13 @@ add_user keepalived
 # 配置文件处理
 info_msg "keepalived 配置文件修改"
 
-# 启动服务
-sudo_msg keepalived ./sbin/keepalived
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./sbin/keepalived"
+SERVICES_CONFIG[$SERVICES_CONFIG_USER]="keepalived"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]=""
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 info_msg "安装成功：$INSTALL_NAME-$KEEPALIVED_VERSION"
 

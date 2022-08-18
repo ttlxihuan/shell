@@ -19,6 +19,8 @@
 ####################################################################################
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
+# 编译默认项（这里的配置会随着编译版本自动生成编译项）
+DEFAULT_OPTIONS=''
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
@@ -28,65 +30,42 @@ install_storage_require 1 1 4
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$VARNISH_VERSION"
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS=$ARGV_options
 # ************** 编译安装 ******************
 # 下载varnish包
 download_software http://varnish-cache.org/_downloads/varnish-$VARNISH_VERSION.tgz
 # 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
+# 暂存编译目录
+VARNISH_CONFIGURE_PATH=`pwd`
+
 # 安装依赖
 info_msg "安装相关已知依赖"
-if if_command autoconf;then
-    info_msg 'autoconf ok'
-else
-    packge_manager_run install -AUTOCONF_PACKGE_NAMES
-fi
-if if_command libtool;then
-    info_msg 'libtool ok'
-else
-    packge_manager_run install -LIBTOOL_PACKGE_NAMES
-fi
-if if_lib 'libedit';then
-    info_msg 'libedit ok'
-else
-    packge_manager_run install -LIBEDIT_DEVEL_PACKGE_NAMES
-fi
-if if_command 'jemalloc.sh';then
-    info_msg 'jemalloc ok'
-else
-    packge_manager_run install -JEMALLOC_DEVEL_PACKGE_NAMES
-fi
-if if_lib 'ncurses';then
-    info_msg 'ncurses ok'
-else
-    packge_manager_run install -NCURSES_DEVEL_PACKGE_NAMES
-fi
+
+# 安装验证 autoconf
+install_autoconf
+
+# 安装验证 libtool
+install_libtool
+
+# 安装验证 libedit
+install_libedit
+
+# 安装验证 jemalloc
+install_jemalloc
+
+# 安装验证 ncurses
+install_ncurses
+
+# 安装验证 libpcre
 if if_version "$VARNISH_VERSION" ">=" "7.0.0"; then
-    if if_lib 'libpcre2-8';then
-        info_msg 'libpcre2-8 ok'
-    else
-        # 暂存编译目录
-        VARNISH_CONFIGURE_PATH=`pwd`
-        info_msg '安装：libpcre2-8'
-        # 获取最新版
-        get_version LIBPCRE2_VERSION https://ftp.pcre.org/pub/pcre/ "pcre2-\d+\.\d+\.tar\.gz"
-        info_msg "下载：pcre2-$LIBPCRE2_VERSION"
-        # 下载
-        download_software https://ftp.pcre.org/pub/pcre/pcre2-$LIBPCRE2_VERSION.tar.gz
-        configure_install --prefix=$INSTALL_BASE_PATH/pcre2/$LIBPCRE2_VERSION
-        cd $VARNISH_CONFIGURE_PATH
-    fi
+    install_libpcre2_8
 else
-    if if_lib 'libpcre';then
-        info_msg 'pcre ok'
-    else
-        packge_manager_run install -PCRE_DEVEL_PACKGE_NAMES
-    fi
+    install_libpcre
 fi
+
 # 依赖包版本兼容
 if if_version "$VARNISH_VERSION" ">=" "6.2.0"; then
-    packge_manager_run install -PYTHON3_DOCUTILS_PACKGE_NAMES -PYTHON3_SPHINX_PACKGE_NAMES
+    package_manager_run install -PYTHON3_DOCUTILS_PACKAGE_NAMES -PYTHON3_SPHINX_PACKAGE_NAMES
     if ! if_command pip3 || ! pip3 show sphinx -q; then
         if ! if_command python3;then
             run_install_shell python new
@@ -98,11 +77,13 @@ if if_version "$VARNISH_VERSION" ">=" "6.2.0"; then
         fi
     fi
     if if_version "$VARNISH_VERSION" ">=" "6.3.0";then
-        packge_manager_run install -LIBUWIND_DEVEL_PACKGE_NAMES
+        package_manager_run install -LIBUWIND_DEVEL_PACKAGE_NAMES
     fi
 else
-    packge_manager_run install -PYTHON_DOCUTILS_PACKGE_NAMES -PYTHON_SPHINX_PACKGE_NAMES
+    package_manager_run install -PYTHON_DOCUTILS_PACKAGE_NAMES -PYTHON_SPHINX_PACKAGE_NAMES
 fi
+
+cd $VARNISH_CONFIGURE_PATH
 bash autogen.sh
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
@@ -118,11 +99,17 @@ cd $INSTALL_PATH$VARNISH_VERSION
 # 启动选项
 START_SERVER_PARAM=''
 if if_version "$VARNISH_VERSION" ">=" "6.6.0"; then
-    START_SERVER_PARAM="-n $INSTALL_PATH$VARNISH_VERSION/var/varnish"
+    START_SERVER_PARAM="-n ./var/varnish"
 fi
 
 chown -R varnish:varnish ./*
-# 启动服务
-run_msg ./sbin/varnishd -f $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl $START_SERVER_PARAM
+
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./sbin/varnishd -f ./etc/default.vcl $START_SERVER_PARAM"
+SERVICES_CONFIG[$SERVICES_CONFIG_USER]="varnish"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]=""
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 info_msg "安装成功：varnish-$VARNISH_VERSION"

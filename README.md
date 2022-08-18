@@ -49,7 +49,7 @@ exit 0
 
 自动安装和工具会陆续增加，具体支持脚本可查看目录结构
 ```
-bash shells.sh @lnpm
+bash shells.sh install-batch @lnpm
 ```
 
 ### 目录结构

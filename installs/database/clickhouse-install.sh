@@ -80,7 +80,11 @@ run_msg ./install/doinst.sh
 # 配置文件处理
 # info_msg "clickhouse 配置文件修改"
 
-# 启动服务
-run_msg /etc/init.d/clickhouse-server start
+# 添加服务配置
+SERVICES_CONFIG=()
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="/etc/init.d/clickhouse-server start"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]=""
+# 服务并启动服务
+add_service SERVICES_CONFIG
 
 info_msg "安装成功：$INSTALL_NAME-$CLICKHOUSE_VERSION"

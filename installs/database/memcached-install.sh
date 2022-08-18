@@ -30,6 +30,8 @@ DEFINE_INSTALL_PARAMS="
 #不指定单位为B
 #指定为0时即不配置内存
 "
+# 编译默认项（这里的配置会随着编译版本自动生成编译项）
+DEFAULT_OPTIONS=''
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 解析最大运行内存参数处理
@@ -44,8 +46,6 @@ install_storage_require 1 1 1
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MEMCACHED_VERSION "
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS=$ARGV_options
 # ************** 编译安装 ******************
 # 下载memcached包
 # memcached 下载分两块，历史版本（1.4.15以前的使用old目录，为兼容后续版本增加下载链接判断）
@@ -56,29 +56,21 @@ fi
 download_software ${DOWNLOAD_URL}memcached-$MEMCACHED_VERSION.tar.gz
 
 # 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
 # 安装依赖
 info_msg "安装相关已知依赖"
 # 暂存编译目录
 MEMCACHED_CONFIGURE_PATH=`pwd`
-# 安装libevent
-if ! if_lib libevent '>' '2.0.0';then
-    # 获取最新版
-    get_version LIBEVENT_VERSION https://libevent.org/ 'libevent-\d+(\.\d+)+-stable\.tar\.gz'
-    info_msg "安装：libevent-$LIBEVENT_VERSION"
-    # 下载
-    download_software https://github.com/libevent/libevent/releases/download/release-$LIBEVENT_VERSION-stable/libevent-$LIBEVENT_VERSION-stable.tar.gz libevent-$LIBEVENT_VERSION-stable
-    # 编译安装
-    configure_install --prefix=$INSTALL_BASE_PATH/libevent/$LIBEVENT_VERSION
-    cd $MEMCACHED_CONFIGURE_PATH
-    CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS" --with-libevent=$INSTALL_BASE_PATH/libevent/$LIBEVENT_VERSION "
-else
-    # 获取libevent安装目录
-    get_lib_install_path libevent LIBEVENT_INSTALL_PATH
-    if [ -n "$LIBEVENT_INSTALL_PATH" ];then
-        CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS" --with-libevent=$LIBEVENT_INSTALL_PATH "
-    fi
+
+# 安装验证 libevent
+install_libevent '2.0.1'
+# 获取libevent安装目录
+get_lib_install_path libevent LIBEVENT_INSTALL_PATH
+if [ -n "$LIBEVENT_INSTALL_PATH" ];then
+    CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS" --with-libevent=$LIBEVENT_INSTALL_PATH "
 fi
+
+cd $MEMCACHED_CONFIGURE_PATH
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 # 创建用户组

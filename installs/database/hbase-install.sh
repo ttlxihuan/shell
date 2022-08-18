@@ -36,18 +36,23 @@ install_storage_require 1 1 1
 # 下载hbase包
 download_software https://dlcdn.apache.org/hbase/$HBASE_VERSION/hbase-$HBASE_VERSION-bin.tar.gz
 
+# 暂存编译目录
+ELASTICSEARCH_CONFIGURE_PATH=$(pwd)
+
 # 安装依赖
 info_msg "安装相关已知依赖"
-packge_manager_run install -JAVA_PACKGE_NAMES
-if ! if_command java;then
-    error_exit '安装java失败'
-fi
 
+# 安装验证 java
+install_java
+
+cd $ELASTICSEARCH_CONFIGURE_PATH
 # 复制安装包并创建用户
 copy_install hbase
 
 # 数据目录
 # mkdirs data
+mkdirs logs hbase
+mkdirs tmp hbase
 
 # 配置文件处理
 info_msg "hbase 配置文件修改"

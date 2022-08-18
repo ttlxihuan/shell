@@ -73,6 +73,8 @@ DEFINE_INSTALL_PARAMS="
 "
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
+# 编译默认项（这里的配置会随着编译版本自动生成编译项）
+DEFAULT_OPTIONS=''
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
@@ -99,37 +101,33 @@ if [ "$ARGV_tool" = "gitlab" ]; then
 fi
 # ************** 编译项配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
-CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$GIT_VERSION"
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS=$ARGV_options
+CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$GIT_VERSION "
 # ************** 编译安装 ******************
 # 下载git包
 download_software https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_VERSION.tar.gz
 # 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
+# 暂存编译目录
+GIT_CONFIGURE_PATH=`pwd`
 # 安装依赖
 info_msg "安装相关已知依赖"
-packge_manager_run install -LIBXML2_DEVEL_PACKGE_NAMES -PERL_DEVEL_PACKGE_NAMES
+package_manager_run install -PERL_DEVEL_PACKAGE_NAMES
 
-# msgfmt命令在gettext包中
-if ! if_command msgfmt;then
-    packge_manager_run install -GETTEXT_DEVEL_PACKGE_NAMES
-    if ! if_command msgfmt;then
-        # 暂存编译目录
-        GIT_CONFIGURE_PATH=`pwd`
-        # 找不到就编译安装
-        # 安装gettext
-        # 获取最新版
-        get_version GETTEXT_VERSION https://ftp.gnu.org/pub/gnu/gettext 'gettext-\d+(\.\d+){2}\.tar\.gz'
-        info_msg "安装：gettext-$GETTEXT_VERSION"
-        # 下载
-        download_software https://ftp.gnu.org/pub/gnu/gettext/gettext-$GETTEXT_VERSION.tar.gz
-        # 编译安装
-        configure_install --prefix=$INSTALL_BASE_PATH/gettext/$GETTEXT_VERSION
-        cd $GIT_CONFIGURE_PATH
-    fi
+# 安装验证 openssl
+install_openssl
+# openssl 多版本处理
+if if_many_version openssl version && [ -n "$INSTALL_openssl_PATH" ];then
+    parse_options CONFIGURE_OPTIONS "?openssl=$(dirname ${INSTALL_openssl_PATH%/*})"
 fi
 
+# 安装验证 libxml2
+install_libxml2
+
+# msgfmt命令在gettext包中
+# 安装验证 msgfmt
+install_gettext
+
+cd $GIT_CONFIGURE_PATH
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 
@@ -160,7 +158,7 @@ if [ "$ARGV_tool" = "gitolite" ]; then
     # 创建快捷方式，这步很重要，否则gitolite无法正常工作
     ln -sv $INSTALL_BASE$GIT_VERSION/bin/git /bin/git
     mkdirs "$TOOL_WORK_PATH/gitolite" git
-    packge_manager_run install 'perl(Data::Dumper)'
+    package_manager_run install 'perl(Data::Dumper)'
     sudo_msg git ./install -to $TOOL_WORK_PATH/gitolite
     if_error "gitolite install fail!"
     cd $TOOL_WORK_PATH/gitolite
@@ -177,15 +175,15 @@ elif [ "$ARGV_tool" = "gitlab" ]; then
     # 安装 gitlab
     info_msg '安装git管理工具：gitlab'
     if [ ! -e 'gitlab.sh' ];then
-        if [[ "$PACKGE_MANAGER_INDEX" == 0 ]];then
-            wget --no-check-certificate -T 7200 -O gitlab.sh https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.rpm.sh
+        if [[ "$PACKAGE_MANAGER_INDEX" == 0 ]];then
+            GITLAB_TYPE=rpm
         else
-            wget --no-check-certificate -T 7200 -O gitlab.sh https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.deb.sh
+            GITLAB_TYPE=deb
         fi
-        if_error "下载gitlab安装脚本失败"
+        download_file https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.$GITLAB_TYPE.sh gitlab.sh
         bash gitlab.sh
     fi
-    packge_manager_run install gitlab-ee
+    package_manager_run install gitlab-ee
     if ! if_command gitlab-ctl;then
         if_error "安装失败：gitlab"
     fi
@@ -194,8 +192,15 @@ elif [ "$ARGV_tool" = "gitlab" ]; then
     sed -i -r "s/^(external_url\s+).*/\1'http:\/\/127.0.0.1'/" /etc/gitlab/gitlab.rb
     # 配置处理
     gitlab-ctl reconfigure
-    # 启动服务
-    run_msg gitlab-ctl start
+
+    # 添加服务配置
+    SERVICES_CONFIG_GITLAB=()
+    SERVICES_CONFIG_GITLAB[$SERVICES_CONFIG_NAME]="gitlab"
+    SERVICES_CONFIG_GITLAB[$SERVICES_CONFIG_START_RUN]="gitlab-ctl start"
+    SERVICES_CONFIG_GITLAB[$SERVICES_CONFIG_PID_FILE]=""
+    # 服务并启动服务
+    add_service SERVICES_CONFIG_GITLAB
+
     info_msg 'gitlab 工作目录：/opt/gitlab/'
     info_msg 'gitlab 配置文件：/etc/gitlab/gitlab.rb'
     info_msg 'gitlab 地址: http://127.0.0.1'

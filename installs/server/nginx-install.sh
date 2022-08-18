@@ -54,6 +54,8 @@
 NGINX_HOST='nginx.org'
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
+# 编译默认项（这里的配置会随着编译版本自动生成编译项）
+DEFAULT_OPTIONS='threads ?ipv6 http_ssl_module http_stub_status_module'
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
@@ -63,46 +65,30 @@ install_storage_require 1 1 1
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NGINX_VERSION --user=nginx --group=nginx "
-# 编译增加项（这里的配置会随着编译版本自动生成编译项）
-ADD_OPTIONS='threads ?ipv6 http_ssl_module http_stub_status_module '$ARGV_options
 # ************** 编译安装 ******************
 # 下载nginx包
 download_software http://$NGINX_HOST/download/nginx-$NGINX_VERSION.tar.gz
 # 解析选项
-parse_options CONFIGURE_OPTIONS $ADD_OPTIONS
+parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
 # 安装依赖
 info_msg "安装相关已知依赖"
-if ! if_command pcre-config;then
-    # 安装pcre
-    packge_manager_run install -PCRE_DEVEL_PACKGE_NAMES
-fi
+
+# 安装验证 pcre-config
+install_pcre_config
+
 # ssl 模块
 if in_options 'http_ssl_module' $CONFIGURE_OPTIONS;then
     # 注意nginx获取openssl目录时是指定几个目录的，所以安装目录变动了会导致编译失败
     # 当安装了多个版本时使用参数 --with-openssl=DIR 指定openssl编译源文件目录（不是安装后的目录）
-    if ! if_many_version openssl version && if_lib 'openssl' '>=' '1.0.1' && which -a openssl|grep -P '^/usr(/local|/pkg)?/bin/openssl$';then
-        info_msg 'openssl ok'
-    else
-        # 暂存编译目录
-        NGINX_CONFIGURE_PATH=`pwd`
-        # 获取最新版
-        # get_version OPENSSL_VERSION https://www.openssl.org/source/ 'openssl-\d+\.\d+\.\d+[a-z]*\.tar\.gz[^\.]' '\d+\.\d+\.\d+[a-z]*'
-        # 版本过高编译不能通过
-        OPENSSL_VERSION='1.1.1'
-        # 下载
-        download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
+    # 安装验证 openssl
+    if ! install_openssl '1.0.1' '' '1.1.1' 1;then
         CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-openssl=`pwd`"
-        cd $NGINX_CONFIGURE_PATH
     fi
 fi
 # http_gzip_module 模块
 if ! in_options '!http_gzip_module' $CONFIGURE_OPTIONS;then
-    if if_lib 'libzip';then
-        info_msg 'libzip ok'
-    else
-        # 安装zlib
-        packge_manager_run install -ZLIB_DEVEL_PACKGE_NAMES
-    fi
+    # 安装验证 zlib
+    install_zip
 fi
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
