@@ -27,6 +27,8 @@
 #       再重新编译安装svn
 #   2、svn: E200030: SQLite compiled for 3.36.0, but running with 3.6.20
 #       目录需要把安装目录里的 libsqlite3.so.0.8.6 复制到 /usr/lib64 目录才能编译完成并正常使用svn
+#   3、configure: error: Subversion requires SQLite
+#       此错误一般是sqlite版本不对，系统中存在多个版本，需要指定安装目录
 # 下载地址
 # https://tortoisesvn.net/downloads.html
 #

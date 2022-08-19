@@ -156,6 +156,7 @@ download_software https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/
 # 暂存编译目录
 MYSQL_CONFIGURE_PATH=`pwd`
 # mysql-5.7 开始需要使用boots包才能编译
+info_msg "获取mysql-boost版本"
 if [ -n "`curl "https://downloads.mysql.com/archives/community/?tpl=version&os=src&version=$MYSQL_VERSION&osva=" 2>&1 | grep "mysql-boost-$MYSQL_VERSION.tar.gz" -o`" ] || [ -n "`curl "https://dev.mysql.com/downloads/mysql/?tpl=platform&os=src&osva="  2>&1 | grep "mysql-boost-$MYSQL_VERSION.tar.gz" -o`" ];then
     download_software https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/mysql-boost-$MYSQL_VERSION.tar.gz $MYSQL_CONFIGURE_PATH/boost/
     CMAKE_CONFIG="-DWITH_BOOST=../boost/"

@@ -391,15 +391,17 @@ init_install(){
         fi
     fi
     if [ -n "$DEFINE_INSTALL_TYPE" ];then
+        info_msg '安装验证最基本的编译工具'
         # 有编译类型安装编译所需基本工具
         install_gcc
-        tools_install make
-        if ! if_command ntpdate; then
-            package_manager_run install ntpdate 2> /dev/null
-        fi
-        if ! if_command ntpdate; then
-            # 更新系统时间
+        tools_install make ntpdate
+        # 同步系统时间
+        if if_command ntpdate; then
             ntpdate -u ntp.api.bz 2>&1 &>/dev/null &
+        fi
+        if if_command_range_version ldd --version;then
+            warn_msg "glic 存在多版本，编译安装容易失败，建议删除非系统自带glibc版本！！！"
+            warn_msg "glic 是系统基础库，不可全部删除，建议保留系统自带的glibc版本，否则可能导致系统故障！！！！"
         fi
     fi
     # 加载环境配置

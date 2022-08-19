@@ -99,8 +99,9 @@ if_version(){
 # return 1|0
 repair_version(){
     local CURRENT_VERSION=$(eval echo "\$$1") VERSION_COUNT=$((${2:-3} - 1))
-    until echo "$CURRENT_VERSION"|grep -qP "\d+(\.\d+){$VERSION_COUNT}";do
-        CURRENT_VERSION="$CURRENT_VERSION.${3:-.0}"
+    until echo "$CURRENT_VERSION"|grep -qP "\d+(\D\d+){$VERSION_COUNT}";do
+        CURRENT_VERSION="$CURRENT_VERSION${3:-.0}"
+        info_msg "$CURRENT_VERSION"
     done
     eval $1=\$CURRENT_VERSION
 }
@@ -627,10 +628,15 @@ install_java(){
 # @param $max_version       安装最高版本
 # @param $install_version   没有合适版本时编译安装版本，不指定则安装最小版本
 # @param $not_compile       只下载不编译
+#                               为空下载后会编译安装
+#                               非为空下载后不编译安装
+#                               非为空且是 2 则如果不是安装在默认路径和仅单版则直接下载不编译安装
 # return 1|0
 install_openssl(){
-    if ! if_lib_range openssl "$1" "$2" || ! if_command_range_version openssl version "$1" "$2";then
-        if ! install_range_version -OPENSSL_DEVEL_PACKAGE_NAMES "$1" "$2";then
+    [ "$4" = 2 ] && (if_many_version openssl version || ! which -a openssl|grep -qP '^/usr(/local|/pkg)?/bin/openssl$')
+    local USE_TYPE=$?
+    if [ "$USE_TYPE" = 0 ] || ! if_lib_range openssl "$1" "$2" || ! if_command_range_version openssl version "$1" "$2";then
+        if [ "$USE_TYPE" = 0 ] || ! install_range_version -OPENSSL_DEVEL_PACKAGE_NAMES "$1" "$2";then
             # 安装匹配版本
             local OPENSSL_VERSION=${3:-"$1"}
             if [ -z "$OPENSSL_VERSION" ];then
@@ -640,16 +646,17 @@ install_openssl(){
             info_msg "安装：openssl-$OPENSSL_VERSION"
             # 下载
             download_software https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz openssl-$OPENSSL_VERSION
-            # 移除不要的组件
-            package_manager_run remove openssl -OPENSSL_DEVEL_PACKAGE_NAMES
-            # 添加编译文件连接
-            if [ ! -e './configure' ];then
-                cp ./config ./configure
-            fi
             if [ -z "$4" ];then
+                # 添加编译文件连接
+                if [ ! -e './configure' ];then
+                    cp ./config ./configure
+                fi
+                # 移除不要的组件
+                package_manager_run remove openssl -OPENSSL_DEVEL_PACKAGE_NAMES
                 # 编译安装
                 configure_install --prefix=$INSTALL_BASE_PATH/openssl/$OPENSSL_VERSION
             else
+                info_msg "跳过编译安装：openssl"
                 print_install_result openssl "$1" "$2"
                 return 1
             fi
@@ -1129,6 +1136,7 @@ install_apr(){
                 # 安装
                 configure_install --prefix="$INSTALL_BASE_PATH/apr/$APR_VERSION"
             else
+                info_msg "跳过编译安装：apr"
                 print_install_result apr "$1" "$2"
                 return 1
             fi
@@ -1159,6 +1167,7 @@ install_apr_util(){
                 # 安装
                 configure_install --prefix="$INSTALL_BASE_PATH/apr-util/$APR_UTIL_VERSION" --with-apr="$(dirname ${INSTALL_apr_1_config_PATH%/*})"
             else
+                info_msg "跳过编译安装：apr-util"
                 print_install_result apr-util "$1" "$2"
                 return 1
             fi

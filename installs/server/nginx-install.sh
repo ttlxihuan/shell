@@ -17,6 +17,7 @@
 # 注意：
 #
 # nginx异常退出一般是系统kill掉了，通过 dmesg | tail -n 50 来查看，一般是高并发时内存占用过大
+# 特别注意：当使用 nginx -s reload 无效时（实际未重新加载配置），可以使用 nginx -s stop && nginx 重启
 #
 # 优化点：
 # ==============================================================
@@ -70,6 +71,8 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NGINX_VERSION --user=nginx --group=ngi
 download_software http://$NGINX_HOST/download/nginx-$NGINX_VERSION.tar.gz
 # 解析选项
 parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
+# 暂存编译目录
+NGINX_CONFIGURE_PATH=`pwd`
 # 安装依赖
 info_msg "安装相关已知依赖"
 
@@ -81,7 +84,7 @@ if in_options 'http_ssl_module' $CONFIGURE_OPTIONS;then
     # 注意nginx获取openssl目录时是指定几个目录的，所以安装目录变动了会导致编译失败
     # 当安装了多个版本时使用参数 --with-openssl=DIR 指定openssl编译源文件目录（不是安装后的目录）
     # 安装验证 openssl
-    if ! install_openssl '1.0.1' '' '1.1.1' 1;then
+    if ! install_openssl '1.0.1' '' '1.1.1' 2;then
         CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-openssl=`pwd`"
     fi
 fi
@@ -90,6 +93,8 @@ if ! in_options '!http_gzip_module' $CONFIGURE_OPTIONS;then
     # 安装验证 zlib
     install_zip
 fi
+
+cd $NGINX_CONFIGURE_PATH
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 # 创建用户组
@@ -101,11 +106,11 @@ if [ ! -d "vhosts" ]; then
     mkdirs vhosts
     mkdirs certs
     cd vhosts
-    cat > ssl <<conf
-# 此文件为共用文件，用于其它 server 块引用
-# 多个不同域名证书需要单独指定证书文件，而不能在此指定证书文件
+    cat > host.ssl <<conf
+# 此文件为https证书相关配置模板，正常使用时请复制此模板并修改证书地址和监听端口，并修改文件为对应域名名为便识别，比如 www.api.com.ssl
 # 注意：ssl连接握手前还不知道具体域名，当有请求时先使用默认的证书再逐个配置，所以过多个不同域名（主域名不同）的证书建议使用不同的IP或服务器分开
 
+listen       443 ssl;
 # 常规https配置，此配置不建议开启
 # ssl                  on;
 
@@ -133,6 +138,9 @@ conf
 # 代理websocket连接，建议使用复制文件再重命名方便多个 websocket 代理并存
 # 引用后需要视需求修改：匹配地址、代理websocket地址
 location /websocket {
+    # 去掉路径前缀，只保存小括号匹配的路径信息（包括GET参数），不去掉将原路径代理访问
+    rewrite ^[^/]+/(.*) /\$1 break;
+
     # 代理的websocket地址
     proxy_pass http://127.0.0.1:800;
     
@@ -199,7 +207,6 @@ server {
     listen 80;
 
     # 配置https
-    # listen 443 ssl;
     # include vhosts/ssl;
 
     # 配置访问域名，多个空格隔开
@@ -381,6 +388,9 @@ server {
         # 保持身份验证上下文时需要开启下两项
         # proxy_http_version 1.1;
         # proxy_set_header Connection "";
+        
+        # 指定携带头信息
+        proxy_set_header platform proxy-\$host;
     }
 }
 conf
