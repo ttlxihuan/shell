@@ -26,7 +26,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 定义安装参数
-DEFINE_INSTALL_PARAMS="
+DEFINE_RUN_PARAMS="
 
 "
 # 编译默认项（这里的配置会随着编译版本自动生成编译项）

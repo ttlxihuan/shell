@@ -80,7 +80,7 @@ SHELL_RUN_HELP='自动更新主要用于动态域名，当使用动态IP时又�
 动态域名更新会存在一定的时差，如果当前网络IP回收频次过高可能会更新不即时。
 动态域名更新受三方平台限制，一般此脚本需要放到定时器中，定时更新。
 '
-DEFINE_TOOL_PARAMS='
+DEFINE_RUN_PARAMS='
 [-f, --conf="etc/iptables.conf", {required|file}]指定配置文件，相对脚本根目录
 [--cache-file="temp/.iptables.cache"]用于记录开启数据，当配置调整进行匹配处理
 #当脚本在唯一执行时不需要调用此参数

@@ -422,10 +422,6 @@ if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then
     echo "    include vhosts/*.conf;" >> nginx.conf
     echo "}" >> nginx.conf
 fi
-# openssl: error while loading shared libraries: libssl.so.1.1
-#if ! ldconfig -v|grep libssl.so; then
-#    echo `whereis libssl.so|grep -oP '(/\w+)+/'|grep -oP '(/\w+)+'` >> /etc/ld.so.conf
-#fi
 
 cd $INSTALL_PATH$NGINX_VERSION/sbin
 if [ -n "`./nginx -t|grep error`" ]; then

@@ -16,7 +16,7 @@
 
 # 参数信息配置
 SHELL_RUN_DESCRIPTION='远程批量安装'
-DEFINE_TOOL_PARAMS="
+DEFINE_RUN_PARAMS="
 [remote-match]匹配要安装的远程服务器配置名
 #允许使用正则表达式匹配
 #匹配的并非远程服务器地址而是节点配置名

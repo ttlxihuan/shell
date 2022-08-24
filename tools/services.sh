@@ -17,7 +17,7 @@ SHELL_RUN_HELP="
 安装脚本安装后会自动写入服务处理配置，方便服务启停操作。
 允许手动添加一些服务启动，服务可以增加为多个。
 "
-DEFINE_TOOL_PARAMS='
+DEFINE_RUN_PARAMS='
 [action="status", {required}]操作名，默认为 status
 #   start       启动服务
 #   restart     重启服务

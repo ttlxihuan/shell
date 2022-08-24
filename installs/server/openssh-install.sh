@@ -28,8 +28,9 @@ DEFAULT_OPTIONS=''
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
+# 提取镜像地址 https://www.openssh.com/portable.html
 # openssh早期版本号是三位的，从3.3起变成两位的，安装即按2位版本号来处理
-init_install '4.1p1' "https://ftpmirror.infania.net/pub/OpenBSD/OpenSSH/portable/" 'openssh-\d+\.\d+p\d\.tar\.gz' '\d+\.\d+p\d'
+init_install '4.1p1' "https://mirror.edgecast.com/pub/OpenBSD/OpenSSH/portable/" 'openssh-\d+\.\d+p\d\.tar\.gz' '\d+\.\d+p\d'
 #  限制空间大小（G）：编译目录、安装目录、内存
 install_storage_require 1 1 1
 # ************** 相关配置 ******************

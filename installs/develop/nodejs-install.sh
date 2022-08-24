@@ -39,46 +39,17 @@ info_msg "安装相关已知依赖"
 # 在编译目录里BUILDING.md文件有说明依赖版本要求，GCC在不同的大版本中有差异
 GCC_MIN_VERSION="`cat BUILDING.md|grep -oP '\`gcc\` and \`g\+\+\` (>= )?\d+(\.\d+)+ or newer'|grep -oP '\d+(\.\d+)+'`"
 if [ -n "$GCC_MIN_VERSION" ];then
-    if echo "$GCC_MIN_VERSION"|grep -qP '^\d+\.\d+$';then
-        GCC_MIN_VERSION="$GCC_MIN_VERSION.0"
-    fi
-    # 获取当前安装的gcc版本
-    for ITEM in `which -a gcc`; do
-        GCC_CURRENT_VERSION=`$ITEM -v 2>&1|grep -oP '\d+(\.\d+){2}'|tail -n 1`
-        if if_version $GCC_MIN_VERSION '<=' $GCC_CURRENT_VERSION;then
-            break
-        fi
-    done
-    if ! if_command gcc || if_version $GCC_MIN_VERSION '>' $GCC_CURRENT_VERSION;then
-        if ! install_range_version -GCC_C_PACKAGE_NAMES "$GCC_MIN_VERSION";then
-            run_install_shell gcc $GCC_MIN_VERSION
-        fi
-    fi
-    info_msg "gcc-$GCC_MIN_VERSION ok"
+    repair_version GCC_MIN_VERSION
+    install_gcc "$GCC_MIN_VERSION"
 else
     warn_msg '获取 gcc 最低版本号失败'
 fi
-# 安装python3
-PYTHON_MIN_VERSION=`cat BUILDING.md|grep -oP 'Python\s+3(\.\d+)+'|grep -oP '\d+(\.\d+)+'|head -n 1`
-if [ -z "$PYTHON_MIN_VERSION" ];then
-    # 安装python2
-    PYTHON_MIN_VERSION=`cat BUILDING.md|grep -oP 'Python\s+2(\.\d+)+'|grep -oP '\d+(\.\d+)+'|head -n 1`
-fi
+
+# 安装python
+PYTHON_MIN_VERSION=`cat BUILDING.md|grep -oP 'Python\s+\d+(\.\d+)+'|grep -oP '\d+(\.\d+)+'|head -n 1`
 if [ -n "$PYTHON_MIN_VERSION" ];then
-    if echo "$PYTHON_MIN_VERSION"|grep -qP '^\d+\.\d+$';then
-        PYTHON_MIN_VERSION="$PYTHON_MIN_VERSION.0"
-    fi
-    if if_version "$PYTHON_MIN_VERSION" ">=" "3.0.0"; then
-        PYTHON_NAME="python3"
-    elif if_version "$PYTHON_MIN_VERSION" ">=" "2.0.0"; then
-        PYTHON_NAME="python2"
-    else
-        PYTHON_NAME="python"
-    fi
-    if ! if_command $PYTHON_NAME || if_version $PYTHON_MIN_VERSION '>' "`eval "$PYTHON_NAME -V 2>&1 | grep -oP '\d+(\.\d+)+'"`";then
-        run_install_shell python $PYTHON_MIN_VERSION
-    fi
-    info_msg "python-$PYTHON_MIN_VERSION ok"
+    repair_version PYTHON_MIN_VERSION
+    install_python "$PYTHON_MIN_VERSION"
 else
     warn_msg '获取 python 最低版本号失败'
 fi

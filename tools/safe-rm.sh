@@ -13,7 +13,7 @@ SHELL_RUN_HELP="
 此脚本会自动生成rm和mv命令的代理脚本，能防止运行删除敏感目录或文件。
 删除或移动操作往往是不经意的，但造成的后果却是沉重的。
 "
-DEFINE_TOOL_PARAMS='
+DEFINE_RUN_PARAMS='
 [action, {required|in:install,uninstall}]脚本处理动作：
 #  install    安装
 #  uninstall  卸载

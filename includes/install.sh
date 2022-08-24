@@ -16,7 +16,7 @@ fi
 INSTALL_NAME=$(basename "$0" '-install.sh')
 # 安装通用参数信息配置
 SHELL_RUN_DESCRIPTION="安装${INSTALL_NAME}脚本"
-DEFINE_TOOL_PARAMS="$DEFINE_INSTALL_PARAMS
+DEFINE_RUN_PARAMS="$DEFINE_RUN_PARAMS
 [version, {regexp:'^(new|[0-9]{1,}(.[0-9]{1,}){1,4})$'}]指定安装版本，不传则是获取最新稳定版本号
 #传new安装最新版
 #传指定版本号则安装指定版本
@@ -47,7 +47,7 @@ if [ -n "$DEFAULT_OPTIONS" ];then
         _DEFAULT_OPTIONS_PART[${#_DEFAULT_OPTIONS_PART[@]}]="#  ${_DEFAULT_OPTIONS[@]:$INDEX:6}
 "
     done
-    DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
+    DEFINE_RUN_PARAMS="$DEFINE_RUN_PARAMS
 [--without-default-options]不要默认安装选项，默认选项有：
 ${_DEFAULT_OPTIONS_PART[@]}
 "
@@ -64,16 +64,16 @@ SHELL_RUN_HELP="安装脚本一般使用方式:
     bash ${INSTALL_NAME}-install.sh 1.1.1
 "
 if [ -n "$DEFINE_INSTALL_TYPE" ];then
-    DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
-[-j, --make-jobs=0, {required|min:0}]编译同时允许N个任务 
+    DEFINE_RUN_PARAMS="$DEFINE_RUN_PARAMS
+[-j, --make-jobs=0, {required|int:0}]编译同时允许N个任务 
 #   =0 当前CPU数
 #   >0 指定个数
 #任务多编译快且资源消耗也大（不建议超过CPU核数）
 #当编译因进程被系统杀掉时可减少此值重试。
 [-o, --options=]添加${DEFINE_INSTALL_TYPE}选项，使用前请核对选项信息。
 "
-if [ "$DEFINE_INSTALL_TYPE" = 'configure' ];then
-    DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
+    if [ "$DEFINE_INSTALL_TYPE" = 'configure' ];then
+        DEFINE_RUN_PARAMS="$DEFINE_RUN_PARAMS
 #增加${DEFINE_INSTALL_TYPE}选项，支持以下三种方式传参：
 #   1、原样选项 --xx 、-xx 或 ?--xx 、?-xx
 #   2、启用选项 xx 或 ?xx 解析后是 --enable-xx 或 --with-xx 
@@ -82,16 +82,16 @@ if [ "$DEFINE_INSTALL_TYPE" = 'configure' ];then
 #选项前面的!是禁用某个选项，解析后会存在该选项则附加
 #选项多数有依赖要求，在增选项前需要确认依赖是否满足，否则容易造成安装失败。
 "
-    SHELL_RUN_HELP=$SHELL_RUN_HELP"
+        SHELL_RUN_HELP=$SHELL_RUN_HELP"
 安装最新稳定版本${INSTALL_NAME}且指定安装选项:
     bash ${INSTALL_NAME}-install.sh new --options=\"?ext1 ext2\"
 "
-elif [ -n "$DEFINE_INSTALL_TYPE" ];then
-    DEFINE_INSTALL_PARAMS="$DEFINE_INSTALL_PARAMS
+    elif [ -n "$DEFINE_INSTALL_TYPE" ];then
+        DEFINE_RUN_PARAMS="$DEFINE_RUN_PARAMS
 #增加${DEFINE_INSTALL_TYPE}原样选项，选项按${DEFINE_INSTALL_TYPE}标准即可。
 #选项部分有依赖要求，在增选项前需要确认依赖是否满足，否则容易造成安装失败。
 "
-    SHELL_RUN_HELP=$SHELL_RUN_HELP"
+        SHELL_RUN_HELP=$SHELL_RUN_HELP"
 安装最新稳定版本${INSTALL_NAME}且指定安装选项:
     bash ${INSTALL_NAME}-install.sh new --options=\"opt1 opt2\"
 "

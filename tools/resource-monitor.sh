@@ -73,7 +73,7 @@ CPU专用信息名：
     rxfifo      在接收数据包的时候，每秒钟缓冲区溢出的错误发生的次数
     txfifo      在发送数据包 的时候，每秒钟缓冲区溢出的错误发生的次数
 '
-DEFINE_TOOL_PARAMS='
+DEFINE_RUN_PARAMS='
 [-d, --debug]调试模式，将输出相关信息用于调试
 [-f, --conf="etc/resource-monitor.conf", {required|file}]监听配置文件，相对脚本根目录
 #配置文件格式：（块不分先后）

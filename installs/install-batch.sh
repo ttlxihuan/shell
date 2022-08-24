@@ -10,13 +10,13 @@ SHELL_RUN_HELP='1、批量安装仅限支持的脚本，多个安装并行操作
 2、批量安装默认会忽略磁盘空间（建议磁盘剩余空间 >= 50G）
 3、批量安装默认会自动适配虚拟内存，当物理内存不足时自动添加虚拟内存
 '$SHELL_RUN_HELP
-DEFINE_TOOL_PARAMS="
+DEFINE_RUN_PARAMS="
 [name, {required}]要安装的包或组名，多个使用逗号分开
 #包或组名必需在配置文件中指定
 #组名必需是@+组合形式，否则按包名处理
 [-f, --conf='etc/install-batch.conf', {required|file}]指定配置文件，相对脚本库根目录
 [-c, --check-install]验证批量安装结果信息
-$DEFINE_TOOL_PARAMS
+$DEFINE_RUN_PARAMS
 "
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 # 循环获取安装信息并调用指定函数

@@ -31,6 +31,10 @@
 #          使用命令 export CFLAGS="-Wno-error" 或 export CXXFLAGS="-Wno-error"
 #   其它警告可查看：https://blog.csdn.net/li_wen01/article/details/71171413
 #
+#  编译错误： error: static declaration of ‘secure_getenv’ follows non-static declaration secure_getenv (const char *name)
+#       secure_getenv 是在glibc-2.17版起增加，如果系统存在多个glibc版本并且有低于和高于glibc-2.17时编译容易报错，需要彻底清除不需要的glibc版本，文档：http://www.tin.org/bin/man.cgi?section=3&topic=secure_getenv
+#       
+#
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
@@ -42,6 +46,8 @@ DEFAULT_OPTIONS=''
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 镜像地址，如果地址不可用可去 https://gcc.gnu.org/mirrors.html 找合适的地址
 MIRRORS_URL="https://bigsearcher.com/mirrors/gcc/"
+# 安装curl
+install_curl
 # 判断默认镜像是否好用
 if [ -z "`curl --connect-timeout 20 -I -X HEAD $MIRRORS_URL/releases/ 2>&1| grep '200 OK'`" ];then
     # 获取最快的镜像地址
@@ -133,9 +139,7 @@ fi
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 # 动态库处理
-if [ ! -e /etc/ld.so.conf ] || ! grep -q "$INSTALL_PATH$GCC_VERSION/lib64" /etc/ld.so.conf;then
-    echo "$INSTALL_PATH$GCC_VERSION/lib64" >> /etc/ld.so.conf
-fi
+add_so_config $INSTALL_PATH$GCC_VERSION
 
 info_msg "移动文件 lib64/*.py"
 # 清除py文件，这些文件会影响共享的动态链接库ldconfig命令执行失败

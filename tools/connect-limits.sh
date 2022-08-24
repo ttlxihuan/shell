@@ -27,7 +27,7 @@ fi
 if (( DEFAULT_SET_NOFILE > MAX_NOFILE_LIMIT ));then
     DEFAULT_SET_NOFILE=MAX_NOFILE_LIMIT
 fi
-DEFINE_TOOL_PARAMS="
+DEFINE_RUN_PARAMS="
 [user='*', {required}]开放指定用户组
 #默认为通配所有用户组
 #临时配置时无效
@@ -52,20 +52,6 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 if [ "$ARGU_user" != '*' ] && ! has_user "$ARGU_user";then
     error_exit "用户 $ARGU_user 不存在"
 fi
-# 修改配置参数
-# @command edit_conf $file $match_regexp $set_value $new_set
-# @param $file              要修改的配置文件
-# @param $match_regexp      匹配修改项，注意有反向引用需要增加小括号，匹配会自动增加^$首尾限制
-# @param $set_value         要修改的值，注意反向引用序号是 \1 开始
-# @param $new_set           解析选项值成功写入变量名，如果配置项不存在时直接写入内容
-# return 1|0
-edit_conf(){
-    if grep -qP "^${2}$" $1;then
-        sed -i -r "s,^${2}$,${3}," $1
-    else
-        echo "${4}" >> $1
-    fi
-}
 
 SECURITY_USERNAME=$ARGU_user
 addc_slashes SECURITY_USERNAME '\*|\.'
@@ -74,12 +60,12 @@ case "$ARGV_type_nofile" in
     login)
         info_msg "修改 profile 用户($ARGU_user)最大连接数为：${ARGV_set_nofile}"
         if [ "$ARGU_user" = '*' ];then
-            edit_conf /etc/profile "#*\s*(ulimit\s+)-[a-zA-Z0-9]+\s+.*" "\1 -HSn ${ARGV_set_nofile}" "ulimit -HSn ${ARGV_set_nofile}"
+            edit_conf /etc/profile "#*\s*(ulimit\s+)-[a-zA-Z0-9]+\s+.*" "ulimit -HSn ${ARGV_set_nofile}"
         else
             if [ "$ARGU_user" = 'root' ];then
                 PROFILE_CONF=$(cd ~;pwd)/.bash_profile
                 if [ -e "$PROFILE_CONF" ];then
-                    edit_conf "$PROFILE_CONF" "#*\s*(ulimit\s+)-[a-zA-Z0-9]+\s+.*" "\1 -HSn ${ARGV_set_nofile}" "ulimit -HSn ${ARGV_set_nofile}"
+                    edit_conf "$PROFILE_CONF" "#*\s*(ulimit\s+)-[a-zA-Z0-9]+\s+.*" "ulimit -HSn ${ARGV_set_nofile}"
                 else
                     error_exit "$ARGU_user 用户未创建home目录或没有创建 $PROFILE_CONF 文件"
                 fi
@@ -102,9 +88,9 @@ case "$ARGV_type_nofile" in
         fi
         # 要使用配置生效必需重启服务器
         # 添加soft nofile限制
-        edit_conf /etc/security/limits.conf "#*\s*(${SECURITY_USERNAME}\s+soft\s+nofile)\s+.*" "\1 ${ARGV_set_nofile}" "${ARGU_user} soft nofile ${ARGV_set_nofile}"
+        edit_conf /etc/security/limits.conf "#*\s*(${SECURITY_USERNAME}\s+soft\s+nofile)\s+.*" "${ARGU_user} soft nofile ${ARGV_set_nofile}"
         # 添加hard nofile限制
-        edit_conf /etc/security/limits.conf "#*\s*(${SECURITY_USERNAME}\s+hard\s+nofile)\s+.*" "\1 ${ARGV_set_nofile}" "${ARGU_user} hard nofile ${ARGV_set_nofile}"
+        edit_conf /etc/security/limits.conf "#*\s*(${SECURITY_USERNAME}\s+hard\s+nofile)\s+.*" "${ARGU_user} hard nofile ${ARGV_set_nofile}"
     ;;
 esac
 
@@ -116,7 +102,7 @@ if [ "$ARGV_set_nproc" != '0' -a -d '/etc/security/limits.d/' ];then
     LIMITS_CONFIG=$(find /etc/security/limits.d/ -name '*-nproc.conf'|tail -n 1)
     if [ -n "$LIMITS_CONFIG" ];then
         info_msg "修改 $LIMITS_CONFIG 最大进程数为：${ARGV_set_nproc}"
-        edit_conf $LIMITS_CONFIG "#*\s*(${SECURITY_USERNAME}\s+soft\s+nproc)\s+.*" "\1 ${ARGV_set_nproc}" "${ARGU_user} soft nproc ${ARGV_set_nproc}"
+        edit_conf $LIMITS_CONFIG "#*\s*(${SECURITY_USERNAME}\s+soft\s+nproc)\s+.*" "${ARGU_user} soft nproc ${ARGV_set_nproc}"
     fi
 fi
 
@@ -125,33 +111,33 @@ if [ -z "$ARGV_skip_net" ];then
     info_msg "优化修改网络相关配置"
     # 指定网络连接TIME_WAIT状态最大数量，超过就会立即清除。
     # TIME_WAIT状态是连接时产生的，回收有助于释放资源，回收过频会释放有效连接导致尝试连接次数增加反而增加系统开销
-    edit_conf /etc/sysctl.conf "#*\s*(net\.ipv4\.tcp_max_tw_buckets\s*=).*" "\1 20000" "net.ipv4.tcp_max_tw_buckets = 20000"
+    edit_conf /etc/sysctl.conf "#*\s*(net\.ipv4\.tcp_max_tw_buckets\s*=).*" "net.ipv4.tcp_max_tw_buckets = 20000"
 
     # 指定网络连接LISTEN状态最大数量，超过就会被拒绝请求（全局共享参数，默认128）
     # 网络连接状态是LISTEN的最大数量，从LISTEN转为ESTABLISHED后就可以传送数据，也可以理解为socket的accept处理阶段
     # 超过此配置将无法接收请求，多余的请求会被拒绝
-    edit_conf /etc/sysctl.conf "#*\s*(net\.core\.somaxconn\s*=).*"             "\1 65535"     "net.core.somaxconn = 65535"
+    edit_conf /etc/sysctl.conf "#*\s*(net\.core\.somaxconn\s*=).*"             "net.core.somaxconn = 65535"
 
     # 指定网络连接SYN_REVD状态最大数量，超过就会被拒绝请求
-    edit_conf /etc/sysctl.conf "#*\s*(net\.ipv4\.tcp_max_syn_backlog\s*=).*"   "\1 262144"    "net.ipv4.tcp_max_syn_backlog = 262144"
+    edit_conf /etc/sysctl.conf "#*\s*(net\.ipv4\.tcp_max_syn_backlog\s*=).*"   "net.ipv4.tcp_max_syn_backlog = 262144"
 
     # 指定允许发送到队列的数据包最大数量（即包数）
     # 可以理解为接收网络数据包队列长度，超出将丢弃数据包
-    edit_conf /etc/sysctl.conf "#*\s*(net\.core\.netdev_max_backlog\s*=).*"    "\1 30000"     "net.core.netdev_max_backlog = 30000"
+    edit_conf /etc/sysctl.conf "#*\s*(net\.core\.netdev_max_backlog\s*=).*"    "net.core.netdev_max_backlog = 30000"
 
     if if_version "$(uname -r|grep -oP '^\d+(\.\d+)+')" '<' '4.12.0';then
         # Linux从4.12内核开始移除了 tcp_tw_recycle 配置
         # 指定是否快速回收TIME_WAIT状态连接，一般选择关闭，快速回收可能导致正常连接被中断
-        edit_conf /etc/sysctl.conf "#*\s*(net\.ipv4\.tcp_tw_recycle\s*=).*"    "\1 0"         "net.ipv4.tcp_tw_recycle = 0"
+        edit_conf /etc/sysctl.conf "#*\s*(net\.ipv4\.tcp_tw_recycle\s*=).*"    "net.ipv4.tcp_tw_recycle = 0"
     fi
 
     # 所有进程总共可以打开的文件数量
     # 文件数量也包含连接
-    edit_conf /etc/sysctl.conf "#*\s*(fs\.file-max\s*=).*"                     "\1 6815744"   "fs.file-max = 6815744"
+    edit_conf /etc/sysctl.conf "#*\s*(fs\.file-max\s*=).*"                     "fs.file-max = 6815744"
 
     if has_iptables_run;then
         # 防火墙跟踪表的大小，没有开防火墙会提示错误
-        edit_conf /etc/sysctl.conf "#*\s*(net\.netfilter\.nf_conntrack_max\s*=).*" "\1 2621440"   "net.netfilter.nf_conntrack_max = 2621440"
+        edit_conf /etc/sysctl.conf "#*\s*(net\.netfilter\.nf_conntrack_max\s*=).*" "net.netfilter.nf_conntrack_max = 2621440"
     fi
     # 生效配置
     info_msg "生效优化配置"

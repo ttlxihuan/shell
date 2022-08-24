@@ -110,25 +110,26 @@ if ! in_options !iconv $CONFIGURE_OPTIONS;then
     install_iconv
     #if if_many_version iconv --version;then
         # 安装多个版本需要指定安装目录
-    #    CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-iconv=${INSTALL_iconv_PATH} "
+    #    CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-iconv=$(dirname ${INSTALL_iconv_PATH%/*}) "
     #fi
 fi
 # gmp扩展
 if in_options gmp $CONFIGURE_OPTIONS;then
     # 提取gmp最低版本
     GMP_MIN_VERSION=$(grep -oP 'GNU MP Library version \d+(\.\d+)+' $PHP_CONFIGURE_PATH/configure|grep -oP '\d+(\.\d+)+'|tail -n 1)
+    repair_version GMP_MIN_VERSION
     # 安装验证 gmp
     install_gmp "$GMP_MIN_VERSION"
 fi
 # gd 扩展使用
 if in_options gd $CONFIGURE_OPTIONS;then
-    if if_lib 'libpng';then
+    if if_lib_range 'libpng';then
         info_msg 'libpng ok'
     else
         # 安装png-dev
         package_manager_run install -PNG_DEVEL_PACKAGE_NAMES
     fi
-    if if_lib 'freetype2';then
+    if if_lib_range 'freetype2';then
         info_msg 'freetype2 ok'
     else
         # 安装freetype
@@ -138,7 +139,7 @@ if in_options gd $CONFIGURE_OPTIONS;then
     if in_options jpeg $CONFIGURE_OPTIONS;then
         if if_version $PHP_VERSION '>=' 7.4.0;then
             # 安装 libjpeg
-            if if_lib "libjpeg";then
+            if if_lib_range "libjpeg";then
                 info_msg 'libjpeg ok'
             else
                 # 获取最新版
@@ -180,7 +181,7 @@ fi
 if in_options curl $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 8.0.0;then
         MIN_CURL_VERSION=''
-    elif ! if_lib "libcurl" '>=' '7.29.0';then
+    elif ! if_lib_range "libcurl" '7.29.0';then
         MIN_CURL_VERSION='7.29.0'
     fi
     install_curl "$MIN_CURL_VERSION"
@@ -248,10 +249,10 @@ if if_version $PHP_VERSION '>=' 7.4.0;then
 #            fi
 #        fi
     # 安装高版本的依赖
-    if ! if_lib "oniguruma";then
+    if ! if_lib_range "oniguruma";then
         # 安装oniguruma-dev
         package_manager_run install -ONIGURUMA_DEVEL_PACKAGE_NAMES
-        if ! if_lib "oniguruma"; then
+        if ! if_lib_range "oniguruma"; then
             if [ ! -e "/usr/include/oniguruma.h" ];then
                 # 下载
                 download_software https://github.com/kkos/oniguruma/archive/v6.9.4.tar.gz oniguruma-6.9.4

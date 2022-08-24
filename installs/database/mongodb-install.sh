@@ -51,56 +51,21 @@ download_software https://fastdl.mongodb.org/src/mongodb-src-r$MONGODB_VERSION.t
 # 安装依赖
 info_msg "安装相关已知依赖"
 # 获取编辑安装的依赖要求
-GCC_VERSION=`grep -iP 'gcc\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
-PYTHON_VERSION=`grep -iP 'Python\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
-GCC_CURRENT_VERSION=`gcc -v 2>&1|grep -oP '\d+(\.\d+){2}'|tail -n 1`
-if ! echo "$GCC_VERSION"|grep -qP '^\d+\.\d+\.\d+$';then
-    if echo "$GCC_VERSION"|grep -qP '^\d+\.\d+$';then
-        if if_version "$GCC_VERSION" '>' '5.0';then
-            if echo "$GCC_VERSION"|grep -qP '^\d+\.0$';then
-                GCC_VERSION=`echo "$GCC_VERSION"|grep -oP '^\d+'`".1.0"
-            else
-                GCC_VERSION="$GCC_VERSION.0"
-            fi
-        else
-            GCC_VERSION=$GCC_VERSION".1"
-        fi
-    else
-        if if_version "$GCC_VERSION" '>' '5';then
-            GCC_VERSION=`echo "$GCC_VERSION"|grep -oP '^\d+'`".1.0"
-        else
-            GCC_VERSION=$GCC_VERSION".1.1"
-        fi
-    fi
-fi
-# 注意GCC不建议安装过高的版本，否则容易造成编译异常
-if if_version "$GCC_VERSION" '>' "$GCC_CURRENT_VERSION" || ( if_version "${GCC_VERSION%%.*}" '<' "${GCC_CURRENT_VERSION%%.*}" && (ask_select ASK_INPUT "安装要求GCC版本是 $GCC_VERSION 已安装 $GCC_CURRENT_VERSION ，版本偏高可能导致编译失败，是否安装 GCC-$GCC_VERSION 再编译？"  || [ "$ASK_INPUT" = 'y' ]) ); then
-    if ! install_range_version -GCC_C_PACKAGE_NAMES "$GCC_VERSION";then
-        run_install_shell gcc $GCC_VERSION
-    fi
+GCC_MIN_VERSION=`grep -iP 'gcc\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
+PYTHON_MIN_VERSION=`grep -iP 'Python\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
+if [ -n "$GCC_MIN_VERSION" ];then
+    # 安装验证 gcc
+    repair_version GCC_MIN_VERSION
+    install_gcc "$GCC_MIN_VERSION"
 else
-    info_msg 'GCC OK'
+    warn_msg '获取 gcc 最低版本号失败'
 fi
-if ! echo "$PYTHON_VERSION"|grep -qP '^\d+\.\d+\.\d+$';then
-    PYTHON_VERSION=$PYTHON_VERSION".0"
-fi
-if if_version "$PYTHON_VERSION" ">=" "3.0.0"; then
-    PYTHON_NAME='python3'
-    PIP_NAME='pip3'
+if [ -n "$PYTHON_MIN_VERSION" ];then
+    # 安装验证 python
+    repair_version PYTHON_MIN_VERSION
+    install_python "$PYTHON_MIN_VERSION"
 else
-    PYTHON_NAME='python'
-    PIP_NAME='pip'
-fi
-if if_command $PYTHON_NAME;then
-    PYTHON_CURRENT_VERSION=`$PYTHON_NAME -V 2>&1|grep -oP '\d+(\.\d+)+'`
-else
-    PYTHON_CURRENT_VERSION='0.0.1'
-fi
-if if_version $PYTHON_VERSION '>' "$PYTHON_CURRENT_VERSION"; then
-    # 安装对应的新版本
-    run_install_shell python $PYTHON_VERSION
-else
-    info_msg 'python OK'
+    warn_msg '获取 python 最低版本号失败'
 fi
 
 # 安装验证 openssl

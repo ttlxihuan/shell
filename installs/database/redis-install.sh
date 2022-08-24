@@ -22,7 +22,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='make'
 # 定义安装参数
-DEFINE_INSTALL_PARAMS="
+DEFINE_RUN_PARAMS="
 [-b, --bind='127.0.0.1']服务监听绑定地址
 [-p, --port='6379']服务监听端口号
 [-s, --save='60,5']开启自动保存到硬盘 m,n

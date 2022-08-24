@@ -53,7 +53,7 @@ if [ $? = '0' ];then
 else
     MKFS_TYPES='ext2,ext3,ext4'
 fi
-DEFINE_TOOL_PARAMS='
+DEFINE_RUN_PARAMS='
 [path]挂载目录，不指定则在挂载时需要手动输入挂载目录
 #指定挂载目录为单一模式，即目录挂载完成就结束
 #不指定为循环模式，即会循环掉所有未挂载或使用的磁盘引导去挂载

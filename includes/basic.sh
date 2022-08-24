@@ -716,7 +716,7 @@ package_manager_run(){
         if [ -z "$PACKAGE_NAME" ];then
             error_exit "安装包名解析为空: $NAME"
         fi
-        run_msg "$COMMAND_STR $PACKAGE_NAME 2>/dev/null"
+        run_msg "$COMMAND_STR $PACKAGE_NAME" 2>/dev/null
         if [ $? != '0' ];then
             warn_msg "$COMMAND_STR $PACKAGE_NAME 运行失败，可能会影响后续运行结果"
         fi
@@ -755,7 +755,7 @@ source "$SHELL_WROK_INCLUDES_PATH/config.sh" || exit
 # 提取参数
 source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
 # 解析参数
-parse_shell_param DEFINE_TOOL_PARAMS CALL_INPUT_ARGVS
+parse_shell_param DEFINE_RUN_PARAMS CALL_INPUT_ARGVS
 
 # 常规高精度公式计算
 # @command math_compute $result $formula [$scale]
@@ -1022,7 +1022,25 @@ find_project_file(){
         error_exit "在 $FIND_DIR 目录下搜索到 ${#FIND_LISTS[@]} 个匹配项"
     fi
 }
-
+# 修改配置参数
+# @command edit_conf $file $match_regexp $new_set
+# @param $file              要修改的配置文件
+# @param $match_regexp      匹配修改项，注意有反向引用需要增加小括号，匹配会自动增加^$首尾限制
+# @param $new_set           解析选项值成功写入变量名，如果配置项不存在时直接写入内容
+# return 1|0
+edit_conf(){
+    local SET_LINE
+    if [ -e "$1" ];then
+        SET_LINE=$(grep -m 1 -noP "^${2}$" $1|grep -oP '^\d+')
+    else
+        warn_msg "配置文件 $1 不存在，已自动创建"
+    fi
+    if [ -n "$SET_LINE" ];then
+        sed -i -r "${SET_LINE}c${3}" $1
+    else
+        echo "${3}" >> $1
+    fi
+}
 # 获取总线程数
 TOTAL_THREAD_NUM=$(lscpu |grep '^CPU(s)'|grep -oP '\d+$')
 

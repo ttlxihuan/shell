@@ -99,9 +99,11 @@ if_version(){
 # return 1|0
 repair_version(){
     local CURRENT_VERSION=$(eval echo "\$$1") VERSION_COUNT=$((${2:-3} - 1))
-    until echo "$CURRENT_VERSION"|grep -qP "\d+(\D\d+){$VERSION_COUNT}";do
+    if ! echo "$CURRENT_VERSION"|grep -qP "^\d+(\D\d+)*";then
+        error_exit "非法版本号: $CURRENT_VERSION"
+    fi
+    until echo "$CURRENT_VERSION"|grep -qP "^\d+(\D\d+){$VERSION_COUNT}";do
         CURRENT_VERSION="$CURRENT_VERSION${3:-.0}"
-        info_msg "$CURRENT_VERSION"
     done
     eval $1=\$CURRENT_VERSION
 }
@@ -122,14 +124,13 @@ if_version_range(){
 get_lib_install_path(){
     eval $2="$(pkg-config --libs-only-L "$1" 2>/dev/null|grep -oP '/([^/]+/)+')"
 }
-# 判断库是否存在
-# @command if_lib $name [$if [$version]]
-# @param $name          库名
-# @param $if            判断版本条件：>=,>,<=,<,==
-# @param $version       判断版本号
+# 判断库是否存在指定范围版本
+# @command if_lib_range $name $min_version $max_version
+# @param $name              库名
+# @param $min_version       最低版本号
+# @param $max_version       最高版本号
 # return 1|0
-if_lib(){
-    # ldconfig 是动态库管理工具，主要是通过配置文件 /etc/ld.so.conf 来管理动态库所在目录
+if_lib_range(){
     # 安装pkg-config
     # pkg-config 是三方库管理工具，以.pc为后缀的文件来配置不同的三方头文件或库文件
     # 一般三方库需要有个以 -devel 为后缀的配置工具名安装后就会把以 .pc 为后缀的文件写到到 pkg-config 默认管理目录
@@ -139,21 +140,35 @@ if_lib(){
         install_pkg_config
     fi
     if pkg-config --exists "$1";then
-        if [ -n "$2" -a -n "$3" ] && ! pkg-config --cflags --libs "$1 $2 $3" >/dev/null;then
-            return 1
-        fi
+        local ITEM
+        for ITEM in ">= $2" "<= $3";do
+            if (( ${#ITEM} > 3 )) && ! pkg-config --cflags --libs "$1 $ITEM" >/dev/null;then
+                return 1
+            fi
+        done
         return 0
     fi
     return 1
 }
-# 判断库是否存在指定范围版本
-# @command if_lib_range $name $min_version $max_version
-# @param $name              库名
+# 判断so库是否存在指定范围版本
+# @command if_so_range $name $min_version $max_version
+# @param $name              so库名
 # @param $min_version       最低版本号
 # @param $max_version       最高版本号
 # return 1|0
-if_lib_range(){
-    ([ -z "$2" ] || if_lib "$1" '>=' "$2") && ([ -z "$3" ] || if_lib "$1" '<=' "$3") && ([ -n "$2$3" ] || if_lib "$1");
+if_so_range(){
+    # ldconfig 是动态库管理工具，主要是通过配置文件 /etc/ld.so.conf 来管理动态库所在目录，记录系统可使用的 .so 库文件
+    # ldconfig ldd 是在glibc库中包含，系统默认存在
+    if ! if_command ldconfig;then
+        error_exit "ldconfig 命令丢失，请确认glibc是否完整！"
+    fi
+    local SO_VERSION
+    for SO_VERSION in $(ldconfig -v|grep -P "^\s*${1}[\-\.](\d+|so)"|grep -oP '\d+(\.\d+)+');do
+        if if_version_range "$SO_VERSION" "$2" "$3";then
+            return 0
+        fi
+    done
+    return 1
 }
 # 包管理安装并指定最低安装版本和最高版本
 # 如果最低版本达不到则不会进行包安装
@@ -209,10 +224,11 @@ download_file(){
     FILE_NAME=${2:-$(basename "$1"|sed 's/[\?#].*$//')}
     chdir shell-install
     info_msg '下载保存目录：'`pwd`
-    # 网络基本工具安装
-    tools_install curl wget
     if [ ! -e "$FILE_NAME" ];then
+        # 网络基本工具安装
+        tools_install wget
         if ! wget --no-check-certificate -T 7200 -O "$FILE_NAME" "$1"; then
+            tools_install curl
             curl -OLkN --connect-timeout 7200 -o "$FILE_NAME" "$1"
         fi
         if [ $? != '0' ];then
@@ -426,7 +442,7 @@ make_install(){
         if [[ "$1" =~ "=" ]];then
             PREFIX_PATH=${1#*=}
         fi
-        # 添加动态库地址
+        # 添加库地址
         add_pkg_config $PREFIX_PATH
         # 添加环境目录
         if [ -e "$PREFIX_PATH/bin" ];then
@@ -514,18 +530,30 @@ add_local_run(){
         fi
     done
 }
-# 添加动态库
+# 添加库配置
 # @command add_pkg_config $path
 # @param $path      动态库目录
 # return 1|0
 add_pkg_config(){
-    # 设置了环境变量
     local PATH_INFO
-    for PATH_INFO in $(find $1 -path '*/lib*' -name '*.pc' -exec dirname {} \;|uniq);do
-        add_path $PATH_INFO PKG_CONFIG_PATH
+    # 添加PKG配置
+    for PATH_INFO in $(find $1 -name '*.pc' \( -path '*/lib/*' -o -path '*/lib64/*' \) -exec dirname {} \;|uniq);do
+        add_path "$PATH_INFO" PKG_CONFIG_PATH
     done
 }
-
+# 添加动态库配置
+# @command add_so_config $path
+# @param $path      动态库目录
+# return 1|0
+add_so_config(){
+    local PATH_INFO
+    # 添加so配置
+    for PATH_INFO in $(find $1 -maxdepth 4 \( -name '*.so' -o -name '*.so.*' \) \( -regex '.*/lib/[^/]+' -o -regex '.*/lib64/[^/]+' \) -exec dirname {} \;|uniq);do
+        edit_conf /etc/ld.so.conf "$PATH_INFO" "$PATH_INFO"
+    done
+    # 缓存加载动态库
+    ldconfig
+}
 # 创建用户（包含用户组、可执行shell、密码）
 # @command add_user $username [$shell_name] [$password]
 # @param $username      用户名
@@ -604,11 +632,18 @@ install_gcc(){
 # @param $install_version   没有合适版本时编译安装版本，不指定则安装最小版本
 # return 1|0
 install_python(){
-    if ! if_command_range_version python -V "$1" "$2";then
-        run_install_shell python ${3:-"$1"}
-        if_command_range_version python -V "$1" "$2"
+    if ([ -n "$1" ] && if_version "$1" '>=' '3.0.0') || ([ -n "$2" ] && if_version "$2" '>=' '3.0.0');then
+        PYTHON_NAME='python3' PIP_NAME='pip3'
+    elif ([ -n "$1" ] && if_version "$1" '>=' '2.0.0') || ([ -n "$2" ] && if_version "$2" '>=' '2.0.0');then
+        PYTHON_NAME='python2' PIP_NAME='pip2'
+    else
+        PYTHON_NAME='python' PIP_NAME='pip'
     fi
-    print_install_result python "$1" "$2"
+    if ! if_command_range_version $PYTHON_NAME -V "$1" "$2";then
+        run_install_shell python ${3:-"$1"}
+        if_command_range_version $PYTHON_NAME -V "$1" "$2"
+    fi
+    print_install_result $PYTHON_NAME "$1" "$2"
 }
 # 安装 java
 # @command install_java [$min_version [$max_version]]
@@ -1098,7 +1133,7 @@ install_iconv(){
 # @param $install_version   没有合适版本时编译安装版本，不指定则安装最小版本
 # return 1|0
 install_gmp(){
-    if ! if_lib_range gmp "$1" "$2";then
+    if ! if_so_range libgmp "$1" "$2";then
         if ! install_range_version -GMP_DEVEL_PACKAGE_NAMES "$1" "$2";then
             local GMP_VERSION=${3:-"$1"}
             if [ -z "$GMP_VERSION" ];then
@@ -1110,8 +1145,9 @@ install_gmp(){
             download_software https://gmplib.org/download/gmp/gmp-$GMP_VERSION.tar.bz2
             # 编译安装
             configure_install --prefix=$INSTALL_BASE_PATH/gmp/$GMP_VERSION --enable-shared
+            add_so_config "$INSTALL_BASE_PATH/gmp/$GMP_VERSION"
         fi
-        # if_lib_range gmp "$1" "$2"
+        if_so_range libgmp "$1" "$2"
     fi
     print_install_result gmp "$1" "$2"
 }

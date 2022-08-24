@@ -63,7 +63,7 @@ $(cat $RUN_SHELL_CACHE_FILE)
 1、统一入口可以优化化目录结构和统一操作途径
 2、此入口并非唯一操作入口，也可以通过调用内置直接脚本执行
 "
-DEFINE_TOOL_PARAMS='
+DEFINE_RUN_PARAMS='
 [script-name, {required_without:ARGV_update}]指定执行的脚本名
 [-u, --update]更新缓存信息。
 #一般不需要更新，脚本在首次会自动更新
