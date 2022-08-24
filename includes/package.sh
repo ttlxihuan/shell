@@ -784,8 +784,12 @@ install_zip(){
                 # 编译安装
                 configure_install --prefix=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
             else
+                local CMAKE_VERSION=''
+                if [ -e './CMakeLists.txt' ];then
+                    CMAKE_VERSION=$(grep -oP 'cmake_minimum_required\D+\d+(\.\d+)+' ./CMakeLists.txt|grep -oP '\d+(\.\d+)+'|tail -n 1)
+                fi
+                install_cmake $CMAKE_VERSION
                 cd $ZIP_CONFIGURE_PATH
-                install_cmake
                 cmake_install $CMAKE_COMMAND_NAME -DCMAKE_INSTALL_PREFIX=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
             fi
         fi
