@@ -595,8 +595,7 @@ validate_shell_param(){
                 error_exit "脚本参数 ${ARG_NAME} 不是有效ip${RULE_VALUES[0]:-4/6}地址，当前是：$ARG_VALUE"
             ;;
             url)
-                tools_install curl
-                curl -I -m 5 "$ARG_VALUE" 2>/dev/null >/dev/null || error_exit "脚本参数 ${ARG_NAME} 不是有效url地址，当前是：$ARG_VALUE"
+                printf '%s' "$ARG_VALUE"|grep -qP '^http(s)?://\w+(\.\w+)*(/.*)?' || error_exit "脚本参数 ${ARG_NAME} 不是有效url地址，当前是：$ARG_VALUE"
             ;;
             in)
                 for ((INDEX=0;INDEX<${#RULE_VALUES[@]};INDEX++));do

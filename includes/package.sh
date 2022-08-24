@@ -197,11 +197,12 @@ get_download_version(){
     if [ -z "$4" ];then
         VERSION_RULE='\d+(\.\d+){1,2}'
     fi
-    # 网络基本工具安装
-    tools_install curl
     while true;do
         ((ATTEMPT++))
-        VERSION=`curl -LkN "$2" 2>/dev/null|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
+        VERSION=`wget -qO - --no-check-certificate "$2" 2>/dev/null|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
+        if [ -z "$VERSION" ];then
+            VERSION=`curl -LkN "$2" 2>/dev/null|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
+        fi
         if [ -n "$VERSION" ];then
             break
         fi
@@ -225,8 +226,6 @@ download_file(){
     chdir shell-install
     info_msg '下载保存目录：'`pwd`
     if [ ! -e "$FILE_NAME" ];then
-        # 网络基本工具安装
-        tools_install wget
         if ! wget --no-check-certificate -T 7200 -O "$FILE_NAME" "$1"; then
             tools_install curl
             curl -OLkN --connect-timeout 7200 -o "$FILE_NAME" "$1"
@@ -603,6 +602,9 @@ print_install_result(){
         error_exit "安装 $1$PACKAGE_VERSION 失败，终止运行！"
     fi
 }
+# 网络基本工具安装
+tools_install wget
+install_curl
 ############################################################################
 #########################       包管理安装部分      #########################
 ############################################################################

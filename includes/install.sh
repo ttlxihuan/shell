@@ -106,8 +106,6 @@ SHELL_RUN_HELP=$SHELL_RUN_HELP"
 "
 # 引用公共文件
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/basic.sh || exit
-# 包管理
-source "$SHELL_WROK_INCLUDES_PATH/package.sh" || exit
 
 # 随机生成密码
 # @command random_password $password_val [$size] [$group]
@@ -399,14 +397,15 @@ init_install(){
         if if_command ntpdate; then
             ntpdate -u ntp.api.bz 2>&1 &>/dev/null &
         fi
-        if if_command_range_version ldd --version;then
+        if if_many_version ldd --version;then
             warn_msg "glic 存在多版本，编译安装容易失败，建议删除非系统自带glibc版本！！！"
             warn_msg "glic 是系统基础库，不可全部删除，建议保留系统自带的glibc版本，否则可能导致系统故障！！！！"
         fi
     fi
     # 加载环境配置
     source /etc/profile
-    return 0
+    # 包管理
+    source "$SHELL_WROK_INCLUDES_PATH/package.sh" || exit
 }
 
 # 去掉默认选项
