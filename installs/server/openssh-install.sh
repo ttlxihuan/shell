@@ -24,7 +24,7 @@
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 编译默认项（这里的配置会随着编译版本自动生成编译项）
-DEFAULT_OPTIONS=''
+DEFAULT_OPTIONS='!openssl-header-check'
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
@@ -47,34 +47,45 @@ info_msg "安装相关已知依赖"
 # 暂存编译目录
 OPENSSH_CONFIGURE_PATH=`pwd`
 
+# 提取最低版本
+OPENSSL_MIN_VERSION=$(grep -oiP 'openssl\s+\d+(\.\d+)+' configure|grep -oP '\d+(\.\d+)+'|head -n 1)
+if [ -n "$OPENSSL_MIN_VERSION" ];then
+    repair_version OPENSSL_MIN_VERSION 3 .1
+fi
 # 安装验证 openssl
-install_openssl
+install_openssl "$OPENSSL_MIN_VERSION" 1.2.0
+if if_many_version openssl version;then
+    CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-ssl-dir=$(dirname ${INSTALL_openssl_PATH%/*}) "
+fi
+
+# 安装验证 zlib
+install_zlib
+get_lib_install_path zlib INSTALL_zlib_PATH
+if [ -n "$INSTALL_zlib_PATH" ];then
+    CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-zlib=$INSTALL_zlib_PATH "
+fi
 
 # 安装验证 libzip
 install_zip
 
 cd $OPENSSH_CONFIGURE_PATH
-# --with-ssl-dir= --with-zlib=
+
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
+cd $INSTALL_PATH$OPENSSH_VERSION
+
 # 创建用户组
 add_user sshd
 
+mkdirs ./run
 chown -R sshd:sshd ./
 
 # 修改配置
-# 这里没有配置处理，需要了解下
-#
-#
-#
-#
+edit_conf etc/sshd_config '#*\s*(PidFile)\s+.*' "PidFile $INSTALL_PATH$OPENSSH_VERSION/run/sshd.pid"
 
-#sed -i -r 's,^#\s*(PidFile)\s+.*,\1 run/sshd.pid,' etc/sshd_config
-
-# 添加服务配置
+# 添加服务配置，sshd不能使用相对路径启动，必需使用绝对路径启动
 SERVICES_CONFIG=()
-SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./sbin/sshd"
-SERVICES_CONFIG[$SERVICES_CONFIG_USER]="sshd"
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="$INSTALL_PATH$OPENSSH_VERSION/sbin/sshd"
 SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./run/sshd.pid"
 # 服务并启动服务
 add_service SERVICES_CONFIG

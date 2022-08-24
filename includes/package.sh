@@ -20,7 +20,7 @@ if_command_range_version(){
         if ! $COMMAND_PATH $2 1>/dev/null 2>/dev/null;then
             continue
         fi
-        CURRENT_VERSION=$($COMMAND_PATH $2 2>&1|grep -oP '\d+(\.\d+)+'|head -n 1)
+        CURRENT_VERSION=$($COMMAND_PATH $2 2>&1|grep -oP '\d+(\.\d+)+[a-zA-Z]*'|head -n 1)
         if if_version_range "$CURRENT_VERSION" "$3" "$4";then
             eval "${COMMAND_AS}PATH=\$COMMAND_PATH; ${COMMAND_AS}VERSION=\$CURRENT_VERSION"
             return;
@@ -561,7 +561,7 @@ add_so_config(){
 # return 0
 add_user(){
     if has_user "$1"; then
-         info_msg "用户：$1 已经存在无需再创建";
+         info_msg "用户 $1 已经存在无需再创建";
     else
         local RUN_FILE='/sbin/nologin'
         if [ -n "$2" -a -e "$2" ];then
@@ -613,7 +613,7 @@ print_install_result(){
 # return 1|0
 install_gcc(){
     if ! if_command_range_version gcc -v "$1" "$2";then
-        install_range_version -GCC_C_PACKAGE_NAMES "$1" "$2" || run_install_shell gcc ${3:-"$1"};
+        install_range_version -GCC_C_PACKAGE_NAMES "$1" "$2" || run_install_shell gcc ${3:-"${1:-$2}"};
         if_command_range_version gcc -v "$1" "$2"
     fi
     print_install_result gcc "$1" "$2"
@@ -639,7 +639,7 @@ install_python(){
         PYTHON_COMMAND_NAME='python' PIP_NAME='pip'
     fi
     if ! if_command_range_version $PYTHON_COMMAND_NAME -V "$1" "$2";then
-        run_install_shell python ${3:-"$1"}
+        run_install_shell python ${3:-"${1:-$2}"}
         if_command_range_version $PYTHON_COMMAND_NAME -V "$1" "$2"
     fi
     print_install_result $PYTHON_COMMAND_NAME "$1" "$2"
@@ -665,14 +665,20 @@ install_java(){
 #                               为空下载后会编译安装
 #                               非为空下载后不编译安装
 #                               非为空且是 2 则如果不是安装在默认路径和仅单版则直接下载不编译安装
+# 报错 libssl.so.1.1: version `OPENSSL_1_1_1' not found
+#     当安装多个版本openssl时可能报此错误，比如安装了：1.1.0 和 1.1.1 会存在差异，但是 1.1.0a 或 1.1.0g 之类版本问题不大
 # return 1|0
 install_openssl(){
     [ "$4" = 2 ] && (if_many_version openssl version || ! which -a openssl|grep -qP '^/usr(/local|/pkg)?/bin/openssl$')
     local USE_TYPE=$?
-    if [ "$USE_TYPE" = 0 ] || ! if_lib_range openssl "$1" "$2" || ! if_command_range_version openssl version "$1" "$2";then
+    if ! if_command_range_version openssl version "$1" "$2" || ! if_lib_range openssl "$1" "$2" || [ "$USE_TYPE" = 0 ];then
         if [ "$USE_TYPE" = 0 ] || ! install_range_version -OPENSSL_DEVEL_PACKAGE_NAMES "$1" "$2";then
             # 安装匹配版本
-            local OPENSSL_VERSION=${3:-"$1"}
+            local OPENSSL_VERSION=${3:-"${1:-$2}"}
+            if [ $# = '0' ];then
+                # 强制默认版本，过高版本编译其它软件时容易出问题
+                OPENSSL_VERSION='1.1.1'
+            fi
             if [ -z "$OPENSSL_VERSION" ];then
                 # 没有指定版本就安装最新版本
                 get_download_version OPENSSL_VERSION https://www.openssl.org/source/ 'openssl-\d+(\.\d+)+[a-z]?\.tar\.gz'
@@ -709,7 +715,7 @@ install_openssl(){
 install_curl(){
     if ! if_lib_range libcurl "$1" "$2" || ! if_command_range_version curl -V "$1" "$2";then
         if ! install_range_version -CURL_DEVEL_PACKAGE_NAMES "$1" "$2";then
-            local CURL_VERSION=${3:-"$1"}
+            local CURL_VERSION=${3:-"${1:-$2}"}
             if [ -z "$CURL_VERSION" ];then
                 # 没有指定版本就安装最新版本
                 get_download_version CURL_VERSION https://curl.se/download.html 'curl-\d+(\.\d+)+\.tar\.gz'
@@ -762,9 +768,9 @@ install_sqlite(){
 install_zip(){
     if ! if_lib_range libzip "$1" "$2";then
         if ! install_range_version -ZIP_DEVEL_PACKAGE_NAMES "$1" "$2";then
-            local LIBZIP_VERSION=${3:-"$1"}
+            local LIBZIP_VERSION=${3:-"${1:-$2}"}
             # 这里需要判断是否达到版本要求，达到了就不需要再安装了
-            # libzip-1.4+ 版本需要使用cmake更高版本来安装，而cmake需要c++11安装相对麻烦
+            # libzip-1.4+ 版本需要使用cmake更高版本来安装
             # libzip-1.3+ 编译不能通过会提示 错误:‘LIBZIP_VERSION’未声明(在此函数内第一次使用)
             # 目前安装 1.2 版本可以通过编译
             if [ -z "$LIBZIP_VERSION" ];then
@@ -782,7 +788,7 @@ install_zip(){
             if if_version "$LIBZIP_VERSION" '<' '1.4.0';then
                 cd $ZIP_CONFIGURE_PATH
                 # 编译安装
-                configure_install --prefix=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
+                configure_install --prefix=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION --enable-shared
             else
                 local CMAKE_VERSION=''
                 if [ -e './CMakeLists.txt' ];then
@@ -790,7 +796,7 @@ install_zip(){
                 fi
                 install_cmake $CMAKE_VERSION
                 cd $ZIP_CONFIGURE_PATH
-                cmake_install $CMAKE_COMMAND_NAME -DCMAKE_INSTALL_PREFIX=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
+                cmake_install $CMAKE_COMMAND_NAME ../ -DCMAKE_INSTALL_PREFIX=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION -DBUILD_SHARED_LIBS=ON
             fi
         fi
         if_lib_range libzip "$1" "$2"
@@ -839,7 +845,7 @@ install_cmake(){
 install_pkg_config(){
     if ! if_command_range_version pkg-config --version "$1" "$2";then
         if ! install_range_version -PKGCONFIG_PACKAGE_NAMES "$1" "$2";then
-            local PKG_CONFIG_VERSION=${3:-"$1"}
+            local PKG_CONFIG_VERSION=${3:-"${1:-$2}"}
             if [ -z "$PKG_CONFIG_VERSION" ];then
                 # 没有指定版本就安装最新版本
                 get_download_version PKG_CONFIG_VERSION https://pkg-config.freedesktop.org/releases/ 'pkg-config-\d+\.\d+\.tar\.gz'
@@ -921,7 +927,7 @@ install_libpcre(){
 # return 1|0
 install_libpcre2_8(){
     if ! if_lib_range libpcre2-8 "$1" "$2";then
-        local LIBPCRE2_VERSION=${3:-"$1"}
+        local LIBPCRE2_VERSION=${3:-"${1:-$2}"}
         if [ -z "$LIBPCRE2_VERSION" ];then
             # 没有指定版本就安装最新版本
             # https://ftp.pcre.org/pub/pcre/ 已经停用无法
@@ -946,7 +952,7 @@ install_autoconf(){
         if ! install_range_version -AUTOCONF_PACKAGE_NAMES "$1" "$2";then
             # 版本过低需要安装高版本的
             package_manager_run remove autoconf
-            local AUTOCONF_VERSION=${3:-"$1"}
+            local AUTOCONF_VERSION=${3:-"${1:-$2}"}
             if [ -z "$AUTOCONF_VERSION" ];then
                 # 获取最新版
                 get_download_version AUTOCONF_VERSION http://ftp.gnu.org/gnu/autoconf/ 'autoconf-\d+(\.\d+)+\.tar\.gz'
@@ -1006,7 +1012,7 @@ install_m4(){
 install_zlib(){
     if ! if_lib_range zlib "$1" "$2";then
         if ! install_range_version -ZLIB_DEVEL_PACKAGE_NAMES "$1" "$2";then
-            local ZLIB_VERSION=${3:-"$1"}
+            local ZLIB_VERSION=${3:-"${1:-$2}"}
             if [ -z "$ZLIB_VERSION" ];then
                 # 没有指定版本就安装最新版本
                 get_download_version ZLIB_VERSION http://zlib.net/fossils "zlib-\d+(\.\d+)+\.tar\.gz"
@@ -1040,7 +1046,7 @@ install_libffi(){
 install_libxml2(){
     if ! if_lib_range libxml-2.0 "$1" "$2";then
         if ! install_range_version -LIBXML2_DEVEL_PACKAGE_NAMES "$1" "$2";then
-            local LIBXML2_VERSION=${3:-"$1"}
+            local LIBXML2_VERSION=${3:-"${1:-$2}"}
             if [ -z "$LIBXML2_VERSION" ];then
                 # 获取最新版
                 get_download_version LIBXML2_VERSION "ftp://xmlsoft.org/libxml2/" 'libxml2-sources-\d+\.\d+\.\d+\.tar\.gz'
@@ -1066,7 +1072,7 @@ install_libxml2(){
 install_gettext(){
     if ! if_command_range_version gettext --version "$1" "$2";then
         if ! install_range_version -GETTEXT_DEVEL_PACKAGE_NAMES "$1" "$2";then
-            local GETTEXT_VERSION=${3:-"$1"}
+            local GETTEXT_VERSION=${3:-"${1:-$2}"}
             if [ -z "$GETTEXT_VERSION" ];then
                 # 获取最新版
                 get_download_version GETTEXT_VERSION https://ftp.gnu.org/pub/gnu/gettext 'gettext-\d+(\.\d+){2}\.tar\.gz'
@@ -1090,7 +1096,7 @@ install_gettext(){
 install_libevent(){
     if ! if_lib_range libevent "$1" "$2";then
         if ! install_range_version -LIBXML2_DEVEL_PACKAGE_NAMES "$1" "$2";then
-            local LIBEVENT_VERSION=${3:-"$1"}
+            local LIBEVENT_VERSION=${3:-"${1:-$2}"}
             if [ -z "$LIBEVENT_VERSION" ];then
                 # 获取最新版
                 get_download_version LIBEVENT_VERSION https://libevent.org/ 'libevent-\d+(\.\d+)+-stable\.tar\.gz'
@@ -1125,7 +1131,7 @@ install_jemalloc(){
 # return 1|0
 install_iconv(){
     if ! if_command_range_version iconv --version "$1" "$2";then
-        local LIBICONV_VERSION=${3:-"$1"}
+        local LIBICONV_VERSION=${3:-"${1:-$2}"}
         if [ -z "$LIBICONV_VERSION" ];then
             # 获取最新版
             get_download_version LIBICONV_VERSION http://ftp.gnu.org/pub/gnu/libiconv/ 'libiconv-\d+\.\d+\.tar\.gz' '\d+\.\d+'
@@ -1148,7 +1154,7 @@ install_iconv(){
 install_gmp(){
     if ! if_so_range libgmp "$1" "$2";then
         if ! install_range_version -GMP_DEVEL_PACKAGE_NAMES "$1" "$2";then
-            local GMP_VERSION=${3:-"$1"}
+            local GMP_VERSION=${3:-"${1:-$2}"}
             if [ -z "$GMP_VERSION" ];then
                 # 获取最新版
                 get_download_version GMP_VERSION https://gmplib.org/download/gmp/ 'gmp-\d+(\.\d+)+\.tar\.bz2'
@@ -1175,7 +1181,7 @@ install_apr(){
     if ! if_lib_range apr-1 "$1" "$2" || ! if_command_range_version apr-1-config --version "$1" "$2";then
         if ! install_range_version -APR_DEVEL_PACKAGE_NAMES "$1" "$2";then
             # 安装指定版本的apr
-            local APR_VERSION VERSION_MATCH=`echo ${3:-"$1"}'.\d+.\d+.\d+'|awk -F '.' '{print $1,$2,$NF}' OFS='\\\.'`
+            local APR_VERSION VERSION_MATCH=`echo ${3:-"${1:-$2}"}'.\d+.\d+.\d+'|awk -F '.' '{print $1,$2,$NF}' OFS='\\\.'`
             # 获取相近高版本
             get_download_version APR_VERSION https://archive.apache.org/dist/apr/ "apr-$VERSION_MATCH\.tar\.gz"
             info_msg "安装：apr-$APR_VERSION"
@@ -1205,7 +1211,7 @@ install_apr_util(){
     if ! if_lib_range apr-util-1 "$1" "$2" || ! if_command_range_version apu-1-config --version "$1" "$2";then
         if ! install_range_version -APR_UTIL_DEVEL_PACKAGE_NAMES "$1" "$2";then
             # 安装指定版本的apu
-            local APR_UTIL_VERSION VERSION_MATCH=`echo ${3:-"$1"}'.\d+.\d+.\d+'|awk -F '.' '{print $1,$2,$NF}' OFS='\\\.'`
+            local APR_UTIL_VERSION VERSION_MATCH=`echo ${3:-"${1:-$2}"}'.\d+.\d+.\d+'|awk -F '.' '{print $1,$2,$NF}' OFS='\\\.'`
             # 获取相近高版本
             get_download_version APR_UTIL_VERSION https://archive.apache.org/dist/apr/ "apr-util-$VERSION_MATCH\.tar\.gz"
             info_msg "安装：apr-util-$APR_UTIL_VERSION"

@@ -205,3 +205,4 @@ else
         handle_service "${NAMES_ARRAY[$INDEX]}"
     done
 fi
+exit 0
