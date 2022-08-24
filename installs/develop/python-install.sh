@@ -84,17 +84,17 @@ configure_install $CONFIGURE_OPTIONS
 if if_version "$PYTHON_VERSION" ">=" "3.0.0";then
     # 添加启动连接
     ln -svf $INSTALL_PATH$PYTHON_VERSION/bin/python3 /usr/local/bin/python3
-    PIP_NAME='pip3'
-    PYTHON_NAME='python3'
+    PIP_COMMAND_NAME='pip3'
+    PYTHON_COMMAND_NAME='python3'
 elif if_version "$PYTHON_VERSION" ">=" "2.0.0";then
     # 添加启动连接
     ln -svf $INSTALL_PATH$PYTHON_VERSION/bin/python /usr/local/bin/python
-    PIP_NAME='pip'
-    PYTHON_NAME='python2'
+    PIP_COMMAND_NAME='pip'
+    PYTHON_COMMAND_NAME='python2'
 fi
-if [ -n "$PYTHON_NAME" ]; then
-    ln -svf $INSTALL_PATH$PYTHON_VERSION/bin/$PYTHON_NAME /usr/local/bin/$PYTHON_NAME
-    if [ -e "$INSTALL_PATH$PYTHON_VERSION/bin/$PIP_NAME" ]; then
+if [ -n "$PYTHON_COMMAND_NAME" ]; then
+    ln -svf $INSTALL_PATH$PYTHON_VERSION/bin/$PYTHON_COMMAND_NAME /usr/local/bin/$PYTHON_COMMAND_NAME
+    if [ -e "$INSTALL_PATH$PYTHON_VERSION/bin/$PIP_COMMAND_NAME" ]; then
         PIP_FILENAME="get-pip.py"
         if [ ! -e "$PIP_FILENAME" ];then
             PIP_VERSION_PATH="${PYTHON_VERSION%.*}/"
@@ -114,7 +114,7 @@ if [ -n "$PYTHON_NAME" ]; then
         #
         #
         #
-            $INSTALL_PATH$PYTHON_VERSION/bin/$PYTHON_NAME ${PIP_FILENAME}
+            $INSTALL_PATH$PYTHON_VERSION/bin/$PYTHON_COMMAND_NAME ${PIP_FILENAME}
         fi
     fi
 fi

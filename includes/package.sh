@@ -635,17 +635,17 @@ install_gcc(){
 # return 1|0
 install_python(){
     if ([ -n "$1" ] && if_version "$1" '>=' '3.0.0') || ([ -n "$2" ] && if_version "$2" '>=' '3.0.0');then
-        PYTHON_NAME='python3' PIP_NAME='pip3'
+        PYTHON_COMMAND_NAME='python3' PIP_NAME='pip3'
     elif ([ -n "$1" ] && if_version "$1" '>=' '2.0.0') || ([ -n "$2" ] && if_version "$2" '>=' '2.0.0');then
-        PYTHON_NAME='python2' PIP_NAME='pip2'
+        PYTHON_COMMAND_NAME='python2' PIP_NAME='pip2'
     else
-        PYTHON_NAME='python' PIP_NAME='pip'
+        PYTHON_COMMAND_NAME='python' PIP_NAME='pip'
     fi
-    if ! if_command_range_version $PYTHON_NAME -V "$1" "$2";then
+    if ! if_command_range_version $PYTHON_COMMAND_NAME -V "$1" "$2";then
         run_install_shell python ${3:-"$1"}
-        if_command_range_version $PYTHON_NAME -V "$1" "$2"
+        if_command_range_version $PYTHON_COMMAND_NAME -V "$1" "$2"
     fi
-    print_install_result $PYTHON_NAME "$1" "$2"
+    print_install_result $PYTHON_COMMAND_NAME "$1" "$2"
 }
 # 安装 java
 # @command install_java [$min_version [$max_version]]
@@ -783,8 +783,13 @@ install_zip(){
             # 安装zlib-dev
             install_zlib
             cd $ZIP_CONFIGURE_PATH
-            # 编译安装
-            configure_install --prefix=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
+            if if_version "$LIBZIP_VERSION" '<' '1.4.0';then
+                # 编译安装
+                configure_install --prefix=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
+            else
+                install_cmake
+                cmake_install $CMAKE_COMMAND_NAME -DCMAKE_INSTALL_PREFIX=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
+            fi
         fi
         if_lib_range libzip "$1" "$2"
     fi
@@ -797,7 +802,7 @@ install_zip(){
 # @param $install_version   没有合适版本时编译安装版本，不指定为固定版本
 # return 1|0
 install_cmake(){
-    local CMAKE_COMMAND_NAME='cmake'
+    CMAKE_COMMAND_NAME='cmake'
     if ([ -n "$1" ] && if_version "$1" '>=' '3.0.0') || ([ -n "$2" ] && if_version "$2" '>=' '3.0.0');then
         CMAKE_COMMAND_NAME='cmake3'
     fi

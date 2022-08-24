@@ -68,6 +68,7 @@ if [ -n "$PYTHON_MIN_VERSION" ];then
     install_python "$PYTHON_MIN_VERSION"
 else
     warn_msg '获取 python 最低版本号失败'
+    install_python
 fi
 
 # 安装验证 openssl
@@ -82,21 +83,21 @@ install_curl
 cd $MONGODB_CONFIGURE_PATH
 # 编译安装
 if [ -e "etc/pip/compile-requirements.txt" ];then
-    info_msg "$PYTHON_NAME pip 自动安装依赖"
+    info_msg "$PYTHON_COMMAND_NAME pip 自动安装依赖"
     $PIP_NAME install -r etc/pip/compile-requirements.txt
     if (($? != 0));then
-        $PYTHON_NAME -m pip install -r etc/pip/compile-requirements.txt
+        $PYTHON_COMMAND_NAME -m pip install -r etc/pip/compile-requirements.txt
     fi
-    info_msg '$PYTHON_NAME 编译安装 mongobd'
+    info_msg '$PYTHON_COMMAND_NAME 编译安装 mongobd'
     if grep -q '\-\-prefix' docs/building.md;then
-        run_msg $PYTHON_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $INSTALL_THREAD_NUM
+        run_msg $PYTHON_COMMAND_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $INSTALL_THREAD_NUM
     else
-        run_msg $PYTHON_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $INSTALL_THREAD_NUM
+        run_msg $PYTHON_COMMAND_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $INSTALL_THREAD_NUM
     fi
     if_error '安装失败：mongodb'
 else
     if [ -e 'buildscripts/requirements.txt' ];then
-        $PYTHON_NAME -m pip install -r buildscripts/requirements.txt
+        $PYTHON_COMMAND_NAME -m pip install -r buildscripts/requirements.txt
     fi
     SCONS_VERSION=`grep -iP 'scons\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
     if [ -n "$SCONS_VERSION" ];then
@@ -109,7 +110,7 @@ else
             # 安装最近版本
             download_software "http://prdownloads.sourceforge.net/scons/scons-$SCONS_VERSION.tar.gz"
             # 编译安装
-            $PYTHON_NAME setup.py install
+            $PYTHON_COMMAND_NAME setup.py install
             # 编译安装
             if_error '安装失败：scons'
             cd $MONGODB_INSTALL_PATH
@@ -120,7 +121,7 @@ else
         run_msg scons all -j $INSTALL_THREAD_NUM
         run_msg scons $CONFIGURE_OPTIONS install
     else
-        run_msg $PYTHON_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $INSTALL_THREAD_NUM
+        run_msg $PYTHON_COMMAND_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $INSTALL_THREAD_NUM
     fi
     if_error '安装失败：mongodb'
 fi
