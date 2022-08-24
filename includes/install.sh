@@ -404,8 +404,6 @@ init_install(){
     fi
     # 加载环境配置
     source /etc/profile
-    # 包管理
-    source "$SHELL_WROK_INCLUDES_PATH/package.sh" || exit
 }
 
 # 去掉默认选项
@@ -424,6 +422,8 @@ safe_realpath INSTALL_BASE_PATH
 if [ -z "$INSTALL_BASE_PATH" ] || [ ! -d "$INSTALL_BASE_PATH" ];then
     error_exit '安装根目录无效：'$INSTALL_BASE_PATH
 fi
+# 包管理
+source "$SHELL_WROK_INCLUDES_PATH/package.sh" || exit
 # 安装根目录
 INSTALL_BASE_PATH=$(cd $INSTALL_BASE_PATH; pwd)
 # 服务配置键名
