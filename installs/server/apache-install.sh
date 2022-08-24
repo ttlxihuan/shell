@@ -42,11 +42,12 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$APACHE_VERSION "
 download_software http://archive.apache.org/dist/httpd/httpd-$APACHE_VERSION.tar.gz
 # 解析选项
 parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options ?--datadir=$INSTALL_PATH$APACHE_VERSION
+# 暂存编译目录
+APACHE_CONFIGURE_PATH=`pwd`
 # 额外动态需要增加的选项
 EXTRA_OPTIONS=()
 # 安装依赖
 info_msg "安装相关已知依赖"
-APACHE_SHELL_WROK_TEMP_PATH=`pwd`
 # 开启ssl
 if in_options ssl $CONFIGURE_OPTIONS;then
     # 安装openssl-dev
@@ -76,13 +77,13 @@ fi
 if [ -n "$APR_MIN_VERSION" ];then
     if ! install_apr "$APR_MIN_VERSION" "" "" 1;then
         # 复制到编译目录
-        mv `pwd` $APACHE_SHELL_WROK_TEMP_PATH/srclib/apr
+        mv `pwd` $APACHE_CONFIGURE_PATH/srclib/apr
     fi
     if ! install_apr_util "$APR_MIN_VERSION" "" "" 1;then
         # 复制到编译目录
-        mv `pwd` $APACHE_SHELL_WROK_TEMP_PATH/srclib/apr-util
+        mv `pwd` $APACHE_CONFIGURE_PATH/srclib/apr-util
     fi
-    if [ -d "$APACHE_SHELL_WROK_TEMP_PATH/srclib/apr" ] || [ -d "$APACHE_SHELL_WROK_TEMP_PATH/srclib/apr-util" ];then
+    if [ -d "$APACHE_CONFIGURE_PATH/srclib/apr" ] || [ -d "$APACHE_CONFIGURE_PATH/srclib/apr-util" ];then
         EXTRA_OPTIONS[${#EXTRA_OPTIONS[@]}]="?included-apr"
     else
         # apr 多版本处理
@@ -96,7 +97,7 @@ if [ -n "$APR_MIN_VERSION" ];then
     fi
 fi
 
-cd $APACHE_SHELL_WROK_TEMP_PATH
+cd $APACHE_CONFIGURE_PATH
 # 解析额外选项
 parse_options CONFIGURE_OPTIONS ${EXTRA_OPTIONS[@]}
 # 编译安装

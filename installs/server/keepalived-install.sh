@@ -44,10 +44,8 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$KEEPALIVED_VERSION "
 # ************** 编译安装 ******************
 # 下载keepalived包
 download_software https://www.keepalived.org/software/keepalived-$KEEPALIVED_VERSION.tar.gz
-
 # 解析选项
 parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
-
 # 暂存编译目录
 KEEPALIVED_CONFIGURE_PATH=$(pwd)
 

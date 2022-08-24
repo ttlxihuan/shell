@@ -40,12 +40,14 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$RSYNC_VERSION "
 download_software https://download.samba.org/pub/rsync/src/rsync-$RSYNC_VERSION.tar.gz
 # 解析选项
 parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
-
+# 暂存编译目录
+RSYNC_CONFIGURE_PATH=`pwd`
 # 安装依赖
 info_msg "安装相关已知依赖"
 
 # 所有依赖均在INSTALL.md文件中说明了，暂时还没有处理
 
+cd $RSYNC_CONFIGURE_PATH
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 

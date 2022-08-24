@@ -37,7 +37,8 @@ install_storage_require 1 1 1
 # 早期是1.25及以前的在http://www.linux-vs.org/software/ipvs.html
 # 后期的在https://mirrors.edge.kernel.org/pub/linux/utils/kernel/ipvsadm/
 download_software https://mirrors.edge.kernel.org/pub/linux/utils/kernel/ipvsadm/ipvsadm-$IPVSADM_VERSION.tar.gz
-
+# 暂存编译目录
+IPVSADM_CONFIGURE_PATH=`pwd`
 # 安装依赖
 info_msg "安装相关已知依赖"
 # 编译时报：undefined reference to `xxx' 时说明依赖库文件找不到，一般是依赖包没有安装或版本不匹配
@@ -50,6 +51,8 @@ else
 fi
 # 安装popt-dev
 package_manager_run install -POPT_DEVEL_PACKAGE_NAMES
+
+cd $IPVSADM_CONFIGURE_PATH
 # 修改安装目录
 export BUILD_ROOT=$INSTALL_PATH$IPVSADM_VERSION
 # 编译

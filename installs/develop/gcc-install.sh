@@ -129,9 +129,9 @@ else
         bash contrib/download_prerequisites
         if_error "gcc-$GCC_VERSION 安装失败，获取不到依赖包"
     fi
-    # 进入编译目录
-    cd $GCC_CONFIGURE_PATH
 fi
+# 进入编译目录
+cd $GCC_CONFIGURE_PATH
 # 64位系统需要禁用multilib
 if uname -a|grep -q x86_64; then
     CONFIGURE_OPTIONS=$CONFIGURE_OPTIONS' --disable-multilib'

@@ -37,7 +37,7 @@ install_storage_require 1 1 1
 download_software https://dlcdn.apache.org/hbase/$HBASE_VERSION/hbase-$HBASE_VERSION-bin.tar.gz
 
 # 暂存编译目录
-ELASTICSEARCH_CONFIGURE_PATH=$(pwd)
+HBASE_CONFIGURE_PATH=$(pwd)
 
 # 安装依赖
 info_msg "安装相关已知依赖"
@@ -45,7 +45,7 @@ info_msg "安装相关已知依赖"
 # 安装验证 java
 install_java
 
-cd $ELASTICSEARCH_CONFIGURE_PATH
+cd $HBASE_CONFIGURE_PATH
 # 复制安装包并创建用户
 copy_install hbase
 

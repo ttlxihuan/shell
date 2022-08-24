@@ -34,6 +34,8 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$NODEJS_VERSION"
 download_software https://nodejs.org/dist/v$NODEJS_VERSION/node-v$NODEJS_VERSION.tar.gz
 # 解析选项
 parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
+# 暂存编译目录
+NODEJS_CONFIGURE_PATH=`pwd`
 # 安装依赖
 info_msg "安装相关已知依赖"
 # 在编译目录里BUILDING.md文件有说明依赖版本要求，GCC在不同的大版本中有差异
@@ -54,6 +56,7 @@ else
     warn_msg '获取 python 最低版本号失败'
 fi
 
+cd $NODEJS_CONFIGURE_PATH
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 

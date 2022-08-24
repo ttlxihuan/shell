@@ -43,9 +43,10 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PYTHON_VERSION "
 # ************** 编译安装 ******************
 # 下载python包
 download_software https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz
-PYTHON_SHELL_WROK_TEMP_PATH=`pwd`
 # 解析选项
 parse_options CONFIGURE_OPTIONS $DEFAULT_OPTIONS $ARGV_options
+# 暂存编译目录
+PYTHON_CONFIGURE_PATH=`pwd`
 # 安装依赖
 info_msg "安装相关已知依赖"
 
@@ -75,6 +76,7 @@ if if_version "$PYTHON_VERSION" "<" "3.7.5" && if_version "$PYTHON_VERSION" ">="
     install_libffi
 fi
 
+cd $PYTHON_CONFIGURE_PATH
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
 

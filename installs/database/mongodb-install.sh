@@ -48,6 +48,8 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MONGODB_VERSION $ARGV_options"
 # ************** 编译安装 ******************
 # 下载mongodb包
 download_software https://fastdl.mongodb.org/src/mongodb-src-r$MONGODB_VERSION.tar.gz
+# 暂存编译目录
+MONGODB_CONFIGURE_PATH=`pwd`
 # 安装依赖
 info_msg "安装相关已知依赖"
 # 获取编辑安装的依赖要求
@@ -77,7 +79,7 @@ install_curl
 # lzma 依赖 mongodb-5.0.3
 # Cannot find system library 'lzma' required for use with libunwind
 # package_manager_run install libunwind-devel
-
+cd $MONGODB_CONFIGURE_PATH
 # 编译安装
 if [ -e "etc/pip/compile-requirements.txt" ];then
     info_msg "$PYTHON_NAME pip 自动安装依赖"

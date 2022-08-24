@@ -692,6 +692,7 @@ install_openssl(){
                 package_manager_run remove openssl -OPENSSL_DEVEL_PACKAGE_NAMES
                 # 编译安装
                 configure_install --prefix=$INSTALL_BASE_PATH/openssl/$OPENSSL_VERSION
+                add_so_config $INSTALL_BASE_PATH/openssl/$OPENSSL_VERSION
             else
                 info_msg "跳过编译安装：openssl"
                 print_install_result openssl "$1" "$2"
@@ -775,10 +776,13 @@ install_zip(){
             fi
             info_msg "安装：libzip-$LIBZIP_VERSION"
             download_software https://libzip.org/download/libzip-$LIBZIP_VERSION.tar.gz
+            # 暂存编译目录
+            local ZIP_CONFIGURE_PATH=`pwd`
             # 删除旧包
             package_manager_run remove -ZIP_DEVEL_PACKAGE_NAMES
             # 安装zlib-dev
             install_zlib
+            cd $ZIP_CONFIGURE_PATH
             # 编译安装
             configure_install --prefix=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
         fi
@@ -994,11 +998,11 @@ install_m4(){
 # return 1|0
 install_zlib(){
     if ! if_lib_range zlib "$1" "$2";then
-        if !install_range_version -ZLIB_DEVEL_PACKAGE_NAMES "$1" "$2";then
+        if ! install_range_version -ZLIB_DEVEL_PACKAGE_NAMES "$1" "$2";then
             local ZLIB_VERSION=${3:-"$1"}
             if [ -z "$ZLIB_VERSION" ];then
                 # 没有指定版本就安装最新版本
-                get_download_version LIBPCRE2_VERSION http://zlib.net/fossils "zlib-\d+(\.\d+)+\.tar\.gz"
+                get_download_version ZLIB_VERSION http://zlib.net/fossils "zlib-\d+(\.\d+)+\.tar\.gz"
             fi
             info_msg '安装：zlib-'$ZLIB_VERSION
             download_software http://zlib.net/fossils/zlib-$ZLIB_VERSION.tar.gz
@@ -1201,7 +1205,10 @@ install_apr_util(){
             # 下载
             download_software https://archive.apache.org/dist/apr/apr-util-$APR_UTIL_VERSION.tar.gz
             if [ -z "$4" ];then
+                # 暂存编译目录
+                APR_UTIL_CONFIGURE_PATH=`pwd`
                 install_apr "$1" "$2" "$3"
+                cd $APR_UTIL_CONFIGURE_PATH
                 # 安装
                 configure_install --prefix="$INSTALL_BASE_PATH/apr-util/$APR_UTIL_VERSION" --with-apr="$(dirname ${INSTALL_apr_1_config_PATH%/*})"
             else
