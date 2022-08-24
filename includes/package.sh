@@ -602,9 +602,6 @@ print_install_result(){
         error_exit "安装 $1$PACKAGE_VERSION 失败，终止运行！"
     fi
 }
-# 网络基本工具安装
-tools_install wget
-install_curl
 ############################################################################
 #########################       包管理安装部分      #########################
 ############################################################################
@@ -782,11 +779,12 @@ install_zip(){
             package_manager_run remove -ZIP_DEVEL_PACKAGE_NAMES
             # 安装zlib-dev
             install_zlib
-            cd $ZIP_CONFIGURE_PATH
             if if_version "$LIBZIP_VERSION" '<' '1.4.0';then
+                cd $ZIP_CONFIGURE_PATH
                 # 编译安装
                 configure_install --prefix=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
             else
+                cd $ZIP_CONFIGURE_PATH
                 install_cmake
                 cmake_install $CMAKE_COMMAND_NAME -DCMAKE_INSTALL_PREFIX=$INSTALL_BASE_PATH/libzip/$LIBZIP_VERSION
             fi
@@ -1226,3 +1224,6 @@ install_apr_util(){
     fi
     print_install_result apr-util "$1" "$2"
 }
+# 网络基本工具安装
+tools_install wget
+install_curl
