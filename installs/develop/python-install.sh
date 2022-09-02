@@ -11,7 +11,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # 注意：
 #   1、编译安装时gcc的版本不需要太高，太高容易造成编译失败，可直接使用包管理器安装gcc
@@ -79,6 +79,8 @@ fi
 cd $PYTHON_CONFIGURE_PATH
 # 编译安装
 configure_install $CONFIGURE_OPTIONS
+# 添加动态库目录
+add_so_config $INSTALL_PATH$PYTHON_VERSION
 
 # 添加不同版本的连接
 if if_version "$PYTHON_VERSION" ">=" "3.0.0";then
@@ -95,27 +97,8 @@ fi
 if [ -n "$PYTHON_COMMAND_NAME" ]; then
     ln -svf $INSTALL_PATH$PYTHON_VERSION/bin/$PYTHON_COMMAND_NAME /usr/local/bin/$PYTHON_COMMAND_NAME
     if [ -e "$INSTALL_PATH$PYTHON_VERSION/bin/$PIP_COMMAND_NAME" ]; then
-        PIP_FILENAME="get-pip.py"
-        if [ ! -e "$PIP_FILENAME" ];then
-            PIP_VERSION_PATH="${PYTHON_VERSION%.*}/"
-            PIP_SAVE_VERSION="old-"
-            if if_version $PYTHON_VERSION '>=' '3.7.0';then 
-                PIP_VERSION_PATH=''
-                PIP_SAVE_VERSION="new-"
-            fi
-            PIP_FILENAME="${PIP_SAVE_VERSION}get-pip.py"
-            download_file https://bootstrap.pypa.io/pip/${PIP_VERSION_PATH}get-pip.py ${PIP_FILENAME}
-        fi
-        if [ -e "${PIP_FILENAME}" ]; then
-        # 这块安装有问题，会提示SSL无效，可能是证书问题，浏览器可以正常访问，就是不能正常运行，目前测试版本 3.10.6
-        #
-        #
-        #
-        #
-        #
-        #
-            $INSTALL_PATH$PYTHON_VERSION/bin/$PYTHON_COMMAND_NAME ${PIP_FILENAME}
-        fi
+        # 安装验证 pip
+        install_pip "$INSTALL_PATH$PYTHON_VERSION/bin/$PYTHON_COMMAND_NAME"
     fi
 fi
 

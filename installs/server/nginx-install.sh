@@ -2,6 +2,8 @@
 #
 # Nginx快速编译安装shell脚本
 # 官方文档：https://nginx.org/en/docs/
+# 内置命令目录：https://nginx.org/en/docs/dirindex.html
+# 内置变量目录：https://nginx.org/en/docs/varindex.html
 #
 # 安装命令
 # bash nginx-install.sh new
@@ -12,10 +14,9 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # 注意：
-#
 # nginx异常退出一般是系统kill掉了，通过 dmesg | tail -n 50 来查看，一般是高并发时内存占用过大
 # 特别注意：当使用 nginx -s reload 无效时（实际未重新加载配置），可以使用 nginx -s stop && nginx 重启
 #
@@ -106,18 +107,13 @@ if [ ! -d "vhosts" ]; then
     mkdirs vhosts
     mkdirs certs
     cd vhosts
-    cat > host.ssl <<conf
+    cat > ssl <<conf
 # 此文件为https证书相关配置模板，正常使用时请复制此模板并修改证书地址和监听端口，并修改文件为对应域名名为便识别，比如 www.api.com.ssl
 # 注意：ssl连接握手前还不知道具体域名，当有请求时先使用默认的证书再逐个配置，所以过多个不同域名（主域名不同）的证书建议使用不同的IP或服务器分开
 
 listen       443 ssl;
 # 常规https配置，此配置不建议开启
 # ssl                  on;
-
-# 注意修改证书名
-# 从1.15.9版本开始且OpenSSL-1.0.2以上证书文件名可以使用变量（使用变量会导致每次请求重新加载证书，会额外增加开销）
-ssl_certificate      certs/ssl.pem;
-ssl_certificate_key  certs/ssl.key;
 
 # 配置会话缓存，1m大概4000个会话
 ssl_session_cache    shared:SSL:1m;
@@ -132,6 +128,12 @@ if (\$scheme = "http") {
 
 # 发送HSTS头信息，强制浏览器使用https协议发送数据
 add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+conf
+    cat > host.cert <<conf
+# 注意修改证书名
+# 从1.15.9版本开始且OpenSSL-1.0.2以上证书文件名可以使用变量（使用变量会导致每次请求重新加载证书，会额外增加开销）
+ssl_certificate      certs/ssl.pem;
+ssl_certificate_key  certs/ssl.key;
 conf
     cat > websocket <<conf
 # 此文件为共用文件，用于其它 server 块引用
@@ -208,6 +210,8 @@ server {
 
     # 配置https
     # include vhosts/ssl;
+    # 指定使用的证书
+    # include vhosts/host.cert;
 
     # 配置访问域名，多个空格隔开
     server_name  localhost;
@@ -231,9 +235,10 @@ server {
     # 配置http端口号
     listen 80;
 
-    # 配置https端口号
-    # listen 443 ssl;
+    # 配置https
     # include vhosts/ssl;
+    # 指定使用的证书
+    # include vhosts/host.cert;
 
     # 配置访问域名，多个空格隔开
     server_name localhost;
@@ -317,7 +322,7 @@ upstream http_cluster {
     #               可用变量文档：https://nginx.org/en/docs/http/ngx_http_core_module.html#variables
     # consistent    可选项（固定值），则将使用ketama一致性哈希方法代替，减少节点可用数变化大量重新映射节点
     # 以下hash内容：服务端口号+请求类型+请求全地址（含GET参数）
-    # hash $server_port$request_method$request_uri consistent;
+    # hash \$server_port\$request_method\$request_uri consistent;
 
     # 节点配置
     # 命令语法：server address [parameters];
@@ -360,8 +365,9 @@ server {
     listen       80;
 
     # 配置https
-    # listen 443 ssl;
     # include vhosts/ssl;
+    # 指定使用的证书
+    # include vhosts/host.cert;
 
     # 配置访问域名，多个空格隔开
     server_name  localhost;

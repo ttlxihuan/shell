@@ -6,21 +6,32 @@
 #   2、当包管理器里的版本不达标时就下载编译安装
 # 脚本处理公共文件，不能单独运行
 ############################################################################
-
+# 编译安装错误收集：
+#   1、undefined reference to `clock_gettime'
+#       此类错误一般说明系统的glibc库异常或存在多个版本glibc，清除多余版本glibc所有文件非常麻烦。
+#       clock_gettime是在实时库(librt)中（一般系统默认安装在 /lib 或 /lib64 其它版本默认安装在 /usr/local/lib 下）
+#       通过 find / -name librt* 搜索所有相关库路径
+#       把多余版本库的清除掉（包含：.so、.a 等文件），保留需要版本
+#       当 glibc < 2.17 时需要在编译时增加 -lrt 选项，一般编译器会自动增加，当无法识别glibc版本时就需要手动增加（增加到要编译的文件命令上）
+#       clock_gettime 文档 http://www.tin.org/bin/man.cgi?section=3&topic=clock_gettime
+#
+#
+############################################################################
 # 获取已经安装合适版本的命令路径
-# @command if_command_range_version $name $options [$min_version [$max_version]]
+# @command if_command_range_version $name $options [$min_version [$max_version [$version_regex]]]
 # @param $min_version       安装最低版本
 # @param $max_version       安装最高版本
+# @param $version_regex     匹配正则表达式，默认：\d+(\.\d+)+[a-zA-Z]*
 # return 1|0
 if_command_range_version(){
-    local CURRENT_VERSION COMMAND_PATH COMMAND_AS="INSTALL_${1//-/_}_"
+    local CURRENT_VERSION COMMAND_PATH COMMAND_AS="INSTALL_${1//-/_}_" VERSION_REGEX=${5:-'\d+(\.\d+)+[a-zA-Z]*'}
     # 获取所有已知版本
     for COMMAND_PATH in $(which -a $1); do
         # 命令失败不算有效命令
         if ! $COMMAND_PATH $2 1>/dev/null 2>/dev/null;then
             continue
         fi
-        CURRENT_VERSION=$($COMMAND_PATH $2 2>&1|grep -oP '\d+(\.\d+)+[a-zA-Z]*'|head -n 1)
+        CURRENT_VERSION=$($COMMAND_PATH $2 2>&1|grep -oP "$VERSION_REGEX"|head -n 1)
         if if_version_range "$CURRENT_VERSION" "$3" "$4";then
             eval "${COMMAND_AS}PATH=\$COMMAND_PATH; ${COMMAND_AS}VERSION=\$CURRENT_VERSION"
             return;
@@ -116,6 +127,16 @@ repair_version(){
 if_version_range(){
     [ -n "$1" ] && ([ -z "$2" ] || if_version "$1" '>=' "$2") && ([ -z "$3" ] || if_version "$1" '<=' "$3");
 }
+# 判断使用版本是否为划分界定版本范围
+# @command if_version_range $use_min_version $use_max_version $divide_min_version $divide_max_version 
+# @param $use_min_version       使用最低版本号
+# @param $use_max_version       使用最高版本号
+# @param $divide_min_version    划分最低版本号
+# @param $divide_max_version    划分版本号
+# return 1|0
+if_version_divide(){
+    [ -n "$3$4" ] && ([ -z "$1" ] || if_version_range "$1" "$3" "$4") && ([ -z "$2" ] || if_version_range "$2" "$3" "$4")
+}
 # 获取库安装目录
 # @command get_lib_install_path $name $path_val
 # @param $name          库名
@@ -168,7 +189,12 @@ if_so_range(){
             return 0
         fi
     done
-    return 1
+    # 部分库暂时取不到版本号
+    if [ -z "$2$3" ];then
+        ldconfig -v 2>/dev/null|grep -qP "^\s*${1}[\-\.](\d+|so)"
+    else
+        return 1
+    fi
 }
 # 包管理安装并指定最低安装版本和最高版本
 # 如果最低版本达不到则不会进行包安装
@@ -274,7 +300,7 @@ download_software(){
             info_msg "解压目标目录 $DIR_NAME 已经存在有效文件，跳过解压操作"
             break
         else
-            info_msg '解压下载文件：'$FILE_NAME
+            info_msg "解压下载文件：$FILE_NAME"
             case "$FILE_NAME" in
                 *.gz|*.tar.gz|*.tgz)
                     DECOMPRESSION_INFO=$(tar -vzxf $FILE_NAME)
@@ -304,7 +330,7 @@ download_software(){
                 ;;
             esac
             if [ $? = '0' ];then
-                info_msg "下载文件的sha256: "`sha256sum $FILE_NAME`
+                info_msg "下载文件的sha256: $(sha256sum $FILE_NAME)"
                 break
             else
                 warn_msg "解压 $FILE_NAME 失败，即将删除解压和下载产生文件及目录"
@@ -330,7 +356,7 @@ download_software(){
         info_msg "进入解压目录：$DIR_NAME"
         cd $DIR_NAME
     else
-        if_error "解压目录找不到: $DIR_NAME"
+        error_exit "解压目录找不到: $DIR_NAME"
     fi
     return 0
 }
@@ -578,24 +604,49 @@ add_user(){
     return 0
 }
 # 安装结果，自动提取上个命令的返回值，=0 为成功，>0为失败
+# @command package_version_require $set_value [$min_version [$max_version]]
+# @param $set_value         获取写入变量
+# @param $min_version       安装最低版本
+# @param $max_version       安装最高版本
+# return 1|0
+package_version_require(){
+    local _VERSION=''
+    if [ -n "$2" ];then
+        if [ -n "$3" ];then
+            _VERSION=" $2 ~ $3"
+        elif (($# > 2));then
+            _VERSION=" >= $2"
+        else
+            _VERSION=" = $2"
+        fi
+    elif [ -n "$3" ];then
+        _VERSION=" <= $3"
+    else
+        _VERSION=" 任意版本"
+    fi
+    eval $1=\$_VERSION
+}
+# 基础库glibc版本要求
+# @command glibc_version_require $min_version [$max_version]
+# @param $min_version   最低版本
+# @param $max_version   最高版本
+# return 0
+glibc_version_require(){
+    if ! if_command_range_version ldd --version "$1" "$2";then
+        local PACKAGE_VERSION
+        package_version_require PACKAGE_VERSION "$2" "$3"
+        error_exit "安装系统基础库 glibc $PACKAGE_VERSION，即当前系统不适合安装，可适当调低安装版本重试！"
+    fi
+}
+# 安装结果，自动提取上个命令的返回值，=0 为成功，>0为失败
 # @command print_install_result $name [$min_version [$max_version]]
 # @param $name              安装包名
 # @param $min_version       安装最低版本
 # @param $max_version       安装最高版本
 # return 1|0
 print_install_result(){
-    local RESULT=$? PACKAGE_VERSION=''
-    if [ -n "$2" ];then
-        if [ -n "$3" ];then
-            PACKAGE_VERSION=" $2 ~ $3"
-        elif (($# > 2));then
-            PACKAGE_VERSION=" >= $2"
-        else
-            PACKAGE_VERSION="-$2"
-        fi
-    elif [ -n "$3" ];then
-        PACKAGE_VERSION=" <= $3"
-    fi
+    local RESULT=$? PACKAGE_VERSION
+    package_version_require PACKAGE_VERSION "$2" "$3"
     if [ $RESULT = '0' ];then
         info_msg "$1$PACKAGE_VERSION OK"
     else
@@ -631,18 +682,52 @@ install_gcc(){
 # @param $install_version   没有合适版本时编译安装版本，不指定则安装最小版本
 # return 1|0
 install_python(){
-    if ([ -n "$1" ] && if_version "$1" '>=' '3.0.0') || ([ -n "$2" ] && if_version "$2" '>=' '3.0.0');then
-        PYTHON_COMMAND_NAME='python3' PIP_NAME='pip3'
-    elif ([ -n "$1" ] && if_version "$1" '>=' '2.0.0') || ([ -n "$2" ] && if_version "$2" '>=' '2.0.0');then
-        PYTHON_COMMAND_NAME='python2' PIP_NAME='pip2'
+    if if_version_divide "$1" "$2" '3.0.0';then
+        PYTHON_COMMAND_NAME='python3' PIP_COMMAND_NAME='pip3'
+    elif if_version_divide "$1" "$2" '2.0.0';then
+        PYTHON_COMMAND_NAME='python2' PIP_COMMAND_NAME='pip2'
     else
-        PYTHON_COMMAND_NAME='python' PIP_NAME='pip'
+        PYTHON_COMMAND_NAME='python' PIP_COMMAND_NAME='pip'
     fi
-    if ! if_command_range_version $PYTHON_COMMAND_NAME -V "$1" "$2";then
+    if if_command_range_version $PYTHON_COMMAND_NAME -V "$1" "$2";then
+        if ! if_command $PIP_COMMAND_NAME && ! install_range_version ${PYTHON_COMMAND_NAME}-pip;then
+            install_pip $(which ${PYTHON_COMMAND_NAME})
+        fi
+    else
         run_install_shell python ${3:-"${1:-$2}"}
         if_command_range_version $PYTHON_COMMAND_NAME -V "$1" "$2"
     fi
     print_install_result $PYTHON_COMMAND_NAME "$1" "$2"
+}
+# 安装 pip
+# @command install_pip $python_path
+# @param $python_path       对应python命令目录
+# return 1|0
+install_pip(){
+    if [ ! -e "$1" ];then
+        error_exit "未指定正确python命令路径：$1"
+    fi
+    local PIP_VERSION_PATH PIP_SAVE_VERSION PIP_FILENAME PYTHON_VERSION=$($1 -V 2>&1|grep -oP '\d+(\.\d+)+'|head -n 1)
+    if if_version "$PYTHON_VERSION" '>=' '3.0.0';then
+        PIP_COMMAND_NAME='pip3'
+    elif if_version "$PYTHON_VERSION" '>=' '2.0.0';then
+        PIP_COMMAND_NAME='pip2'
+    else
+        PIP_COMMAND_NAME='pip'
+    fi
+    if if_version $PYTHON_VERSION '>=' '3.7.0';then 
+        PIP_VERSION_PATH=''
+        PIP_SAVE_VERSION="new-"
+    else
+        PIP_VERSION_PATH="${PYTHON_VERSION%.*}/"
+        PIP_SAVE_VERSION="${PYTHON_VERSION%.*}-old-"
+    fi
+    PIP_FILENAME="${PIP_SAVE_VERSION}get-pip.py"
+    download_file https://bootstrap.pypa.io/pip/${PIP_VERSION_PATH}get-pip.py ${PIP_FILENAME}
+    $1 ${PIP_FILENAME}
+    print_install_result $PIP_COMMAND_NAME
+    # pip升级处理
+    $PIP_COMMAND_NAME install --upgrade pip
 }
 # 安装 java
 # @command install_java [$min_version [$max_version]]
@@ -675,7 +760,8 @@ install_openssl(){
         if [ "$USE_TYPE" = 0 ] || ! install_range_version -OPENSSL_DEVEL_PACKAGE_NAMES "$1" "$2";then
             # 安装匹配版本
             local OPENSSL_VERSION=${3:-"${1:-$2}"}
-            if [ $# = '0' ];then
+            # 如果没有指定任何版本号参数，默认使用固定版本，更容易安装和兼容使用
+            if [ -z "$OPENSSL_VERSION" -a $# = '0' ];then
                 # 强制默认版本，过高版本编译其它软件时容易出问题
                 OPENSSL_VERSION='1.1.1'
             fi
@@ -736,9 +822,10 @@ install_curl(){
 # @param $max_version       安装最高版本
 # return 1|0
 install_sqlite(){
-    local SQLITE_COMMAND_NAME='sqlite'
-    if ([ -n "$1" ] && if_version "$1" '>=' '3.0.0') || ([ -n "$2" ] && if_version "$2" '>=' '3.0.0');then
+    if if_version_divide "$1" "$2" '3.0.0';then
         SQLITE_COMMAND_NAME='sqlite3'
+    else
+        SQLITE_COMMAND_NAME='sqlite'
     fi
     if ! if_lib_range $SQLITE_COMMAND_NAME "$1" "$2" || ! if_command_range_version $SQLITE_COMMAND_NAME -version "$1" "$2";then
         if ! install_range_version -SQLITE_DEVEL_PACKAGE_NAMES "$1" "$2" && [ "$SQLITE_COMMAND_NAME" = 'sqlite3' ];then
@@ -810,22 +897,29 @@ install_zip(){
 # @param $install_version   没有合适版本时编译安装版本，不指定为固定版本
 # return 1|0
 install_cmake(){
-    CMAKE_COMMAND_NAME='cmake'
-    if ([ -n "$1" ] && if_version "$1" '>=' '3.0.0') || ([ -n "$2" ] && if_version "$2" '>=' '3.0.0');then
+    if if_version_divide "$1" "$2" '3.0.0';then
         CMAKE_COMMAND_NAME='cmake3'
+    else
+        CMAKE_COMMAND_NAME='cmake'
     fi
     if ! if_command_range_version $CMAKE_COMMAND_NAME -version "$1" "$2";then
         if ! install_range_version $CMAKE_COMMAND_NAME "$1" "$2";then
             local CMAKE_VERSION=${3}
-            # get_download_version CMAKE_MAX_VERSION "https://cmake.org/files/" "v3\.\d+"
-            # get_download_version CMAKE_VERSION "https://cmake.org/files/v$CMAKE_MAX_VERSION" "cmake-\d+\.\d+\.\d+"
-            # 3.22.0以上版本文件路径不一样，暂时不安装太高版本
+            # 取不到就使用默认的
             if [ -z "$CMAKE_VERSION" ];then
                 if [ "$CMAKE_COMMAND_NAME" = 'cmake3' ];then
                     CMAKE_VERSION='3.21.3'
                 else
                     CMAKE_VERSION='2.8.12'
                 fi
+            fi
+            if ! if_version_range "$CMAKE_VERSION" "$1" "$2";then
+                local CMAKE_MAX_VERSION CMAKE_BASE_VERSION=2
+                if [ "$CMAKE_COMMAND_NAME" = 'cmake3' ];then
+                    CMAKE_BASE_VERSION=3
+                fi
+                get_download_version CMAKE_MAX_VERSION "https://cmake.org/files/" "v${CMAKE_BASE_VERSION}\.\d+"
+                get_download_version CMAKE_VERSION "https://cmake.org/files/v$CMAKE_MAX_VERSION" "cmake-\d+\.\d+\.\d+\.tar\.gz"
             fi
             download_software "https://cmake.org/files/v${CMAKE_VERSION%.*}/cmake-$CMAKE_VERSION.tar.gz"
             # 编译安装
@@ -933,7 +1027,7 @@ install_libpcre2_8(){
             # https://ftp.pcre.org/pub/pcre/ 已经停用无法
             get_download_version LIBPCRE2_VERSION https://github.com/PCRE2Project/pcre2/tags "pcre2-\d+\.\d+\.tar\.gz"
         fi
-        info_msg '安装：libpcre-'$LIBPCRE2_VERSION
+        info_msg "安装：libpcre-$LIBPCRE2_VERSION"
         # 下载
         download_software https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$LIBPCRE2_VERSION/pcre2-$LIBPCRE2_VERSION.tar.gz
         configure_install --prefix=$INSTALL_BASE_PATH/pcre2/$LIBPCRE2_VERSION
@@ -953,10 +1047,15 @@ install_autoconf(){
             # 版本过低需要安装高版本的
             package_manager_run remove autoconf
             local AUTOCONF_VERSION=${3:-"${1:-$2}"}
+            # 如果没有指定任何版本号参数，默认使用固定版本，更容易安装和兼容使用
+            if [ -z "$AUTOCONF_VERSION" -a $# = '0' ];then
+                AUTOCONF_VERSION='2.63'
+            fi
             if [ -z "$AUTOCONF_VERSION" ];then
                 # 获取最新版
                 get_download_version AUTOCONF_VERSION http://ftp.gnu.org/gnu/autoconf/ 'autoconf-\d+(\.\d+)+\.tar\.gz'
             fi
+            install_m4
             info_msg "安装：autoconf-$AUTOCONF_VERSION"
             # 下载
             download_software http://ftp.gnu.org/gnu/autoconf/autoconf-$AUTOCONF_VERSION.tar.gz
@@ -973,9 +1072,9 @@ install_autoconf(){
 # @param $max_version       安装最高版本
 # return 1|0
 install_libtool(){
-    if ! if_command_range_version libtool --version "$1" "$2";then
+    if ! if_command_range_version libtoolize --version "$1" "$2";then
         install_range_version -LIBTOOL_PACKAGE_NAMES "$1" "$2"
-        if_command_range_version libtool --version "$1" "$2"
+        if_command_range_version libtoolize --version "$1" "$2"
     fi
     print_install_result libtool "$1" "$2"
 }
@@ -992,13 +1091,27 @@ install_libedit(){
     print_install_result libedit "$1" "$2"
 }
 # 安装 m4
-# @command install_m4 [$min_version [$max_version]]
+# @command install_m4 [$min_version [$max_version [$install_version]]]
 # @param $min_version       安装最低版本
 # @param $max_version       安装最高版本
+# @param $install_version   没有合适版本时编译安装版本，不指定则安装最小版本
 # return 1|0
 install_m4(){
     if ! if_command_range_version m4 --version "$1" "$2";then
-        install_range_version -M4_PACKAGE_NAMES "$1" "$2"
+        if ! install_range_version -M4_PACKAGE_NAMES "$1" "$2";then
+            local M4_VERSION=${3:-"${1:-$2}"}
+            # 如果没有指定任何版本号参数，默认使用固定版本，更容易安装和兼容使用
+            if [ -z "$M4_VERSION" -a $# = 0 ];then
+                M4_VERSION='1.4.13'
+            fi
+            if [ -z "$M4_VERSION" ];then
+                # 没有指定版本就安装最新版本
+                get_download_version M4_VERSION http://ftp.gnu.org/gnu/m4/ "m4-\d+(\.\d+){2}\.tar\.gz"
+            fi
+            info_msg "安装：m4-$M4_VERSION"
+            download_software http://ftp.gnu.org/gnu/m4/m4-$M4_VERSION.tar.gz
+            configure_install --prefix=$INSTALL_BASE_PATH"/m4/$M4_VERSION"
+        fi
         if_command_range_version m4 --version "$1" "$2"
     fi
     print_install_result m4 "$1" "$2"
@@ -1017,7 +1130,7 @@ install_zlib(){
                 # 没有指定版本就安装最新版本
                 get_download_version ZLIB_VERSION http://zlib.net/fossils "zlib-\d+(\.\d+)+\.tar\.gz"
             fi
-            info_msg '安装：zlib-'$ZLIB_VERSION
+            info_msg "安装：zlib-$ZLIB_VERSION"
             download_software http://zlib.net/fossils/zlib-$ZLIB_VERSION.tar.gz
             configure_install --prefix=$INSTALL_BASE_PATH"/zlib/$ZLIB_VERSION"
         fi
@@ -1117,9 +1230,9 @@ install_libevent(){
 # @param $max_version       安装最高版本
 # return 1|0
 install_jemalloc(){
-    if ! if_command_range_version jemalloc.sh "$1" "$2";then
+    if ! if_so_range libjemalloc "$1" "$2";then
         install_range_version -JEMALLOC_DEVEL_PACKAGE_NAMES "$1" "$2"
-        if_command_range_version jemalloc.sh "$1" "$2"
+        if_so_range libjemalloc "$1" "$2"
     fi
     print_install_result jemalloc "$1" "$2"
 }
@@ -1235,5 +1348,6 @@ install_apr_util(){
     print_install_result apr-util "$1" "$2"
 }
 # 网络基本工具安装
+info_msg "网络下载工具安装"
 tools_install wget
 install_curl

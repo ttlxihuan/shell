@@ -11,7 +11,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # 下载地址
 #  https://dev.mysql.com/downloads/mysql/
@@ -86,27 +86,33 @@
 # 5、稍等片刻再执行
 #       set global gtid_mode=ON;
 #
+# 报错收集：
+#   1、error: ‘debug_sync_set_action’ was not declared in this scope
+#       类似错误可能是前面编译中断或异常中止了（导致编译文件破坏影响编译结果），再继续编译就会报类似错误，建议重新解压再编译安装，一般均可通过。
 #
 ####################################################################################
 ##################################### 安装处理 #####################################
 ####################################################################################
 # 定义安装参数
 DEFINE_RUN_PARAMS="
-[-p, --password='']安装成功后修改的新密码
-#默认或为空时随机生成25位密码
-#随机生成密码 %num，比如：%10
-#指定固定密码，比如：123456
-[-t, --type='']主从配置 main|slave  ，默认是无主从配置
+[-p, --password='make:25', {required}]安装成功后修改的新密码
+#生成随机密码语法 make:numm,set
+#   make: 是随机生成密码关键字
+#   num   是生成密码长度个数
+#   set   限定密码包含字符，默认：数字、字母大小写、~!@#$%^&*()_-=+,.;:?/\|
+#生成随机10位密码 make:10
+#生成随机10位密码只包含指定字符 make:10,QWERTYU1234567890
+#其它字符均为指定密码串，比如 123456
+[-t, --type='', {in:main,slave}]主从配置 main|slave  ，默认是无主从配置
 [-g, --gtid]使用GTID事务唯一标识符进行自动定位复制
 # 只有 5.7+ 版本有效
-[-H, --master-host='']主从配置地址  user@host 
+[-H, --master-host='']主从配置地址  user@host
 #配置主服务器时这里指定从服务器连接的账号和地址
 #配置从服务器时这里指定主服务器的连接账号和地址
-[-P, --master-password='']主从配置密码  password 
+[-P, --master-password='']主从配置密码
 #配置主服务器时这里指定从服务器连接的密码
 #配置从服务器时这里指定连接主服务器的密码
-[-m, --buffer-memory='']指定配置服务运行缓冲区最大占用内存（整数）
-#为空即默认可用内存的80%
+[-m, --buffer-memory='80%', {required|size}]指定配置服务运行缓冲区最大占用内存（整数）
 #指定可用内存占比，比如：70%
 #指定对应的大小，单位（B,K,M,G,T），比如：4G
 #不指定单位为B，最大空间30G，超过将截断
@@ -122,12 +128,9 @@ init_install '5.0.0' "https://dev.mysql.com/downloads/mysql/" 'mysql-\d+\.\d+\.\
 install_storage_require 30 4 6
 # ************** 参数解析 ******************
 # 密码处理
-parse_use_password MYSQL_ROOT_PASSWORD "${ARGV_password:-%25}"
+parse_use_password MYSQL_ROOT_PASSWORD "${ARGV_password}"
 # 配置主从
 if [ -n "$ARGV_type" ]; then
-    if ! [[ $ARGV_type =~ ^(main|slave)$ ]];then
-        error_exit "--type 只支持main、slave，现在是：$ARGV_type"
-    fi
     MYSQL_SYNC_BIN=$ARGV_type
 	MYSQL_SYNC_BIN_PASSWORD=$MYSQL_ROOT_PASSWORD
     # 配置主从
@@ -147,16 +150,16 @@ if [ "$ARGV_gtid" = '1' ] && if_version "$MYSQL_VERSION" "<" "5.7.0"; then
     warn_msg "mysql 必需是 5.7+ 才可以使用GTID复制，--gtid 选项无效。"
 fi
 # 解析最大运行内存参数处理
-if ! parse_use_memory BUFFER_MEMORY "${ARGV_buffer_memory:-80%}";then
-    error_exit '--buffer-memory 指定错误值'
-fi
+parse_use_memory BUFFER_MEMORY "${ARGV_buffer_memory}"
+
 # ************** 编译安装 ******************
+MYSQL_MAIN_VERSION=${MYSQL_VERSION%.*}
 # 下载mysql包
 download_software https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/mysql-$MYSQL_VERSION.tar.gz
 # 暂存编译目录
 MYSQL_CONFIGURE_PATH=`pwd`
 # mysql-5.7 开始需要使用boots包才能编译
-info_msg "获取mysql-boost版本"
+info_msg "验证mysql-boost版本"
 if [ -n "`curl "https://downloads.mysql.com/archives/community/?tpl=version&os=src&version=$MYSQL_VERSION&osva=" 2>&1 | grep "mysql-boost-$MYSQL_VERSION.tar.gz" -o`" ] || [ -n "`curl "https://dev.mysql.com/downloads/mysql/?tpl=platform&os=src&osva="  2>&1 | grep "mysql-boost-$MYSQL_VERSION.tar.gz" -o`" ];then
     download_software https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/mysql-boost-$MYSQL_VERSION.tar.gz $MYSQL_CONFIGURE_PATH/boost/
     CMAKE_CONFIG="-DWITH_BOOST=../boost/"
@@ -167,13 +170,13 @@ fi
 # 安装依赖
 info_msg "安装相关已知依赖"
 # 新版需要cmake3来安装
-INSTALL_CMAKE=`cat CMakeLists.txt 2>&1|grep -P 'yum\s+install\s+cmake\d?' -o|grep -P 'cmake\d?' -o`
+INSTALL_CMAKE=$(grep -oP 'yum\s+install\s+cmake\d?' CMakeLists.txt|grep -oP 'cmake\d?')
 if [ -z "$INSTALL_CMAKE" ];then
     INSTALL_CMAKE="cmake"
 fi
 
 # 安装验证 openssl
-install_openssl
+install_openssl '1.0.1'
 
 # 安装验证 ncurses
 install_ncurses
@@ -198,7 +201,7 @@ GCC_MIN_VERSION=`grep -P 'GCC \d+(\.\d+)+' cmake/os/Linux.cmake -o|grep -P '\d+(
 repair_version GCC_MIN_VERSION
 # 安装验证 GCC
 install_gcc "$GCC_MIN_VERSION"
-CMAKE_CONFIG="-DCMAKE_C_COMPILER=${INSTALL_gcc_PATH%/*}/gcc -DCMAKE_CXX_COMPILER=${INSTALL_gcc_PATH%/*}g++ $CMAKE_CONFIG"
+CMAKE_CONFIG="-DCMAKE_C_COMPILER=${INSTALL_gcc_PATH%/*}/gcc -DCMAKE_CXX_COMPILER=${INSTALL_gcc_PATH%/*}/g++ $CMAKE_CONFIG"
 
 # 编译缓存文件删除
 if [ -e "CMakeCache.txt" ];then
@@ -206,7 +209,7 @@ if [ -e "CMakeCache.txt" ];then
 fi
 
 # 安装编译器
-if ! if_command $INSTALL_CMAKE && [[ "$INSTALL_CMAKE" == "cmake3" ]];then
+if [ "$INSTALL_CMAKE" = "cmake3" ];then
     install_cmake '3.0.0'
 else
     install_cmake '' '2.8.12'
@@ -229,14 +232,16 @@ mkdirs ./database mysql
 
 if [ ! -d "./etc" ];then
     mkdir ./etc
-    # 配置文件处理
-    if [ ! -e "$MY_CNF" ];then
-        if [ -e 'support-files/my-default.cnf' ];then
-            cp support-files/my-default.cnf ./etc/my.cnf
-        elif [ -e "$SHELL_WROK_TEMP_PATH/mysql/mysql-$MYSQL_VERSION/packaging/rpm-common/my.cnf" ];then
-            cp $SHELL_WROK_TEMP_PATH/mysql/mysql-$MYSQL_VERSION/packaging/rpm-common/my.cnf ./etc/my.cnf
-        else
-            cat > $MY_CNF <<MY_CONF
+fi
+
+info_msg "mysql 配置文件修改"
+# 配置文件处理
+if [ -e 'support-files/my-default.cnf' ];then
+    cp support-files/my-default.cnf ./etc/my.cnf
+elif [ -e "$SHELL_WROK_TEMP_PATH/mysql/mysql-$MYSQL_VERSION/packaging/rpm-common/my.cnf" ];then
+    cp $SHELL_WROK_TEMP_PATH/mysql/mysql-$MYSQL_VERSION/packaging/rpm-common/my.cnf ./etc/my.cnf
+else
+    cat > $MY_CNF <<MY_CONF
 # mysql配置文件，更多可查看官方文档
 # https://dev.mysql.com/doc/refman/8.0/en/server-system-variables.html
 
@@ -257,12 +262,9 @@ log-error=$INSTALL_PATH$MYSQL_VERSION/run/mysqld.log
 pid-file=$INSTALL_PATH$MYSQL_VERSION/run/mysqld.pid
 
 MY_CONF
-        fi
-    fi
 fi
 touch ./run/mysqld.pid ./run/mysqld.log
 chown -R mysql:mysql ./*
-info_msg "mysql 配置文件修改"
 MYSQL_RUN_PATH="$INSTALL_PATH$MYSQL_VERSION/run"
 sed -i "s/^datadir.*=.*data.*/datadir=database/" $MY_CNF
 sed -i "s#^socket.*=.*#socket=$MYSQL_RUN_PATH/mysql.sock#" $MY_CNF
@@ -270,6 +272,8 @@ sed -i "s#^log-error.*=.*#log-error=$MYSQL_RUN_PATH/mysqld.log#" $MY_CNF
 sed -i "s#^pid-file.*=.*#pid-file=$MYSQL_RUN_PATH/mysqld.pid#" $MY_CNF
 if ((BUFFER_MEMORY <= 0));then
     BUFFER_MEMORY=''
+else
+    info_msg "mysql运行buffer配置内存大小：${BUFFER_MEMORY}B"
 fi
 # 生成服务编号
 get_ip
@@ -550,8 +554,8 @@ else
 fi
 
 # get password
-if [ -e "$MYSQL_RUN_PATH/mysqld.log" ]; then
-    TEMP_PASSWORD=`grep 'temporary password' $MYSQL_RUN_PATH/mysqld.log|grep -P "[^ ]+$" -o`
+if [ -e "./run/mysqld.log" ]; then
+    TEMP_PASSWORD=`grep 'temporary password' ./run/mysqld.log|grep -P "[^ ]+$" -o`
 elif [ -e "~/.mysql_secret" ]; then
     TEMP_PASSWORD=`grep 'temporary password' /var/log/mysqld.log|grep -P "[^ ]+$" -o`
 elif [ -e "~/.mysql_secret" ]; then
@@ -559,23 +563,34 @@ elif [ -e "~/.mysql_secret" ]; then
 fi
 
 #./bin/mysqld_safe --user=mysql &
-# 增加开机启动
-cp support-files/mysql.server /etc/init.d/mysqld
 # 添加到service服务处理中
+if ! if_command chkconfig;then
+    # ubuntu 高版系统没有chkconfig，并且改为sysv-rc-conf
+    # 使用 apt install sysv-rc-conf可能找不到包
+    # 需要在 /etc/apt/sources.list 中增加一行：deb http://archive.ubuntu.com/ubuntu/ trusty main universe restricted multiverse
+    # 然后 apt update 就可以正常安装了，如果还需要使用 chkconfig 就必需外加别名或链接 /usr/sbin/sysv-rc-conf
+    package_manager_run install chkconfig
+fi
 if if_command chkconfig;then
+    # 增加开机启动
+    cp support-files/mysql.server /etc/init.d/mysqld
     chkconfig --add /etc/init.d/mysqld
-fi
-if [ -e "/usr/bin/systemctl" ]; then
-    systemctl daemon-reload
-    OPEN_SERVICE="systemctl start mysqld"
+    # 添加服务配置
+    SERVICES_CONFIG=()
+    if [ -e "/usr/bin/systemctl" ]; then
+        systemctl daemon-reload
+        SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="systemctl start mysqld"
+        SERVICES_CONFIG[$SERVICES_CONFIG_STOP_RUN]="systemctl stop mysqld"
+        SERVICES_CONFIG[$SERVICES_CONFIG_STATUS_RUN]="systemctl status mysqld"
+    else
+        SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="service mysqld start"
+        SERVICES_CONFIG[$SERVICES_CONFIG_STOP_RUN]="service mysqld stop"
+        SERVICES_CONFIG[$SERVICES_CONFIG_STATUS_RUN]="service mysqld status"
+    fi
 else
-    OPEN_SERVICE="service mysqld start"
+    SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./bin/mysqld_safe &"
 fi
-
-# 添加服务配置
-SERVICES_CONFIG=()
-SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="$OPEN_SERVICE"
-SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]=""
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./run/mysqld.pid"
 # 服务并启动服务
 add_service SERVICES_CONFIG
 
@@ -584,9 +599,8 @@ if [ -n "`netstat -ntlp|grep mysql`" ]; then
     info_msg '修改初始mysql密码';
     info_msg "初始密码: $TEMP_PASSWORD"
     if [ -n "$TEMP_PASSWORD" ]; then
-        run_msg "mysql -uroot --password=\"$TEMP_PASSWORD\" -h127.0.0.1 --connect-expired-password -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'\" 2>&1"
         for ((LOOP_NUM=1;LOOP_NUM<10;LOOP_NUM++)); do
-            info_msg "第${LOOP_NUM}次尝试修改密码";
+            info_msg "第${LOOP_NUM}次尝试修改初始密码";
             UPDATE_PASSWORD=$(run_msg mysql -uroot --password="$TEMP_PASSWORD" -h127.0.0.1 --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD'" '2>&1')
             if [[ "$UPDATE_PASSWORD" =~ "ERROR" ]]; then
                 info_msg $UPDATE_PASSWORD

@@ -11,7 +11,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # 安装文档地址： https://docs.mongodb.com/manual/administration/install-on-linux/
 # 配置文件地址：https://docs.mongodb.com/manual/reference/configuration-options/
@@ -39,9 +39,9 @@ DEFINE_INSTALL_TYPE='scons'
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
-init_install '3.0.0' "http://downloads.mongodb.org.s3.amazonaws.com/current.json" 'mongodb-src-r\d+\.\d+\.\d+\.tar\.gz'
+init_install '4.2.0' "http://downloads.mongodb.org.s3.amazonaws.com/current.json" 'mongodb-src-r\d+\.\d+\.\d+\.tar\.gz'
 #  限制空间大小（G）：编译目录、安装目录、内存
-install_storage_require 15 15 6
+install_storage_require 15 15 8
 # ************** 相关配置 ******************
 # 编译初始选项（这里的指定必需有编译项）
 CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$MONGODB_VERSION $ARGV_options"
@@ -77,24 +77,19 @@ install_openssl
 # 安装验证 curl
 install_curl
 
-# lzma 依赖 mongodb-5.0.3
 # Cannot find system library 'lzma' required for use with libunwind
-# package_manager_run install libunwind-devel
+if if_version "$MONGODB_VERSION" '>=' '4.4.0';then
+    package_manager_run install -LIBUWIND_DEVEL_PACKAGE_NAMES
+fi
+
 cd $MONGODB_CONFIGURE_PATH
 # 编译安装
 if [ -e "etc/pip/compile-requirements.txt" ];then
     info_msg "$PYTHON_COMMAND_NAME pip 自动安装依赖"
-    $PIP_NAME install -r etc/pip/compile-requirements.txt
+    $PIP_COMMAND_NAME install -r etc/pip/compile-requirements.txt
     if (($? != 0));then
         $PYTHON_COMMAND_NAME -m pip install -r etc/pip/compile-requirements.txt
     fi
-    info_msg '$PYTHON_COMMAND_NAME 编译安装 mongobd'
-    if grep -q '\-\-prefix' docs/building.md;then
-        run_msg $PYTHON_COMMAND_NAME buildscripts/scons.py $CONFIGURE_OPTIONS install -j $INSTALL_THREAD_NUM
-    else
-        run_msg $PYTHON_COMMAND_NAME buildscripts/scons.py install-all PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options -j $INSTALL_THREAD_NUM
-    fi
-    if_error '安装失败：mongodb'
 else
     if [ -e 'buildscripts/requirements.txt' ];then
         $PYTHON_COMMAND_NAME -m pip install -r buildscripts/requirements.txt
@@ -102,9 +97,7 @@ else
     SCONS_VERSION=`grep -iP 'scons\s+\d+(\.\d+)+' ./docs/building.md|grep -oP '\d+(\.\d+)+'|tail -n 1`
     if [ -n "$SCONS_VERSION" ];then
         SCONS_CURRENT_VERSION=`scons -v 2>&1|grep -oP '\d+(\.\d+)+'|tail -n 1`
-        if ! echo "$SCONS_VERSION"|grep -qP '^\d+\.\d+\.\d+$';then
-            SCONS_VERSION=$SCONS_VERSION".1"
-        fi
+        repair_version SCONS_VERSION 3 '.1'
         if if_version "$SCONS_VERSION" '>' "$SCONS_CURRENT_VERSION"; then
             MONGODB_INSTALL_PATH=`pwd`
             # 安装最近版本
@@ -120,11 +113,38 @@ else
         info_msg 'scons 编译安装 mongobd'
         run_msg scons all -j $INSTALL_THREAD_NUM
         run_msg scons $CONFIGURE_OPTIONS install
-    else
-        run_msg $PYTHON_COMMAND_NAME buildscripts/scons.py all $CONFIGURE_OPTIONS -j $INSTALL_THREAD_NUM
+        if_error '安装失败：mongodb'
     fi
-    if_error '安装失败：mongodb'
 fi
+if [ -z "$SCONS_VERSION" ];then
+    info_msg "$PYTHON_COMMAND_NAME 编译安装 mongobd"
+    if $PYTHON_COMMAND_NAME buildscripts/scons.py --help|grep -q '\-\-prefix';then
+        SCONS_INSTALL_OPTIONS=$CONFIGURE_OPTIONS
+    else
+        SCONS_INSTALL_OPTIONS="PREFIX=$INSTALL_PATH$MONGODB_VERSION $ARGV_options"
+    fi
+    if grep -q 'install-all' docs/building.md;then
+        SCONS_INSTALL_TYPE='install-all'
+    else
+        SCONS_INSTALL_TYPE='all'
+    fi
+    run_msg $PYTHON_COMMAND_NAME buildscripts/scons.py $SCONS_INSTALL_TYPE $SCONS_INSTALL_OPTIONS -j $INSTALL_THREAD_NUM
+    INSTALL_RESULT=$?
+    if [ $INSTALL_RESULT = 2 ];then
+        warn_msg "内存空间不足编译中断，建议指定 --make-jobs 更小值或增大内存再编译"
+    fi
+    if [ $INSTALL_RESULT != 1 ];then
+        error_exit '安装失败：mongodb'
+    fi
+fi
+# 添加环境目录
+add_path $INSTALL_PATH$MONGODB_VERSION/bin
+
+# 4.4起需要修改ulimit > 64000
+if if_version "$MONGODB_VERSION" '>' '4.4.0';then
+    run_shell connect-limits
+fi
+
 # 创建用户组
 add_user mongodb
 cd $INSTALL_PATH$MONGODB_VERSION
@@ -465,7 +485,7 @@ processManagement:
     fork: true
 
     # 指定进程PID保存路径
-    pidFilePath: $INSTALL_PATH$MONGODB_VERSION/db0.pid
+    pidFilePath: "$INSTALL_PATH$MONGODB_VERSION/logs/mongod.pid"
 
     # 时区数据库路径，不指定将使用内置时区数据库
     # 默认不指定，系统中中 /usr/share/zoneinfo
@@ -477,7 +497,7 @@ cloud:
     monitoring:
         free:
             # 启用或禁用免费的 MongoDB 云监控，可选值：runtime 、on 、off
-            # state: 
+            state: on
 
             # 描述环境上下文的可选标记，注册获取
             # tags: 
@@ -534,7 +554,7 @@ net:
     # http:
     $NET_TLS_CONFIG
     # 链接压缩配置
-    compression:
+    # compression:
         # 指定压缩器，多个使用逗号分开，可选值：
         #   snappy      3.6起默认启用
         #   zstd        4.2起默认启用
@@ -543,7 +563,7 @@ net:
         # compressors: snappy,zstd,zlib
 
 # 安全配置
-security:
+# security:
     # 密钥文件路径，用于分片集群或副本集群相互验证共享密钥
     # keyFile: <string>
 
@@ -580,7 +600,7 @@ security:
     #    - ::1
 
     # SASL 服务相关配置
-    sasl:
+    # sasl:
         # 配置 SASL 或 Kerberos 身份验证的完全限定服务器域名
         # hostName: <string>
 
@@ -604,7 +624,7 @@ security:
     # encryptionKeyFile: <string>
 
     # KMIP服务相关配置，企业版本有效
-    kmip:
+    # kmip:
         # KMIP 服务器中现有密钥的唯一 KMIP 标识符，不指定会自动创建
         # keyIdentifier: <string>
 
@@ -636,13 +656,12 @@ security:
         # connectTimeoutMS: <int>
 
     # LDAP 服务器相关配置，企业版本有效
-    ldap:
+    # ldap:
 
         # 服务列表，多个使用逗号分开
         # servers: <string>
 
-        # 
-        bind:
+        # bind:
             # 指定身份验证方式，可选值：
             #   simple  使用简单的身份验证，即 queryUser 和 queryPassword ，默认值
             #   sasl    使用 SASL 协议进行身份验证
@@ -673,7 +692,7 @@ security:
         # userToDNMapping: <string>
 
         # LDAP 授权
-        authz:
+        # authz:
             # 查询检索实体所属的 DN 列表
             # queryTemplate: <string>
 
@@ -682,14 +701,14 @@ security:
 
 # 设置 MongoDB 参数或MongoDB 服务器参数中描述参数
 # 可选参数文档：https://docs.mongodb.com/manual/reference/parameters/
-setParameter:
+# setParameter:
     # 参数名和值
     # <parameter1>: <value1>
 
 # 存储配置块
 storage:
     # 数据保存目录，不配置将使用默认地址，默认目录各系统存在差异
-    dbPath: $INSTALL_PATH$MONGODB_VERSION/mongodb
+    dbPath: "$INSTALL_PATH$MONGODB_VERSION/data"
     
     # 开启数据故障恢复和持久化数据
     journal:
@@ -711,9 +730,9 @@ storage:
     # engine: <string>
 
     # 引擎设置
-    wiredTiger:
+    # wiredTiger:
         # 引擎数据配置
-        engineConfig:
+        # engineConfig:
 
             # 数据的内部缓存的最大大小，默认是内存的50%且最少256MB
             # 一般不建议修改
@@ -736,7 +755,7 @@ storage:
             # zstdCompressionLevel: 6
 
         # 集合配置
-        collectionConfig:
+        # collectionConfig:
             # 指定集合数据压缩方式，可选值：
             #   none        不使用压缩
             #   snappy      默认压缩方式
@@ -745,15 +764,15 @@ storage:
             # blockCompressor: <string>
 
         # 索引配置
-        indexConfig:
+        # indexConfig:
             # 启用索引数据的前缀压缩，默认 true
             # prefixCompression: <boolean>
 
     # 引擎设置，企业版本有效
-    inMemory:
+    # inMemory:
 
         # 引擎数据配置
-        engineConfig:
+        # engineConfig:
 
             # 最大内存量，默认值：物理 RAM 的 50% 减去 1 GB
             # inMemorySizeGB: <number>
@@ -767,10 +786,10 @@ operationProfiling:
     #   off         关闭，默认
     #   slowOp      收集慢操作
     #   all         收集所有操作
-    # mode: <string>
+    mode: slowOp
 
     # 慢的操作时间阈值，单位为毫秒，默认100
-    # slowOpThresholdMs: <int>
+    slowOpThresholdMs: 500
 
     # 分析或记录的慢速操作的比例，默认1.0
     # slowOpSampleRate: <double>
@@ -780,7 +799,7 @@ operationProfiling:
     # filter: <string>
 
 # 复制配置
-replication:
+# replication:
     # 复制操作日志（即oplog）的最大大小（以兆字节为单位）
     # 默认是可用磁盘空间的5%
     # oplogSizeMB: <int>
@@ -803,7 +822,7 @@ sharding:
     archiveMovedChunks: false
 
 # 审计日志配置，企业版本有效
-auditLog:
+# auditLog:
     # 审计输出，可选值：
     #   syslog      审计事件以JSON格式输出到系统日志，windows系统不可用
     #   console     以JSON格式输出到stdout（标准输出）
@@ -823,7 +842,7 @@ auditLog:
     # filter: <string>
 
 # SNMP配置
-snmp:
+# snmp:
     # 禁用SNMP访问mongod，默认是 false
     # disabled: <boolean>
 
@@ -835,15 +854,19 @@ snmp:
 # 
 conf
 
+# 数据目录
 mkdirs data
+# 日志目录
 mkdirs logs
-chown -R mongodb:mongodb ./*
+# 修改权限
+chown -R mongodb:mongodb ./
 
 # 添加服务配置
 SERVICES_CONFIG=()
 SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./bin/mongod -f ./etc/mongod.conf"
+SERVICES_CONFIG[$SERVICES_CONFIG_STOP_RUN]="./bin/mongod --shutdown -f ./etc/mongod.conf"
 SERVICES_CONFIG[$SERVICES_CONFIG_USER]="mongodb"
-SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]=""
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./logs/mongod.pid"
 # 服务并启动服务
 add_service SERVICES_CONFIG
 

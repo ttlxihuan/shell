@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # elasticsearch快速编译安装shell脚本
+# 官方文档：https://www.elastic.co/guide/en/elasticsearch/reference/master/index.html
 #
 # 安装命令
 # bash elasticsearch-install.sh new
@@ -11,7 +12,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # 注意启动服务账号不能是root
 #
@@ -120,7 +121,7 @@
 DEFINE_RUN_PARAMS="
 [-s, --swapoff]禁用虚拟内存，开启后会自动关闭虚拟内存相关配置
 [-n, --cluster-name='']指定集群名，注意在主或数据节点中必需包含当前地址
-[-t, --node-type='auto']指定当前节点类型：
+[-t, --node-type='auto', {required|in:master,data,all,auto}]指定当前节点类型：
 # master 主节点
 # data 数据节点
 # all 主和数据节点
@@ -128,17 +129,24 @@ DEFINE_RUN_PARAMS="
 [-N, --node-name='']指定当前节点在集群中的唯一名，不指定则是集群名+ip
 [-m, --master-hosts='']指定主节点集用逗号分开，仅支持IP地址
 #如果包含当前节点则自动过滤，没有指定集群名此参数无效
-[-d, --data-hosts='']指定数据节点集用逗号分开，仅支持IP地址，
+[-d, --data-hosts='']指定数据节点集用逗号分开，仅支持IP地址
 #如果包含当前节点则自动过滤，没有指定集群名此参数无效
-[-T, --tool='kibana']安装管理工具，目前支持 kibana
-[-M, --jvm-memory='']指定配置服务运行JVM最大占用内存（整数）
-#为空即默认可用内存的50%
+[-T, --tool='kibana', {in:kibana}]安装管理工具，目前支持 kibana
+[-M, --jvm-memory='50%', {required|size}]指定配置服务运行JVM最大占用内存（整数）
 #指定可用内存占比，比如：70%
 #指定对应的大小，单位（B,K,M,G,T），比如：4G
 #不指定单位为B，最大空间30G，超过将截断
 #指定为0时即不配置内存
 [-U, --username='']
+
 [-P, --password='']
+#生成随机密码语法 make:numm,set
+#   make: 是随机生成密码关键字
+#   num   是生成密码长度个数
+#   set   限定密码包含字符，默认：数字、字母大小写、~!@#$%^&*()_-=+,.;:?/\|
+#生成随机10位密码 make:10
+#生成随机10位密码只包含指定字符 make:10,QWERTYU1234567890
+#其它字符均为指定密码串，比如 123456
 "
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
@@ -148,9 +156,8 @@ if [ -n "$ARGV_tool" ] && ! [[ "$ARGV_tool" =~ ^kibana$ ]]; then
     error_exit "--tool 只支持kibana，现在是：$ARGV_tool"
 fi
 # 解析最大运行内存参数处理
-if ! parse_use_memory JVM_XM_MEMORY "${ARGV_jvm_memory:-50%}" G;then
-    error_exit '--jvm-memory 指定错误值'
-fi
+parse_use_memory JVM_XM_MEMORY "${ARGV_jvm_memory}" G
+
 get_ip
 if [ -n "$ARGV_cluster_name" ];then
     if ! parse_lists CLUSTER_MASTER_HOSTS "$ARGV_master_hosts" ',' '\d{1,3}(\.\d{1,3}){3}';then
@@ -164,9 +171,6 @@ if [ -n "$ARGV_cluster_name" ];then
     fi
     if [ -z "$ARGV_node_name" ];then
         ARGV_node_name=$ARGV_cluster_name-$SERVER_IP
-    fi
-    if ! [[ "$ARGV_node_type" =~ ^(master|data|all|auto)$ ]];then
-        error_exit "--node-type 参数值错误，只允许指定为：master、data、all、auto"
     fi
     NODE_DATA_VALUE='false'
     NODE_MASTER_VALUE='false'
@@ -226,7 +230,7 @@ info_msg "elasticsearch 配置文件修改"
 if ((JVM_XM_MEMORY > 0));then
     # 设置大小不建议超过30G，同时启动后注意：heap size [实际有效大小], compressed ordinary object pointers [true]
     JVM_XM_MEMORY=$((JVM_XM_MEMORY > 30 ? 30 : JVM_XM_MEMORY))
-    info_msg "JVM 堆内存大小设置为：${JVM_XM_MEMORY}g"
+    info_msg "JVM 堆内存大小设置为：${JVM_XM_MEMORY}G"
     info_msg "启动后注意日志中打印的实际堆内存大小：heap size [看这里的大小], compressed ordinary object pointers [true]。如果小于配置就修改配置重启"
     sed -i -r "s/^\s*#*\s*(-Xm[sx])[0-9]+[mgt]/\1${JVM_XM_MEMORY}g/g" ./config/jvm.options
 fi

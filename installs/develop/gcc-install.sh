@@ -11,7 +11,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 #  官网 https://gcc.gnu.org/
 #
@@ -31,8 +31,9 @@
 #          使用命令 export CFLAGS="-Wno-error" 或 export CXXFLAGS="-Wno-error"
 #   其它警告可查看：https://blog.csdn.net/li_wen01/article/details/71171413
 #
-#  编译错误： error: static declaration of ‘secure_getenv’ follows non-static declaration secure_getenv (const char *name)
-#       secure_getenv 是在glibc-2.17版起增加，如果系统存在多个glibc版本并且有低于和高于glibc-2.17时编译容易报错，需要彻底清除不需要的glibc版本，文档：http://www.tin.org/bin/man.cgi?section=3&topic=secure_getenv
+#  编译错误： error: static declaration of ‘secure_getenv’ follows non-static declaration secure_getenv (const char *name) 或 undefined reference to `secure_getenv'
+#       secure_getenv 是在glibc-2.17版起增加，如果系统存在多个glibc版本并且有低于glibc-2.17时编译容易报错，文档：http://www.tin.org/bin/man.cgi?section=3&topic=secure_getenv
+#       需要彻底清除不需要的glibc版本，清除glibc非常麻烦，如果清除错误会导致系统异常
 #       
 #
 ####################################################################################

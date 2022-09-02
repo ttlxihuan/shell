@@ -71,9 +71,9 @@ JEMALLOC_DEVEL_PACKAGE_NAMES=('jemalloc-devel' 'libjemalloc-dev')
 # 安装libedit
 LIBEDIT_DEVEL_PACKAGE_NAMES=('libedit-devel' 'libedit-dev')
 # 安装libunwind
-LIBUWIND_DEVEL_PACKAGE_NAMES=('libunwind-devel' '-')
+LIBUWIND_DEVEL_PACKAGE_NAMES=('libunwind-devel' 'libunwind-dev')
 # 安装ncurses
-NCURSES_DEVEL_PACKAGE_NAMES=('ncurses-devel' 'libncurses-dev')
+NCURSES_DEVEL_PACKAGE_NAMES=('ncurses-devel' 'libncurses5-dev')
 # 安装pkgconfig
 PKGCONFIG_PACKAGE_NAMES=('pkgconfig' 'pkg-config')
 # 安装python3

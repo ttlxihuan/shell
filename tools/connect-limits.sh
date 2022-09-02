@@ -32,7 +32,7 @@ DEFINE_RUN_PARAMS="
 #默认为通配所有用户组
 #临时配置时无效
 [-T, --type-nofile='temp', {required|in:temp,login,conf}]指定最大连接数据修改类型
-# temp  临时配置，仅在当前会员下有效
+# temp  临时配置，仅在当前会话下有效
 # login 仅登录自动生效（不需要重启）
 #       仅针对root账号有效，其它账户权限不够
 # conf  仅写全局配置，必需重启才生效

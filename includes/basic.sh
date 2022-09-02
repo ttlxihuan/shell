@@ -276,6 +276,7 @@ safe_realpath(){
         elif [ -e "$_PATH" ];then
             _PATH=$(cd "$(dirname "$_PATH")";pwd)
         fi
+        _PATH=${_PATH//\/\//\/}
         addc_slashes _PATH
         eval $_NAME="\$_PATH"
     done
@@ -510,6 +511,7 @@ $INFO_SHOW_STR";
 #                               url                必需是有效URL
 #                               path               必需是存在的目录
 #                               file               必需是存在的文件
+#                               size               必需是空间大小：百分数（比如：10%）、字节数（比如：20M）
 #                               in:opt1,opt2,...   限制可选值
 #                               regexp:expr        正则表达式验证，正则使用 [[]] 命令处理
 #                           规则名要求：必需是支持的规则名
@@ -520,10 +522,6 @@ validate_shell_param(){
     get_shell_option "$1" ARG_NAME ARG_VALUE
     while read RULE_TEXT; do
         RULE_NAME=$(printf '%s' "$RULE_TEXT"|grep -oP '^[^:\|]+')
-        if ! [[ "$RULE_NAME" =~ ^(required(_(n?if|(with|without)(_all)?))?|int|float|string|path|file|ip|url|in|regexp)$ ]];then
-            warn_msg "脚本参数 ${ARG_NAME} 未知验证：$RULE_NAME"
-            continue
-        fi
         ([[ -z "$ARG_VALUE" && "$RULE_NAME" != required* ]] || [[ -n "$ARG_VALUE" && "$RULE_NAME" == required* ]]) && continue
         RULE_VALUES=($(printf '%s' "${RULE_TEXT:${#RULE_NAME}+1}"|grep -oP "$VALUE_RULES"))
         # 剥离值前后引号
@@ -556,6 +554,9 @@ validate_shell_param(){
             file)
                 [[ "$ARG_VALUE" =~ ^[~/] && -e "$ARG_VALUE" ]] || [[ "$ARG_VALUE" =~ ^[^~/] && -e "$SHELL_WROK_BASH_PATH/$ARG_VALUE" ]] ||
                 error_exit "脚本参数 ${ARG_NAME} 指定文件不存在，当前是：$ARG_VALUE"
+            ;;
+            size)
+                [[ "$ARG_VALUE" =~ ^([0-9]|[1-9][0-9]*)[BKMG%]?$ ]] || error_exit "脚本参数 ${ARG_NAME} 必需指定空间大小，比如：10% 或 10M，当前是：$ARG_VALUE"
             ;;
             required)
                 error_exit "脚本参数 ${ARG_NAME} 不可为空"
@@ -773,10 +774,11 @@ math_compute(){
     eval "$1='$RESULT_STR'"
 }
 # 大小单位转换
-# @command size_format $var_name $size
+# @command size_format $var_name $size [$to_unit] [$scale]
 # @param $var_name              格式化写入变量名
-# @param $size                  容量值，以B为单位
-# @param $to_unit               转到目标单位
+# @param $size                  容量值，无单位以B为准，支持单位：B、K、M、G、T等
+# @param $to_unit               转到目标单位，默认是B为单位
+# @param $scale                 计算小数精度位数，默认是 2
 # return 1|0
 size_switch(){
     local UNIT_POWER UNIT_BASE=1024 UNIT_SWITCH=("$2" "${3:-B}") UNIT_SWITCH_UNIT=() INDEX
@@ -820,7 +822,7 @@ size_switch(){
 # 大小格式化到适合单位
 # @command size_format $var_name $size
 # @param $var_name              格式化写入变量名
-# @param $size                  容量值，以B为单位
+# @param $size                  容量值，无单位以B为准，支持单位：B、K、M、G、T等
 # return 1|0
 size_format(){
     local UNIT_POWER=0 CURRENT_SIZE=$2 UNIX_NAMES=('B' 'K' 'M' 'G' 'T' 'P' 'E') VALUE_SIZE
@@ -840,6 +842,8 @@ size_format(){
 get_os(){
     if [ -e '/etc/os-release' ];then
         echo $(source /etc/os-release;echo "$ID $VERSION_ID"|tr '[:upper:]' '[:lower:]')
+    elif [ -e '/etc/issue' ];then
+        cat /etc/issue|grep -oP '\w+\s+(release\s+)?\d+\.\d'|sed -r 's/release\s+//'|tr '[:upper:]' '[:lower:]'
     fi
 }
 # 获取当前IP地址，内网是局域IP，写入全局变量SERVER_IP

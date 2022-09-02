@@ -13,7 +13,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # HBase是java开发的分布式数据库，支持TB级数据量，主要用于Hadoop使用
 #
@@ -23,7 +23,6 @@
 ####################################################################################
 # 定义安装参数
 DEFINE_RUN_PARAMS="
-
 "
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit

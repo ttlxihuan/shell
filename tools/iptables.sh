@@ -82,7 +82,7 @@ SHELL_RUN_HELP='自动更新主要用于动态域名，当使用动态IP时又�
 '
 DEFINE_RUN_PARAMS='
 [-f, --conf="etc/iptables.conf", {required|file}]指定配置文件，相对脚本根目录
-[--cache-file="temp/.iptables.cache"]用于记录开启数据，当配置调整进行匹配处理
+[--cache-file="temp/.iptables.cache", {required}]用于记录开启数据，当配置调整进行匹配处理
 #当脚本在唯一执行时不需要调用此参数
 '
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit

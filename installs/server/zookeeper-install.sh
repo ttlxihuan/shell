@@ -11,7 +11,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # 官方地址：https://zookeeper.apache.org/
 #

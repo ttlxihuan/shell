@@ -11,7 +11,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # 未绑定的扩展尽量不要使用静态编译安装，这种安装方式容易出现问题，建议使用phpize安装，先自行下载源码，解压后使用phpize自动生成php扩展环境，剩下直接使用正常编译安装流程 ./configure && make && make install
 # 官方文档：https://www.php.net/manual/zh/install.pecl.phpize.php
@@ -72,7 +72,7 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
 # 注意：有依赖的扩展包需要提前安装好依赖，需要通过phpize安装的扩展并在这里设置好相关编译配置
 # 配置格式：扩展名={版本 编译选项集...}
 # 版本默认为new是最新，其它为指定版本号
-PECL_OPTIONS='swoole={new ?openssl ?http2} yar gmagick '
+PECL_OPTIONS='swoole={new ?openssl ?http2} yar gmagick mongodb'
 # ************** 编译安装 ******************
 # 下载PHP包
 download_software https://$PHP_HOST/distributions/php-$PHP_VERSION.tar.gz
@@ -147,9 +147,9 @@ if in_options gd $CONFIGURE_OPTIONS;then
                 JPEG_VERSION=`echo $JPEG_PATH|grep -oP '\d+c\.tar\.gz$'|grep -oP '\d+'`
                 info_msg "安装：jpeg-$JPEG_VERSION"
                 # 下载
-                download_software http://www.ijg.org/files/$JPEG_PATH "jpeg-"$JPEG_VERSION"c"
+                download_software http://www.ijg.org/files/$JPEG_PATH "jpeg-${JPEG_VERSION}c"
                 # 编译安装
-                configure_install --enable-shared --prefix=$INSTALL_BASE_PATH/jpeg/v$JPEG_VERSION"c"
+                configure_install --enable-shared --prefix=$INSTALL_BASE_PATH/jpeg/v${JPEG_VERSION}c
             fi
         else
             # 安装jpeg-dev
@@ -217,11 +217,9 @@ if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;the
     fi
 fi
 # 安装swoole，要求gcc-4.8+
-# php编译gcc版本不能过高，暂时限制在 4.8.5
-GCC_VERSION=$(gcc --version|grep -oP '\d+(\.\d+){2}'|head -1)
-if (in_parse_options swoole $DEFAULT_OPTIONS $ARGV_options && if_version $GCC_VERSION '<' '4.8.0') || if_version $GCC_VERSION '>' '4.8.5';then
-    install_gcc "4.8.0" "4.8.5"
-fi
+# php编译gcc版本不能过高，暂时限制在 4.8.0+
+install_gcc "4.8.0"
+
 # apxs2 扩展使用
 #if in_options apxs2 $CONFIGURE_OPTIONS;then
     # which httpd
@@ -376,6 +374,9 @@ do
         info_msg "安装：$EXT_NAME-$EXT_VERSION"
         # 下载
         download_software https://pecl.php.net/get/$EXT_NAME-$EXT_VERSION.tgz
+        if [ ! -e "./configure.ac" ];then
+            $INSTALL_PATH$PHP_VERSION/bin/phpize
+        fi
         # 获取autoconf版本要求
         if [ -e "./configure.ac" ];then
             PHP_EXT_CONFIGURE_PATH=$(pwd)
@@ -385,6 +386,10 @@ do
         fi
         # 通过phpize安装，生成configure编译文件
         $INSTALL_PATH$PHP_VERSION/bin/phpize
+        if [ ! -e './configure' ];then
+            warn_msg "生成configure文件失败，跳过安装：$EXT_NAME"
+            continue
+        fi
         # 解析选项
         parse_options EXT_CONFIGURE_OPTIONS $EXT_ADD_OPTIONS
         # 编译安装phpize

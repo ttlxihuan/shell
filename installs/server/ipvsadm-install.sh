@@ -12,7 +12,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # LVS（Linux Virtual Server）是Linux虚拟服务，是一个高性能负载均衡服务。
 # ipvsadm是实现LVS工具，ipvsadm依赖系统内核限制，不同的版本对系统内核有要求，

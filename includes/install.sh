@@ -22,10 +22,10 @@ DEFINE_RUN_PARAMS="$DEFINE_RUN_PARAMS
 #传指定版本号则安装指定版本
 [--install-path='/usr/local', {required_with:ARGU_version|path}]安装根目录，规则：安装根目录/软件名/版本号
 #没有特殊要求建议安装根目录不设置到非系统所在硬盘目录下
-[-A, --action='install', {required|in:install,reinstall}]处理类型，默认 install
+[-A, --action='install', {required|in:install,reinstall}]处理类型
 #   install     标准安装
 #   reinstall   重新安装（覆盖安装）
-[-D, --download='continue', {required|in:continue,reset,again}]下载方式，默认 continue
+[-D, --download='again', {required|in:continue,reset,again}]下载方式
 #   continue    延续下载，已经下载好的不再重新下载
 #   again       延续下载并重新解压
 #   reset       重新下载再解压
@@ -116,10 +116,12 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/basic.sh || exit
 random_password(){
     local PASSWORD_CHARS_STR='qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM~!@#$%^&*_-=+,.;:?|'
     if [ -n "$3" ];then
-        PASSWORD_CHARS_STR=`echo "$PASSWORD_CHARS_STR"|grep -oP "$3+"`
+        addc_slashes PASSWORD_CHARS_STR '\-|\?|\.|\*|\$|\^|\|'
+        printf '%s' "$3"|grep -qP "^[$PASSWORD_CHARS_STR]+$"
         if_error "密码包含的字符无效: $3"
+        PASSWORD_CHARS_STR=$3
     fi
-    local PASSWORD_CHATS_LENGTH=`echo $PASSWORD_CHARS_STR|wc -m` PASSWORD_STR='' PASSWORD_INDEX_START='' PASSWORD_SIZE=25
+    local PASSWORD_STR='' PASSWORD_INDEX_START='' PASSWORD_SIZE=25
     if [ -n "$2" ]; then
         if ! [[ "$2" =~ ^[1-9][0-9]*$ ]];then
             error_exit "生成密码位数必需是整数，现在是：$2"
@@ -130,7 +132,8 @@ random_password(){
         PASSWORD_SIZE=$2
     fi
     for ((I=0; I<$PASSWORD_SIZE; I++)); do
-         PASSWORD_INDEX_START=`expr $RANDOM % $PASSWORD_CHATS_LENGTH`
+        # $RANDOM 是系统内置随机变量，每次提取值都会不一样，可用来做随机处理
+         PASSWORD_INDEX_START=`expr $RANDOM % ${#PASSWORD_CHARS_STR}`
          PASSWORD_STR=$PASSWORD_STR${PASSWORD_CHARS_STR:$PASSWORD_INDEX_START:1}
     done
     eval "$1='$PASSWORD_STR'"
@@ -143,13 +146,20 @@ random_password(){
 # @param $group             生成密码组合，默认全部类型
 # return 1|0
 parse_use_password(){
-    if [[ "$2" =~ ^%[1-9][0-9]{0,2}$ ]];then
-        random_password $1 ${2:1} $3
+    if [[ "$2" =~ ^make:[1-9][0-9]{0,2}(,.+)?$ ]];then
+        local MAKE_PARAMS=${2#*:} MAKE_LENGTH MAKE_GROUP
+        if [ "${MAKE_PARAMS/,/}" != "$MAKE_PARAMS" ];then
+            MAKE_LENGTH=${MAKE_PARAMS%%,*}
+            MAKE_GROUP=${MAKE_PARAMS:${#MAKE_LENGTH}+1}
+        else
+            MAKE_LENGTH=$MAKE_PARAMS
+        fi
+        random_password $1 $MAKE_LENGTH "$MAKE_GROUP"
     else
         eval "$1=\$2"
     fi
 }
-# 解析使用内存
+# 解析使用内存，计算结果是整数（四舍五入）
 # @command parse_use_memory $var_name $ratio $unit
 # @param $var_name          写入变量名
 # @param $ratio             可用内存比率值，默认为 100
@@ -169,24 +179,29 @@ parse_use_memory(){
             local RATIO_VALUE=${2//%/}
             # 内核3.14的上有MemAvailable
             if grep -q '^MemAvailable:' /proc/meminfo;then
-                FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{print count*1024}')
+                FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|MemAvailable):'|awk '{count+=$2} END{print count}')
             else
-                FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|Buffers|Cached):'|awk '{count+=$2} END{print count*1024}')
+                FREE_MAX_MEMORY=$(cat /proc/meminfo|grep -P '^(MemFree|Buffers|Cached):'|awk '{count+=$2} END{print count}')
             fi
             if (( FREE_MAX_MEMORY > 0 && RATIO_VALUE > 0 && RATIO_VALUE < 100 ));then
-                FREE_MAX_MEMORY=$((FREE_MAX_MEMORY * RATIO_VALUE / 100))
+                FREE_MAX_MEMORY=$((FREE_MAX_MEMORY * 1024 * RATIO_VALUE / 100))
+            else
+                warn_msg "配置使用内存率错误：${2}，按0处理"
+                FREE_MAX_MEMORY=0
             fi
         else
             # 指定配置处理
-            FREE_MAX_MEMORY=${2/[BKMGT%]/}
+            FREE_MAX_MEMORY=$2
             CURRENT_UNIT=${2:${#FREE_MAX_MEMORY}}
         fi
-        if (( FREE_MAX_MEMORY > 0 )) && [ "$CURRENT_UNIT" != "$USE_UNIT" ];then
+        if [ "$FREE_MAX_MEMORY" != '0' ];then
             size_switch FREE_MAX_MEMORY "$FREE_MAX_MEMORY" "$USE_UNIT"
+            printf -v FREE_MAX_MEMORY '%.0f' "$FREE_MAX_MEMORY"
         fi
-        math_compute FREE_MAX_MEMORY "$FREE_MAX_MEMORY <= 0"
-        if [ "$FREE_MAX_MEMORY" = '1' ];then
-            warn_msg "当前系统可用物理内存不足1${USE_UNIT}，跳过配置处理"
+        local JUDGE_SIZE
+        math_compute JUDGE_SIZE "$FREE_MAX_MEMORY > 0" 2
+        if [ "$JUDGE_SIZE" = '0' ];then
+            warn_msg "换算系统空闲物理内存不足1${USE_UNIT}，跳过相关配置处理"
         fi
     fi
     eval "$1=\$FREE_MAX_MEMORY"
@@ -447,3 +462,21 @@ SERVICES_CONFIG_USER=7
 SERVICES_CONFIG_BASE_PATH=8
 # 服务配置键名对应位置
 SERVICES_CONFIG_KEYS=('info' 'start-run' 'restart-run' 'pid-file' 'pid-run' 'stop-run' 'status-run' 'user' 'base-path')
+# 可安装系统版本
+OS_VERSION=($(get_os))
+if [ ${#OS_VERSION[@]} != 0 ];then
+    case ${OS_VERSION[0]} in
+        ubuntu)
+            MIN_OS_VERSION='16.04'
+        ;;
+        centos)
+            MIN_OS_VERSION='6.4'
+        ;;
+        *)
+            warn_msg "暂未验证过当前系统版本：${OS_VERSION[@]}"
+        ;;
+    esac
+    if [ -n "$MIN_OS_VERSION" ] && if_version "$MIN_OS_VERSION" '>' "${OS_VERSION[1]}";then
+        warn_msg "安装脚本暂时只兼容调试到：${OS_VERSION[0]} ${MIN_OS_VERSION}，当前系统版本为：${OS_VERSION[@]}，安装失败概率将增大！"
+    fi
+fi

@@ -11,7 +11,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # 下载地址
 # https://mirrors.edge.kernel.org/pub/software/scm/git/
@@ -62,14 +62,18 @@
 ####################################################################################
 # 定义安装参数
 DEFINE_RUN_PARAMS="
-[-t, --tool='']安装管理工具，目前支持 gitolite 和 gitlab
-[-d, --tool-path='']管理工具工作目录，最好是绝对路径，默认安装在/home/git
+[-t, --tool='', {in:gitolite,gitlab}]安装管理工具，目前支持 gitolite 和 gitlab
+[-d, --tool-path='/home/git', {required_with:ARGV_tool}]管理工具工作目录，最好是绝对路径
 [-p, --ssh-password='']指定ssh账号密码。
 #为空即无密码
-#随机生成密码 %num，比如：%10
-#指定固定密码，比如：123456
+#生成随机密码语法 make:numm,set
+#   make: 是随机生成密码关键字
+#   num   是生成密码长度个数
+#   set   限定密码包含字符，默认：数字、字母大小写、~!@#$%^&*()_-=+,.;:?/\|
+#生成随机10位密码 make:10
+#生成随机10位密码只包含指定字符 make:10,QWERTYU1234567890
+#其它字符均为指定密码串，比如 123456
 #默认会创建git账号用于 ssh://git@ip/path 访问，但需要通过证书或密码访问。
-[-P, --random-ssh-password='']随机生成指定长度ssh账号密码，长度范围是1~99位。如果已经指定密码此参数无效。
 "
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
@@ -81,14 +85,10 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh |
 init_install '1.9.0' "https://mirrors.edge.kernel.org/pub/software/scm/git/" 'git-\d+\.\d+\.\d+\.tar\.gz'
 # 安装参数处理
 if [ -n "$ARGV_tool" ];then
-    if [[ "$ARGV_tool" =~ ^git(olite|lab)$ ]]; then
-        if [ -n "$ARGV_tool_path" ]; then
-            TOOL_WORK_PATH="$ARGV_tool_path"
-        else
-            TOOL_WORK_PATH='/home/git'
-        fi
+    if [ -n "$ARGV_tool_path" ]; then
+        TOOL_WORK_PATH="$ARGV_tool_path"
     else
-        error_exit "--tool 只支持gitolite、gitlab，现在是：$ARGV_tool"
+        TOOL_WORK_PATH='/home/git'
     fi
 fi
 # 密码处理

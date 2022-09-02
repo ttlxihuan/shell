@@ -12,7 +12,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # memcached 是单一键值对类型的缓存服务，体积小性能高，且未提供官方集群方案。
 # memcached 比如适合大量键值对缓存，集群一般需要借助三方工具或自行开发。
@@ -23,11 +23,10 @@
 # 定义安装参数
 DEFINE_INSTALL_TYPE='configure'
 DEFINE_RUN_PARAMS="
-[-m, --max-memory='']指定配置服务运行最大占用内存（整数）
-#为空即默认可用内存的50%
+[-m, --max-memory='50%', {required|size}]指定配置服务运行最大占用内存（整数）
 #指定可用内存占比，比如：70%
 #指定对应的大小，单位（B,K,M,G,T），比如：4G
-#不指定单位为B
+#不指定单位为B，最大空间30G，超过将截断
 #指定为0时即不配置内存
 "
 # 编译默认项（这里的配置会随着编译版本自动生成编译项）
@@ -35,9 +34,7 @@ DEFAULT_OPTIONS=''
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 解析最大运行内存参数处理
-if ! parse_use_memory MEMCACHED_MAX_MEMORY "${ARGV_max_memory:-50%}" M;then
-    error_exit '--max-memory 指定错误值'
-fi
+parse_use_memory MEMCACHED_MAX_MEMORY "${ARGV_max_memory}" M
 # 初始化安装
 # memcached-1.4.6以前版本GCC版本低，高版本编译失败
 init_install 1.4.6 "http://memcached.org/downloads" 'memcached-\d+(\.\d+){2}\.tar.gz'

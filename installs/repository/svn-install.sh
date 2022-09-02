@@ -15,7 +15,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # 常见错误：
 #   1、svnserve: error while loading shared libraries: __vdso_time: invalid mode for dlopen(): Invalid argument
@@ -37,7 +37,7 @@
 ####################################################################################
 # 定义安装参数
 DEFINE_RUN_PARAMS="
-[-d, --work-dir='/var/svn']svn服务工作目录
+[-d, --work-dir='/var/svn', {required}]svn服务工作目录
 "
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'

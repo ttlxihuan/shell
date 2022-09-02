@@ -11,7 +11,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # 下载地址
 # https://redis.io/download
@@ -23,37 +23,45 @@
 DEFINE_INSTALL_TYPE='make'
 # 定义安装参数
 DEFINE_RUN_PARAMS="
-[-b, --bind='127.0.0.1']服务监听绑定地址
-[-p, --port='6379']服务监听端口号
-[-s, --save='60,5']开启自动保存到硬盘 m,n
+[-b, --bind='127.0.0.1', {required|ip}]服务监听绑定地址
+[-p, --port='6379', {required|int:0,65535}]服务监听端口号
+[-s, --save='60,5', {regexp:'^[0-9]+,[0-9]+$'}]开启自动保存到硬盘 m,n
 #配置规则：n秒 m次修改，为空则不开启
 [-P, --password='']安装成功后授权密码
 #为空即无密码
-#随机生成密码 %num，比如：%10
-#指定固定密码，比如：123456
+#生成随机密码语法 make:numm,set
+#   make: 是随机生成密码关键字
+#   num   是生成密码长度个数
+#   set   限定密码包含字符，默认：数字、字母大小写、~!@#$%^&*()_-=+,.;:?/\|
+#生成随机10位密码 make:10
+#生成随机10位密码只包含指定字符 make:10,QWERTYU1234567890
+#其它字符均为指定密码串，比如 123456
 #配置集群时密码需要保持一至且不可随机生成
 [-c, --cluster-hosts='']指定集群地址名集 ip:port，端口号不传为默认6379
 #多个使用逗号分开，最少三个含当前服务器
 #当前监听可不传
-[-R, --cluster-replicas=1]指定集群副本数
+[-R, --cluster-replicas=1, {required|int:1}]指定集群副本数
 [-a, --cluster-masterauth='']指定集群通信密码
 #为空即无密码
-#随机生成密码 %num，比如：%10
-#指定固定密码，比如：123456
+#生成随机密码语法 make:numm,set
+#   make: 是随机生成密码关键字
+#   num   是生成密码长度个数
+#   set   限定密码包含字符，默认：数字、字母大小写、~!@#$%^&*()_-=+,.;:?/\|
+#生成随机10位密码 make:10
+#生成随机10位密码只包含指定字符 make:10,QWERTYU1234567890
+#其它字符均为指定密码串，比如 123456
 #配置集群时密码需要保持一至且不可随机生成
-[-m, --max-memory='']指定配置服务运行最大占用内存（整数）
-#为空即默认可用内存的70%
+[-m, --max-memory='70%', {required|size}]指定配置服务运行最大占用内存（整数）
 #指定可用内存占比，比如：70%
 #指定对应的大小，单位（B,K,M,G,T），比如：4G
-#不指定单位为B
+#不指定单位为B，最大空间30G，超过将截断
 #指定为0时即不配置内存
 "
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
 init_install '3.0.0' "http://download.redis.io/releases/" 'redis-\d+\.\d+\.\d+\.tar\.gz'
-[ -n "$ARGV_bind" ] || error_exit '--bind 绑定监听地址不能为空'
-[ -n "$ARGV_port" ] || error_exit '--bind 监听端口号不能为空'
+
 # 集群限制
 if [ -n "$ARGV_cluster_hosts" ];then
     if ! parse_lists CLUSTER_HOSTS "$ARGV_bind:$ARGV_port,$ARGV_cluster_hosts" ',' '\d{1,3}(\.\d{1,3}){3}(:\d{1,5})?';then
@@ -65,18 +73,11 @@ if [ -n "$ARGV_cluster_hosts" ];then
     if (($ARGV_cluster_replicas >= ${#CLUSTER_HOSTS[@]}));then
         error_exit '--cluster-replicas 集群副本数不能等于或超过集群个数，集群只有：'${#CLUSTER_HOSTS[@]}
     fi
-    if ! printf '%s' "$ARGV_cluster_replicas"|grep -qP '^[1-9]\d+$';then
-        error_exit '--cluster-replicas 集群副本数必需是正整数'
-    fi
     parse_use_password REDIS_MASTERAUTH_PASSWORD "$ARGV_cluster_masterauth"
 fi
-if [ -n "$ARGV_save" ] && ! [[ $ARGV_save =~ ^([0-9]|[1-9][0-9]+),([0-9]|[1-9][0-9]+)$ ]];then
-    error_exit '--save 开启自动保存到硬盘参数错误'
-fi
 # 解析最大运行内存参数处理
-if ! parse_use_memory REDIS_MAX_MEMORY "${ARGV_max_memory:-70%}";then
-    error_exit '--max-memory 指定错误值'
-fi
+parse_use_memory REDIS_MAX_MEMORY "${ARGV_max_memory}"
+# 解析密码
 parse_use_password REDIS_PASSWORD "$ARGV_password"
 #  限制空间大小（G）：编译目录、安装目录、内存
 install_storage_require 1 1 4
@@ -105,6 +106,7 @@ sed -i -r "s/^(bind ).*/\1$ARGV_bind/" redis.conf # 地址
 sed -i -r "s/^(port ).*/\1$ARGV_port/" redis.conf # 端口
 # 最大内存，如果不设置可能会导致内存不足机器死机，默认配置为可用内存的70%
 if (( REDIS_MAX_MEMORY > 0 ));then
+    info_msg "redis运行最大可用内存：$REDIS_MAX_MEMORY"
     sed -i -r "s/^(\s*#)?\s*(maxmemory ).*/\2${REDIS_MAX_MEMORY}/" redis.conf
 fi
 # 最大连接数据

@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # varnish快速编译安装shell脚本
+# 官方文档：https://varnish-cache.org/docs/index.html
 #
 # 安装命令
 # bash varnish-install.sh new
@@ -11,7 +12,9 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
+#
+# varnish是开源http加速器，支持：缓存页面、负载均衡等功能，通过配置文件实际既定功能
 #
 #
 ####################################################################################
@@ -97,18 +100,25 @@ cp ./etc/example.vcl $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl
 cd $INSTALL_PATH$VARNISH_VERSION
 
 # 启动选项
-START_SERVER_PARAM=''
+# 开启内置界面管理，必需是内网，指定存储方式，指定为内存空间1G，指定监听地址（默认也是80）
+START_SERVER_PARAM='-T 127.0.0.1:2000 -s malloc,1G -a 0.0.0.0:80'
+
 if if_version "$VARNISH_VERSION" ">=" "6.6.0"; then
-    START_SERVER_PARAM="-n ./var/varnish"
+    # 指定工作目录，些目录用来缓存请求和编译VCL配置文件
+    START_SERVER_PARAM="$START_SERVER_PARAM -n $INSTALL_PATH$VARNISH_VERSION/var/varnish"
+fi
+if if_version "$VARNISH_VERSION" "<" "4.1.0"; then
+    START_SERVER_PARAM="$START_SERVER_PARAM -u varnish"
+else
+    START_SERVER_PARAM="$START_SERVER_PARAM -u varnish"
 fi
 
 chown -R varnish:varnish ./*
 
 # 添加服务配置
 SERVICES_CONFIG=()
-SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./sbin/varnishd -f ./etc/default.vcl $START_SERVER_PARAM"
-SERVICES_CONFIG[$SERVICES_CONFIG_USER]="varnish"
-SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]=""
+SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./sbin/varnishd -f $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl -P $INSTALL_PATH$VARNISH_VERSION/var/varnish.pid $START_SERVER_PARAM"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./var/varnish.pid"
 # 服务并启动服务
 add_service SERVICES_CONFIG
 

@@ -12,7 +12,7 @@
 #
 # 可运行系统：
 # CentOS 6.4+
-# Ubuntu 15.04+
+# Ubuntu 16.04+
 #
 # keepalived由C开发的路由软件，用于高可用自动切换备用节点的一种解决方案
 #
@@ -27,7 +27,6 @@
 DEFINE_INSTALL_TYPE='configure'
 # 定义安装参数
 DEFINE_RUN_PARAMS="
-
 "
 # 编译默认项（这里的配置会随着编译版本自动生成编译项）
 DEFAULT_OPTIONS=''
