@@ -370,7 +370,7 @@ init_install(){
     if (($# < 3));then
         error_exit "安装初始化参数错误"
     fi
-    local INSTALL_VERSION_NAME=`echo "${INSTALL_NAME}_VERSION"|tr '[:lower:]' '[:upper:]'|sed -r 's/-/_/g'` VERSION_RULE=${4-'\d+(\.\d+){2}'}
+    local INSTALL_VERSION_NAME=`echo "${INSTALL_NAME}_VERSION"|tr '[:lower:]' '[:upper:]'|sed -r 's/-/_/g'` VERSION_RULE=${4:-'\d+(\.\d+){2}'}
     # 版本处理
     if [ -z "$ARGU_version" ] || [[ $ARGU_version == "new" ]]; then
         get_download_version $INSTALL_VERSION_NAME "$2" "$3" "$VERSION_RULE"

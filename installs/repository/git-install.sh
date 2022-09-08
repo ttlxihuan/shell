@@ -185,7 +185,7 @@ elif [ "$ARGV_tool" = "gitlab" ]; then
     fi
     package_manager_run install gitlab-ee
     if ! if_command gitlab-ctl;then
-        if_error "安装失败：gitlab"
+        error_exit "安装失败：gitlab"
     fi
     # 修改配置
     info_msg "gitlab 配置文件修改"

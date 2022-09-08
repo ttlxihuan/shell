@@ -9,6 +9,8 @@
 # 此配置设置支持的系统包管理器，用于不同的系统来运行
 # 安装命令
 PACKAGE_MANAGER_INSTALL_COMMAND=('yum -y install' 'apt -y install' 'dnf -y install' 'pkg -y install')
+# 更新命令
+PACKAGE_MANAGER_UPDATE_COMMAND=('yum -y update' 'apt -y update' 'dnf -y update' 'pkg -y update')
 # 删除命令
 PACKAGE_MANAGER_REMOVE_COMMAND=('yum -y erase' 'apt -y remove' 'dnf -y erase' 'pkg -y delete')
 # 包信息

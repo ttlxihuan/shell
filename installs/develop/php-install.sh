@@ -22,7 +22,7 @@
 #  2、configure: error: newly created file is older than distributed files!
 #       说明系统时间不对，需要手动更新系统时间。使用命令： ntpdate -u ntp.api.bz  如果没有ntpdate命令则先安装 yum install -y ntpdate
 #  3、curl: (35) SSL connect error
-#       执行命令：yum -y update nss
+#       执行命令：yum -y update nss 不行则需要重装curl
 #  4、使用wget报 Unable to establish SSL connection
 #       直接更新下wget版本即可，执行命令：yum -y update wget
 #  5、make 时报 virtual memory exhausted: Cannot allocate memory

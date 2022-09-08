@@ -682,6 +682,9 @@ package_manager_run(){
         install)
             COMMAND_STR=${PACKAGE_MANAGER_INSTALL_COMMAND[$PACKAGE_MANAGER_INDEX]}
         ;;
+        update)
+            COMMAND_STR=${PACKAGE_MANAGER_UPDATE_COMMAND[$PACKAGE_MANAGER_INDEX]}
+        ;;
         remove)
             COMMAND_STR=${PACKAGE_MANAGER_REMOVE_COMMAND[$PACKAGE_MANAGER_INDEX]}
         ;;

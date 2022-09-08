@@ -14,8 +14,7 @@
 #       把多余版本库的清除掉（包含：.so、.a 等文件），保留需要版本
 #       当 glibc < 2.17 时需要在编译时增加 -lrt 选项，一般编译器会自动增加，当无法识别glibc版本时就需要手动增加（增加到要编译的文件命令上）
 #       clock_gettime 文档 http://www.tin.org/bin/man.cgi?section=3&topic=clock_gettime
-#
-#
+#       
 ############################################################################
 # 获取已经安装合适版本的命令路径
 # @command if_command_range_version $name $options [$min_version [$max_version [$version_regex]]]
@@ -223,6 +222,7 @@ get_download_version(){
     if [ -z "$4" ];then
         VERSION_RULE='\d+(\.\d+){1,2}'
     fi
+    info_msg "获取$(echo "${1}"|grep -oiP '^[a-z0-9]+'|tr '[:upper:]' '[:lower:]')最新版本号"
     while true;do
         ((ATTEMPT++))
         VERSION=`wget -qO - --no-check-certificate "$2" 2>/dev/null|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "$VERSION_RULE"`
@@ -234,9 +234,9 @@ get_download_version(){
         fi
         if ((ATTEMPT <= 3));then
             sleep ${ATTEMPT}s
-            warn_msg "正在第 $ATTEMPT 次尝试获取版本号"
+            warn_msg "第 $ATTEMPT 次尝试获取版本号"
         else
-            error_exit "已经尝试 $((ATTEMPT - 1)) 次尝试获取版本号失败 ，请确认是否可访问地址：$2"
+            error_exit "已尝试 $((ATTEMPT - 1)) 次尝试获取版本号失败 ，请确认是否可访问地址：$2"
         fi
     done
     eval "$1=\"$VERSION\""
@@ -1347,7 +1347,17 @@ install_apr_util(){
     fi
     print_install_result apr-util "$1" "$2"
 }
-# 网络基本工具安装
+# 网络基本工具安装，尽量保证最新
 info_msg "网络下载工具安装"
-tools_install wget
-install_curl
+for REQUEST_TOOL in wget curl;do
+    if if_command $REQUEST_TOOL;then
+        INSTALL_TOOL_TYPE=update
+    else
+        INSTALL_TOOL_TYPE=install
+    fi
+    package_manager_run $INSTALL_TOOL_TYPE $REQUEST_TOOL
+    if if_command $REQUEST_TOOL;then
+        warn_msg "安装 $REQUEST_TOOL 失败，可能影响网络请求处理"
+    fi
+done
+unset REQUEST_TOOL INSTALL_TOOL_TYPE

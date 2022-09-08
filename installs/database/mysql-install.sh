@@ -48,9 +48,6 @@
 # set global validate_password_policy=0;
 # set global validate_password_length=1;
 #
-# 注意：如果 curl 报 curl: (35) ssl connect error 可以使用 yum install curl 重新安装
-#
-#
 # mysql使用短连接后会给连接端服务器带来很多 TIME_WAIT TCP连接数据，https://cloud.tencent.com/developer/article/1409308
 # 一般这种问题不影响什么，但如果太多（比如过万时什么占用大量端口）影响增加连接
 # 调整方式有：

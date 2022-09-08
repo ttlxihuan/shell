@@ -96,8 +96,32 @@ add_user varnish
 mkdirs $INSTALL_PATH$VARNISH_VERSION/etc varnish
 
 # 复制配置文件
-cp ./etc/example.vcl $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl
+if [ -e ./etc/example.vcl ];then
+    cp ./etc/example.vcl $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl
+elif [ -e ./etc/default.vcl ];then
+    CONF_START_LINE=$(grep -nP '^\s*#\s*backend\s+default\s*{' ./etc/default.vcl|grep -oP '^\d+'|head -n 1)
+    if [ -n "$CONF_START_LINE" ];then
+        CONF_END_LINE=$((CONF_START_LINE + 1))
+        until sed -n "${CONF_END_LINE}p" ./etc/default.vcl|grep -qP '^\s*#\s*}';do
+            ((CONF_END_LINE++))
+        done
+        sed -i -r "${CONF_START_LINE},${CONF_END_LINE}s/^\s*#\s{,1}//g"
+        cp ./etc/default.vcl $INSTALL_PATH$VARNISH_VERSION/etc/default.vcl
+    fi
+fi
+
 cd $INSTALL_PATH$VARNISH_VERSION
+if [ -e ./etc/default.vcl ];then
+    info_msg '复制默认配置文件'
+else
+    info_msg '创建默认配置文件'
+    cat ./etc/default.vcl <<CONF
+backend default {
+    .host = "127.0.0.1";
+    .port = "8080";
+}
+CONF
+fi
 
 # 启动选项
 # 开启内置界面管理，必需是内网，指定存储方式，指定为内存空间1G，指定监听地址（默认也是80）
@@ -108,8 +132,6 @@ if if_version "$VARNISH_VERSION" ">=" "6.6.0"; then
     START_SERVER_PARAM="$START_SERVER_PARAM -n $INSTALL_PATH$VARNISH_VERSION/var/varnish"
 fi
 if if_version "$VARNISH_VERSION" "<" "4.1.0"; then
-    START_SERVER_PARAM="$START_SERVER_PARAM -u varnish"
-else
     START_SERVER_PARAM="$START_SERVER_PARAM -u varnish"
 fi
 
