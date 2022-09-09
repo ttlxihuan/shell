@@ -104,7 +104,7 @@ get_conf(){
             _CONF_NAME_="CONF_BLOCK_ITEMS_${_BLOCK_NAME_}"
             eval "$1=(\${$_CONF_NAME_[@]})"
         fi
-        declare -p $_CONF_NAME_ >/dev/null 2>/dev/null
+        has_variable $_CONF_NAME_
         return $?
     else
         eval "$1=(\${CONF_BLOCK_NAMES[@]})"

@@ -175,7 +175,7 @@ CMD
 fi
 # 复制安全脚本
 if [ "$ARGV_force" = '1' ] || [ ! -e $AGENT_SHELL_PATH ];then
-    cp $SHELL_WROK_TOOLS_PATH/micro/safe-agent-run.sh $AGENT_SHELL_PATH
+    cp $SHELL_WROK_ISOLATES_PATH/safe-agent-run.sh $AGENT_SHELL_PATH
     if_error "复制代理脚本错误，请确认磁盘空间或操作权限"
 fi
 

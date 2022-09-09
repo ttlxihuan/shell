@@ -750,8 +750,9 @@ install_java(){
 #                               为空下载后会编译安装
 #                               非为空下载后不编译安装
 #                               非为空且是 2 则如果不是安装在默认路径和仅单版则直接下载不编译安装
-# 报错 libssl.so.1.1: version `OPENSSL_1_1_1' not found
+# 报错 libssl.so.1.1: version `OPENSSL_1_1_1' not found 或 symbol EVP_mdc2 version OPENSSL_1_1_0 not defined in file libcrypto.so.1.1 with link time reference
 #     当安装多个版本openssl时可能报此错误，比如安装了：1.1.0 和 1.1.1 会存在差异，但是 1.1.0a 或 1.1.0g 之类版本问题不大
+#     需要删除多余版本的库文件（注意最好使用链接覆蓋而不是直接删除默认库文件），否则无法正常运行
 # return 1|0
 install_openssl(){
     [ "$4" = 2 ] && (if_many_version openssl version || ! which -a openssl|grep -qP '^/usr(/local|/pkg)?/bin/openssl$')
@@ -780,7 +781,7 @@ install_openssl(){
                 # 移除不要的组件
                 package_manager_run remove openssl -OPENSSL_DEVEL_PACKAGE_NAMES
                 # 编译安装
-                configure_install --prefix=$INSTALL_BASE_PATH/openssl/$OPENSSL_VERSION
+                configure_install --prefix=$INSTALL_BASE_PATH/openssl/$OPENSSL_VERSION 
                 add_so_config $INSTALL_BASE_PATH/openssl/$OPENSSL_VERSION
             else
                 info_msg "跳过编译安装：openssl"

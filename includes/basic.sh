@@ -73,6 +73,14 @@ info_msg(){
 warn_msg(){
     print_msg WARN "$@"
 }
+# 输出动态变化信息，输出信息不会换行并且只会在同一行重写（类似刷新这行内容如同动态变动信息）
+# 当输出空内容时结束此行信息，或者使用其它输出函数也将自动结束
+# @command live_msg $msg
+# @param $msg       信息内容
+# return 1
+live_msg(){
+    print_msg LIVE "$@"
+}
 # 运行命令输出信息
 # @command run_msg $command
 # @param $command       执行命令
@@ -130,6 +138,14 @@ tag_msg(){
 # @param $msg           打印信息
 # return 1
 print_msg(){
+    if [ "$LIVE_SHOW_STATUS" = '1' ] && ( [  -z "${@:2}" ] || [ "$1" != 'LIVE' ] );then
+        unset LIVE_SHOW_STATUS
+        echo ''
+        if [ "$1" = 'LIVE' ];then
+            return
+        fi
+    fi
+    local SHOW_COLOR
     if [ -f /dev/stdout ];then
         # 重定向不需要输出颜色
         echo -n "[SHELL-$1]"
@@ -158,23 +174,32 @@ print_msg(){
         # 特别说明：如果开启了功能未关闭（即：\e[0m）会影响到其它输出，这些功能会一直保留在这个终端进程中
         case "$1" in
             ERROR)
-                echo -en "\e[40;31m[SHELL-ERROR]\e[0m"
+                SHOW_COLOR='31m'
                 ;;
             INFO)
-                echo -en "\e[40;32m[SHELL-INFO]\e[0m"
+                SHOW_COLOR='32m'
                 ;;
             WARN)
-                echo -en "\e[40;33m[SHELL-WARN]\e[0m"
+                SHOW_COLOR='33m'
                 ;;
             RUN)
-                echo -en "\e[40;34m[SHELL-RUN]\e[0m"
+                SHOW_COLOR='34m'
+                ;;
+            LIVE)
+                SHOW_COLOR='35m\r'
+                LIVE_SHOW_STATUS=1
                 ;;
             *)
-                echo -en "\e[40;35m[SHELL-$1]\e[0m"
+                SHOW_COLOR='36m'
                 ;;
         esac
+        echo -en "\e[40;$SHOW_COLOR[SHELL-$1]\e[0m"
     fi
-    echo " ${@:2}"
+    if [ "$LIVE_SHOW_STATUS" = '1' ];then
+        echo -n " ${@:2}"
+    else
+        echo " ${@:2}"
+    fi
 }
 # 询问选项处理
 # @command ask_select $select_name $msg [$options]
@@ -235,6 +260,13 @@ make_key(){
 # return 1|0
 has_variable(){
     declare -p $1 >/dev/null 2>/dev/null
+}
+# 判断是否存在指定函数
+# @command has_variable $function_name
+# @param $function_name      要判断的函数名
+# return 1|0
+has_function(){
+    declare -F $1 >/dev/null 2>/dev/null
 }
 # 给指定变量添加转义
 # @command addc_slashes $string_name [$character_mask]
@@ -748,11 +780,15 @@ safe_realpath SHELL_WROK_BASH_PATH
 SHELL_WROK_INCLUDES_PATH="${SHELL_WROK_BASH_PATH}/includes"
 SHELL_WROK_INSTALLS_PATH="${SHELL_WROK_BASH_PATH}/installs"
 SHELL_WROK_TOOLS_PATH="${SHELL_WROK_BASH_PATH}/tools"
+SHELL_WROK_ISOLATES_PATH="${SHELL_WROK_BASH_PATH}/isolates"
 SHELL_WROK_TEMP_PATH="${SHELL_WROK_BASH_PATH}/temp"
 SHELL_WROK_ETC_PATH="${SHELL_WROK_BASH_PATH}/etc"
 REGEXP_QUOTE_STRING="([\w\-]+|\\\\.)+|\"([^\"]+|\\\\.)*\"|'([^']+|\\\\.)*'"
 mkdirs "$SHELL_WROK_TEMP_PATH"
-
+# 初始化脚本处理
+if has_function init_shell;then
+    init_shell
+fi
 # 包配置
 source "$SHELL_WROK_INCLUDES_PATH/config.sh" || exit
 # 提取参数
@@ -867,8 +903,11 @@ get_ip(){
 # @command has_iptables_run
 # return 1|0
 has_iptables_run(){
-    #开启服务
-    if [ -z "`systemctl --version 2>/dev/null|grep "bash: systemctl:"`" ];then
+    #判断是否开启了服务
+    if if_command ufw;then
+        # ubuntu 系统专用
+        ufw status|grep 'inactive'
+    elif [ -z "`systemctl --version 2>/dev/null|grep "bash: systemctl:"`" ];then
         service iptables status 2>/dev/null|grep 'not running'
     else
         # 默认没有iptables.service服务可以自己安装 ，否则需要使用 systemctl stop firewalld 来处理

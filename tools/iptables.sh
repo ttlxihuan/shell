@@ -38,7 +38,7 @@
 # ========================================================
 #
 # 规则持久化，直接通过iptables命令添加的规则重启后将丢失，如果需要持久化必需保存到对应的配置文件中。
-#     持久化命令：
+#     持久化命令：（CentOS）
 #           service iptables save
 #           或
 #           iptables-save > /etc/sysconfig/iptables
@@ -71,7 +71,16 @@
 # 服务器网络时长会超时未响应排查：https://www.sdnlab.com/17530.html
 #
 #
-#
+# 常用命令
+#   1、查看已有防火墙规则
+#       iptables -vnL --line-numbers
+#   2、删除已有规则
+#       按规则序号删除，序号以 iptables -vnL --line-numbers 命令的 num 列为准
+#           iptables -D INPUT 2      删除输入第二个规则
+#           iptables -D FORWARD 2    删除转发第二个规则
+#           iptables -D OUTPUT 2     删除输出第二个规则
+#       按规则删除
+#           iptables -D INPUT -j ACCEPT -p tcp --dport 80       删除接收80端口号TCP连接规则
 #
 
 # 参数信息配置
