@@ -141,7 +141,7 @@ random_password(){
 # 解析使用密码
 # @command parse_use_password $password_val [$size|$password] [$group]
 # @param $password_val      生成密码写入变量名
-# @param $size              生成密码长度：%num，比如生成10位密码：%10
+# @param $size              生成密码长度：make:num，比如生成10位密码：make:10
 # @param $password          指定密码
 # @param $group             生成密码组合，默认全部类型
 # return 1|0

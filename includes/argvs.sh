@@ -19,8 +19,7 @@ fi
 # 提取参数
 for _ARV_ITEM_;do
     CALL_INPUT_ARGVS[${#CALL_INPUT_ARGVS[@]}]=$_ARV_ITEM_
-    _ARV_ITEM_=${_ARV_ITEM_//\\/\\\\}
-    _ARV_ITEM_=${_ARV_ITEM_//\"/\\\"}
+    addc_slashes _ARV_ITEM_ '"|\$|`'
     CALL_SAFE_ARGVS[${#CALL_SAFE_ARGVS[@]}]=\"$_ARV_ITEM_\"
 done
 unset _ARV_ITEM_

@@ -516,21 +516,61 @@ copy_install(){
     fi
 }
 # 添加环境配置
+# 不同系统加载环境变量文件有差异
+#   /etc/environment                    只读全局环境变量（会重写指定变量并导出），/etc/environment不具备bash脚本功能，指定的变量无效
+#                                       示例配置：  PATH="/bin:/sbin"   将重写PATH环境变量
+#   /etc/profile                        登录时加载
+#   /etc/bashrc 或 /etc/bash.bashrc     登录时加载（建议使用此文件）
+#   ~/.bash_profile 或 ~/.profile       指定账号登录时加载
+#   ~/.bashrc                           指定账号登录时加载
+#
+# 初步排查不同系统不同登录或切换用户方式加载配置文件顺序有差异，导致预想配置未能自动加载或被重写
+#   验证命令
+#       交互登录：ssh
+#       交互切换：su
+#     非交互切换：sudo、crond
+#   CentOS 6.7 加载顺序
+#       交互登录：  /etc/environment => /etc/profile => /etc/bashrc => ~/.bashrc => ~/.bash_profile
+#       交互切换：  /etc/bashrc => ~/.bashrc
+#     非交互切换：  /etc/environment
+#   Ubuntu 18.04 加载顺序
+#       交互登录：  /etc/bash.bashrc => /etc/profile => ~/.bashrc => ~/.profile
+#       交互切换：  /etc/environment => /etc/bash.bashrc => ~/.bashrc
+#     非交互切换：  /etc/environment
+# 注意：交互切换时原来的环境变量将携带复制到切换用户下，如果切换加载的文件进行了重写将改变原环境变量
+#   CentOS 系统 /etc/environment 一般默认是空的
+#   Ubuntu 系统 /etc/environment 一般默认指定PATH环境变量
+#
 # @command add_path $path $env_name
 # @param $path          要添加的目录
 # @param $env_name      要添加环境变量名，默认是PATH
 # return 0
 add_path(){
-    local ENV_NAME="$2"
-    if [ -z "$2" ]; then
-        ENV_NAME='PATH'
+    local ETC_BASHRC ENV_NAME="${2:-PATH}" LOCAL_PATH='/etc/local.export'
+    if [ -e /etc/bash.bashrc ];then
+        ETC_BASHRC=/etc/bash.bashrc
+    elif [ -e /etc/bashrc ];then
+        ETC_BASHRC=/etc/bashrc
+    else
+        ETC_BASHRC=/etc/profile
     fi
-    if ! grep -qP "^export\s+$ENV_NAME=(.*:)?$1/?$" /etc/profile && ! eval echo '$'$ENV_NAME|grep -qP "^(.*:)?$1(:.*)?$"; then
+    edit_conf $ETC_BASHRC "#*(source|\.)\s+$LOCAL_PATH" "source $LOCAL_PATH"
+    if [ ! -e "$LOCAL_PATH" ];then
+        echo '#!/bin/bash' > $LOCAL_PATH
+    fi
+    if ! grep -qP "^$ENV_NAME=\\\$$ENV_NAME:$1$" $LOCAL_PATH; then
         info_msg "添加环境变量${ENV_NAME}： $1"
-        echo "export $ENV_NAME=\$$ENV_NAME:$1" >> /etc/profile
-        export "$ENV_NAME"=`eval echo '$'$ENV_NAME`:"$1"
+        local SET_LINE=$(grep -m 1 -noP "^export\s*\w+" $LOCAL_PATH|grep -oP '^\d+')
+        if [ -n "$SET_LINE" ];then
+            sed -i "${SET_LINE}i$ENV_NAME=\$$ENV_NAME:$1" $LOCAL_PATH
+        else
+            echo "$ENV_NAME=\$$ENV_NAME:$1" >> $LOCAL_PATH
+        fi
     fi
-    return 0
+    if ! grep -q "^export\s*$ENV_NAME=" $LOCAL_PATH; then
+        echo "export $ENV_NAME=\$(echo "\$$ENV_NAME"|grep -oP '[^:]+'|uniq|sed -r ':t;N;s/[\r\n]+/:/;b t')" >> $LOCAL_PATH
+    fi
+    source $LOCAL_PATH
 }
 # 添加可执行文件链接到/usr/local/bin/目录内
 # 注意：部分调用方式不会获取用户补充的环境变量PATH数据（比如：crontab定时器自动调用），所以必需添加到默认环境变量PATH的目录中，而/usr/local/bin/目录就是其中一个。

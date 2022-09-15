@@ -340,7 +340,7 @@ parse_shell_param(){
     local PARAM NAME SHORT_NAME DEFAULT_VALUE DEFAULT_VALUE_STR DEFAULT_VALIDATE_STR PARAM_STR PARAM_INFO_STR PARAM_NAME_STR PARAM_SHOW_DEFINE PARAM_SHOW_INFO ARG_NAME INDEX 
     local SPACE_NUM=22 ARGUMENTS=() OPTIONS=() OPTIONALS=() ARGVS=() VALIDATES_NAME_QUEUE=() VALIDATES_RULE_QUEUE=() COMMENT_SHOW_ARGUMENTS='' COMMENT_SHOW_OPTIONS=''
     local REGEXP_ARGU='[[:alnum:]][[:alnum:]\-]+' REGEXP_ARGV_SHORT='\-[[:alnum:]]' REGEXP_ARGV_LONG='\-\-[[:alnum:]][[:alnum:]\-]+'
-    local REGEXP_ARGV="($REGEXP_ARGV_SHORT\s*,\s*)?$REGEXP_ARGV_LONG|$REGEXP_ARGU" REGEXP_VALIDATE="\{\s*([,:\|]+|$REGEXP_QUOTE_STRING)*\s*\}"
+    local REGEXP_ARGV="($REGEXP_ARGV_SHORT\s*,\s*)?$REGEXP_ARGV_LONG|$REGEXP_ARGU" REGEXP_VALIDATE="\{\s*([,:\|]|$REGEXP_QUOTE_STRING)*\s*\}"
     # 解析定义的参数
     while read -r PARAM; do
         if [ -z "$PARAM" ] || printf '%s' "$PARAM"|grep -qP '^\s*$'; then
@@ -1081,7 +1081,7 @@ edit_conf(){
         warn_msg "配置文件 $1 不存在，已自动创建"
     fi
     if [ -n "$SET_LINE" ];then
-        sed -i -r "${SET_LINE}c${3}" $1
+        sed -i "${SET_LINE}c${3}" $1
     else
         echo "${3}" >> $1
     fi

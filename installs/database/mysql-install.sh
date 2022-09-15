@@ -404,7 +404,7 @@ innodb_thread_concurrency=$((TOTAL_THREAD_NUM * 2))
 
 # 配置缓冲区容量，如果独享服务器可配置到物理内存的80%左右，如果是共享可配置在50%~70%左右。
 # 建议超过1G以上，默认是128M，需要配置整数，最大值=2**(CPU位数64或32)-1。可动态SQL修改
-${BUFFER_MEMORY:+#}innodb_buffer_pool_size=${BUFFER_MEMORY:-128M}
+$([ -z "${BUFFER_MEMORY}" ] && echo -n '# ')innodb_buffer_pool_size=${BUFFER_MEMORY:-128M}
 
 # 普通索引、范围索引或不使用索引联接缓冲区大小，最大4G-1
 # 可以动态配置，默认256KB
