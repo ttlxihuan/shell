@@ -175,11 +175,7 @@ elif [ "$ARGV_tool" = "gitlab" ]; then
     # 安装 gitlab
     info_msg '安装git管理工具：gitlab'
     if [ ! -e 'gitlab.sh' ];then
-        if [[ "$PACKAGE_MANAGER_INDEX" == 0 ]];then
-            GITLAB_TYPE=rpm
-        else
-            GITLAB_TYPE=deb
-        fi
+        package_manager_suffix GITLAB_TYPE
         download_file https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.$GITLAB_TYPE.sh gitlab.sh
         bash gitlab.sh
     fi

@@ -426,7 +426,7 @@ if [ -n "$ARGV_without_default_options" ];then
     DEFAULT_OPTIONS=''
 fi
 # 获取编译任务数
-if [ -n "$DEFINE_INSTALL_TYPE" -a -z "$ARGV_make_jobs" -o "$ARGV_make_jobs" = '0' ];then
+if [ -z "$DEFINE_INSTALL_TYPE" -o -z "$ARGV_make_jobs" -o "$ARGV_make_jobs" = '0' ];then
     INSTALL_THREAD_NUM=$TOTAL_THREAD_NUM
 else
     INSTALL_THREAD_NUM=$ARGV_make_jobs

@@ -24,18 +24,20 @@
 # return 1|0
 if_command_range_version(){
     local CURRENT_VERSION COMMAND_PATH COMMAND_AS="INSTALL_${1//-/_}_" VERSION_REGEX=${5:-'\d+(\.\d+)+[a-zA-Z]*'}
-    # 获取所有已知版本
-    for COMMAND_PATH in $(which -a $1); do
-        # 命令失败不算有效命令
-        if ! $COMMAND_PATH $2 1>/dev/null 2>/dev/null;then
-            continue
-        fi
-        CURRENT_VERSION=$($COMMAND_PATH $2 2>&1|grep -oP "$VERSION_REGEX"|head -n 1)
-        if if_version_range "$CURRENT_VERSION" "$3" "$4";then
-            eval "${COMMAND_AS}PATH=\$COMMAND_PATH; ${COMMAND_AS}VERSION=\$CURRENT_VERSION"
-            return;
-        fi
-    done
+    if if_command "$1";then
+        # 获取所有已知版本
+        for COMMAND_PATH in $(which -a $1); do
+            # 命令失败不算有效命令
+            if ! $COMMAND_PATH $2 1>/dev/null 2>/dev/null;then
+                continue
+            fi
+            CURRENT_VERSION=$($COMMAND_PATH $2 2>&1|grep -oP "$VERSION_REGEX"|head -n 1)
+            if if_version_range "$CURRENT_VERSION" "$3" "$4";then
+                eval "${COMMAND_AS}PATH=\$COMMAND_PATH; ${COMMAND_AS}VERSION=\$CURRENT_VERSION"
+                return;
+            fi
+        done
+    fi
     return 1;
 }
 # 判断命令是否存在多个不同版本
@@ -197,13 +199,14 @@ if_so_range(){
 }
 # 包管理安装并指定最低安装版本和最高版本
 # 如果最低版本达不到则不会进行包安装
-# @command install_range_version $package_name [$min_version] [$max_version] 
-# @param $package_name   要安装的包名
+# @command install_range_version $package_name [$min_version] [$max_version]
+# @param $package_name  要安装的包名
 # @param $min_version   安装包最低版本
 # @param $max_version   安装包最高版本
 # return 1|0
 install_range_version(){
-    local PACKAGE_VERSION=$(package_manager_run info "$1"|grep -iP '^version\s*:'|grep -oP '\d+(\.\d+)+'|tail -n 1)
+    local PACKAGE_VERSION
+    get_package_version "$1" PACKAGE_VERSION
     if if_version_range "$PACKAGE_VERSION" "$2" "$3";then
         package_manager_run install "$1"
     else
@@ -458,20 +461,26 @@ in_parse_options(){
 # return 1|0
 make_install(){
     info_msg "make 编译安装"
-    make -j $INSTALL_THREAD_NUM ${@:2} 2>&1
+    local PREFIX_PATH=$1
+    shift
+    source "$SHELL_WROK_INCLUDES_PATH/argvs.sh" || exit
+    run_msg "make -j ${INSTALL_THREAD_NUM:-$TOTAL_THREAD_NUM} ${CALL_SAFE_ARGVS[@]} 2>&1"
     if_error "make 编译失败"
-    make install 2>&1
+    run_msg "make install 2>&1"
     if_error "make 安装失败"
-    if [ -n "$1" ];then
-        local PREFIX_PATH=$1
-        if [[ "$1" =~ "=" ]];then
-            PREFIX_PATH=${1#*=}
+    if [ -n "$PREFIX_PATH" ];then
+        if [[ "$PREFIX_PATH" =~ "=" ]];then
+            PREFIX_PATH=${PREFIX_PATH#*=}
         fi
         # 添加库地址
         add_pkg_config $PREFIX_PATH
         # 添加环境目录
         if [ -e "$PREFIX_PATH/bin" ];then
             add_path $PREFIX_PATH/bin
+        fi
+        # 添加环境目录
+        if [ -e "$PREFIX_PATH/sbin" ];then
+            add_path $PREFIX_PATH/sbin
         fi
     fi
 }
@@ -1389,16 +1398,22 @@ install_apr_util(){
     print_install_result apr-util "$1" "$2"
 }
 # 网络基本工具安装，尽量保证最新
-info_msg "网络下载工具安装"
+info_msg "基本网络安装处理"
 for REQUEST_TOOL in wget curl;do
-    if if_command $REQUEST_TOOL;then
+    info_msg "安装 $REQUEST_TOOL 判断处理"
+    if if_command_range_version $REQUEST_TOOL -V;then
+        get_package_version $REQUEST_TOOL REQUEST_TOOL_VERSION
+        # 如果已经是最新版本就跳过
+        if [ "$REQUEST_TOOL_VERSION" = "$(eval echo "\$INSTALL_${REQUEST_TOOL}_VERSION")" ];then
+            info_msg "$REQUEST_TOOL 已经包管理串中最新版本，跳过"
+            continue
+        fi
         INSTALL_TOOL_TYPE=update
     else
         INSTALL_TOOL_TYPE=install
     fi
-    package_manager_run $INSTALL_TOOL_TYPE $REQUEST_TOOL
-    if if_command $REQUEST_TOOL;then
+    if ! package_manager_run $INSTALL_TOOL_TYPE "$REQUEST_TOOL";then
         warn_msg "安装 $REQUEST_TOOL 失败，可能影响网络请求处理"
     fi
 done
-unset REQUEST_TOOL INSTALL_TOOL_TYPE
+unset REQUEST_TOOL INSTALL_TOOL_TYPE REQUEST_TOOL_VERSION

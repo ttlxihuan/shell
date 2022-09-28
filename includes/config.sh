@@ -15,6 +15,8 @@ PACKAGE_MANAGER_UPDATE_COMMAND=('yum -y update' 'apt -y update' 'dnf -y update' 
 PACKAGE_MANAGER_REMOVE_COMMAND=('yum -y erase' 'apt -y remove' 'dnf -y erase' 'pkg -y delete')
 # 包信息
 PACKAGE_MANAGER_INFO_COMMAND=('yum info' 'apt show' 'dnf info' 'pkg info')
+# 包后缀
+PACKAGE_MANAGER_FILE_SUFFIX=('rpm' 'deb' 'rpm')
 
 # 安装xz压缩工具
 XZ_PACKAGE_NAMES=('xz' 'xz-utils')
@@ -101,7 +103,7 @@ LIBNL3_ROUTE_DEVEL_PACKAGE_NAMES=('-' 'libnl-route-3-dev')
 # 安装libnl
 LIBNL_DEVEL_PACKAGE_NAMES=('libnl-devel' 'libnlopt-dev')
 # 安装popt
-POPT_DEVEL_PACKAGE_NAMES=('popt-devel' '-')
+POPT_DEVEL_PACKAGE_NAMES=('popt-devel' 'libpopt-dev')
 # 安装popt-static
 POPT_STATIC_PACKAGE_NAMES=('popt-static' '-')
 # 安装iptables-devel

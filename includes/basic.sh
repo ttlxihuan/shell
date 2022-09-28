@@ -757,6 +757,30 @@ package_manager_run(){
         fi
     done
 }
+# 获取包管理对应包最新版本号
+# @command get_package_version $package_name $set_val
+# @param $package_name  操作的包名，或变量名，变量名前面需要增加
+# @param $set_val       版本号写入变量名，能获取版本号才写入
+# return 1|0
+get_package_version(){
+    local VERSION=$(package_manager_run info "$1"|grep -iP '^version\s*:'|grep -oP '\d+(\.\d+)+'|head -n 1)
+    if [ -n "$VERSION" ];then
+        eval $2=\$VERSION
+        return 0
+    else
+        return 1
+    fi
+}
+# 获取包管理后缀
+# @command package_manager_suffix $set_val
+# @param $set_val       后缀写入变量名
+# return 1|0
+package_manager_suffix(){
+    if [ -z "${PACKAGE_MANAGER_FILE_SUFFIX[$PACKAGE_MANAGER_INDEX]}" ];then
+        error_exit "该系统包管理后缀名暂未支持"
+    fi
+    eval "$1=\${PACKAGE_MANAGER_FILE_SUFFIX[$PACKAGE_MANAGER_INDEX]}"
+}
 # 判断系统适用哪个包管理器
 if if_command yum;then
     PACKAGE_MANAGER_INDEX=0
@@ -785,6 +809,8 @@ SHELL_WROK_TEMP_PATH="${SHELL_WROK_BASH_PATH}/temp"
 SHELL_WROK_ETC_PATH="${SHELL_WROK_BASH_PATH}/etc"
 REGEXP_QUOTE_STRING="([\w\-]+|\\\\.)+|\"([^\"]+|\\\\.)*\"|'([^']+|\\\\.)*'"
 mkdirs "$SHELL_WROK_TEMP_PATH"
+# 获取总线程数
+TOTAL_THREAD_NUM=$(lscpu |grep '^CPU(s)'|grep -oP '\d+$')
 # 初始化脚本处理
 if has_function init_shell;then
     init_shell
@@ -1086,8 +1112,6 @@ edit_conf(){
         echo "${3}" >> $1
     fi
 }
-# 获取总线程数
-TOTAL_THREAD_NUM=$(lscpu |grep '^CPU(s)'|grep -oP '\d+$')
 
 # 基本处理
 if [ "$(basename "$0")" = "$(basename "${BASH_SOURCE[0]}")" ];then
