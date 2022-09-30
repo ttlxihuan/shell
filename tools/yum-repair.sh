@@ -26,9 +26,17 @@ if [ -n "$YUM_CACHE_PATH" -a -d "$YUM_CACHE_PATH" ];then
         error_exit "yum 缓存目录 $YUM_CACHE_PATH 所在挂载目录 ${YUM_CACHE_PATH_USE[2]} 使用率已经是 ${YUM_CACHE_PATH_USE[1]} ，请清理分区 ${YUM_CACHE_PATH_USE[0]}"
     fi
 fi
-if [ -e /var/run/yum.pid ];then
-    error_exit "/var/run/yum.pid 记录的进程还在执行中，无法进行修复"
-fi
+# 确认没有工作进程
+ATTEMPT=5
+while [ -e /var/run/yum.pid ];do
+    live_msg "yum 有进程运行中，等待结束: ${ATTEMPT}s"
+    if (( ATTEMPT-- > 0));then
+        sleep 1s
+    else
+        error_exit "/var/run/yum.pid 记录的进程还在执行中，无法进行修复"
+    fi
+done
+
 info_msg '清除 yum 缓存'
 yum clean all
 

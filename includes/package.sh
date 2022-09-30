@@ -555,7 +555,7 @@ copy_install(){
 # @param $env_name      要添加环境变量名，默认是PATH
 # return 0
 add_path(){
-    local ETC_BASHRC ENV_NAME="${2:-PATH}" LOCAL_PATH='/etc/local.export'
+    local ETC_BASHRC ENV_NAME="${2:-PATH}"
     if [ -e /etc/bash.bashrc ];then
         ETC_BASHRC=/etc/bash.bashrc
     elif [ -e /etc/bashrc ];then
@@ -563,23 +563,23 @@ add_path(){
     else
         ETC_BASHRC=/etc/profile
     fi
-    edit_conf $ETC_BASHRC "#*(source|\.)\s+$LOCAL_PATH" "source $LOCAL_PATH"
-    if [ ! -e "$LOCAL_PATH" ];then
-        echo '#!/bin/bash' > $LOCAL_PATH
+    edit_conf $ETC_BASHRC "#*(source|\.)\s+$ENV_LOCAL_PATH" "source $ENV_LOCAL_PATH"
+    if [ ! -e "$ENV_LOCAL_PATH" ];then
+        echo '#!/bin/bash' > $ENV_LOCAL_PATH
     fi
-    if ! grep -qP "^$ENV_NAME=\\\$$ENV_NAME:$1$" $LOCAL_PATH; then
+    if ! grep -qP "^$ENV_NAME=\\\$$ENV_NAME:$1$" $ENV_LOCAL_PATH; then
         info_msg "添加环境变量${ENV_NAME}： $1"
-        local SET_LINE=$(grep -m 1 -noP "^export\s*\w+" $LOCAL_PATH|grep -oP '^\d+')
+        local SET_LINE=$(grep -m 1 -noP "^export\s*\w+" $ENV_LOCAL_PATH|grep -oP '^\d+')
         if [ -n "$SET_LINE" ];then
-            sed -i "${SET_LINE}i$ENV_NAME=\$$ENV_NAME:$1" $LOCAL_PATH
+            sed -i "${SET_LINE}i$ENV_NAME=\$$ENV_NAME:$1" $ENV_LOCAL_PATH
         else
-            echo "$ENV_NAME=\$$ENV_NAME:$1" >> $LOCAL_PATH
+            echo "$ENV_NAME=\$$ENV_NAME:$1" >> $ENV_LOCAL_PATH
         fi
     fi
-    if ! grep -q "^export\s*$ENV_NAME=" $LOCAL_PATH; then
-        echo "export $ENV_NAME=\$(echo "\$$ENV_NAME"|grep -oP '[^:]+'|uniq|sed -r ':t;N;s/[\r\n]+/:/;b t')" >> $LOCAL_PATH
+    if ! grep -q "^export\s*$ENV_NAME=" $ENV_LOCAL_PATH; then
+        echo "export $ENV_NAME=\$(echo "\$$ENV_NAME"|grep -oP '[^:]+'|uniq|sed -r ':t;N;s/[\r\n]+/:/;b t')" >> $ENV_LOCAL_PATH
     fi
-    source $LOCAL_PATH
+    source $ENV_LOCAL_PATH
 }
 # 添加可执行文件链接到/usr/local/bin/目录内
 # 注意：部分调用方式不会获取用户补充的环境变量PATH数据（比如：crontab定时器自动调用），所以必需添加到默认环境变量PATH的目录中，而/usr/local/bin/目录就是其中一个。
@@ -857,8 +857,12 @@ install_curl(){
                 get_download_version CURL_VERSION https://curl.se/download.html 'curl-\d+(\.\d+)+\.tar\.gz'
             fi
             info_msg "安装：curl-$CURL_VERSION"
+            local HISTORY_PATH=''
+            if if_version '7.30.0' '>' "$CURL_VERSION";then
+                HISTORY_PATH='archeology/'
+            fi
             # 下载
-            download_software https://curl.se/download/curl-$CURL_VERSION.tar.gz
+            download_software https://curl.se/download/${HISTORY_PATH}curl-$CURL_VERSION.tar.gz
             # 编译安装
             configure_install --prefix=$INSTALL_BASE_PATH/curl/$CURL_VERSION --enable-libcurl-option --with-openssl
         fi
@@ -1397,6 +1401,11 @@ install_apr_util(){
     fi
     print_install_result apr-util "$1" "$2"
 }
+
+ENV_LOCAL_PATH='/etc/local.export'
+if [ -e "$ENV_LOCAL_PATH" ];then
+    source $ENV_LOCAL_PATH
+fi
 # 网络基本工具安装，尽量保证最新
 info_msg "基本网络安装处理"
 for REQUEST_TOOL in wget curl;do

@@ -65,7 +65,7 @@ SHELL_RUN_HELP="安装脚本一般使用方式:
 "
 if [ -n "$DEFINE_INSTALL_TYPE" ];then
     DEFINE_RUN_PARAMS="$DEFINE_RUN_PARAMS
-[-j, --make-jobs=0, {required|int:0}]编译同时允许N个任务 
+[-j, --make-jobs=${DEFINE_MAKE_JOBS:-0}, {required|int:0}]编译同时允许N个任务
 #   =0 当前CPU数
 #   >0 指定个数
 #任务多编译快且资源消耗也大（不建议超过CPU核数）

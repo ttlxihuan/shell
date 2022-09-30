@@ -902,6 +902,11 @@ size_format(){
     eval "$1=$VALUE_SIZE${UNIX_NAMES[$UNIT_POWER]}"
 }
 # 获取系统名及版本号
+# 获取系统版本信息的命令很多
+#   cat /proc/version
+#   cat /etc/os-release
+#   cat /etc/issue
+#   uname -a
 # @command get_os
 # return 1|0
 get_os(){
