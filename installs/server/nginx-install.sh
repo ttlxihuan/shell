@@ -81,7 +81,7 @@ info_msg "安装相关已知依赖"
 install_pcre_config
 
 # ssl 模块
-if in_options 'http_ssl_module' $CONFIGURE_OPTIONS;then
+if has_option 'http_ssl_module' $CONFIGURE_OPTIONS;then
     # 注意nginx获取openssl目录时是指定几个目录的，所以安装目录变动了会导致编译失败
     # 当安装了多个版本时使用参数 --with-openssl=DIR 指定openssl编译源文件目录（不是安装后的目录）
     # 安装验证 openssl
@@ -90,7 +90,7 @@ if in_options 'http_ssl_module' $CONFIGURE_OPTIONS;then
     fi
 fi
 # http_gzip_module 模块
-if ! in_options '!http_gzip_module' $CONFIGURE_OPTIONS;then
+if ! has_option '!http_gzip_module' $CONFIGURE_OPTIONS;then
     # 安装验证 zlib
     install_zip
 fi
@@ -220,8 +220,7 @@ server {
     root /www/localhost/dist;
 
     # 独立日志文件，方便查看
-    # access_log logs/-access.log
-    # error_log logs/-error.log
+    access_log logs/\$host-access.log
 
     # 引用静态文件基础配置
     include vhosts/static;
@@ -247,8 +246,10 @@ server {
     root /www/localhost/public;
 
     # 独立日志文件，方便查看
-    # access_log logs/-access.log
-    # error_log logs/-error.log
+    access_log logs/\$host-access.log;
+
+    # 检查请求实体大小，超出返回413状态码，为0则不检查。
+    # client_max_body_size 10m;
 
     # 引用PHP基础配置
     include vhosts/php;
@@ -373,8 +374,7 @@ server {
     server_name  localhost;
 
     # 独立日志文件，方便查看
-    # access_log logs/-access.log
-    # error_log logs/-error.log
+    # access_log logs/\$host-access.log
 
     location / {
         # 负载均衡各节点使用http
@@ -398,6 +398,9 @@ server {
         # 指定携带头信息
         proxy_set_header platform proxy-\$host;
     }
+
+    # 检查请求实体大小，超出返回413状态码，为0则不检查。
+    # client_max_body_size 10m;
 }
 conf
     cd ../
@@ -420,8 +423,6 @@ if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then
     LAST_NUM=`cat nginx.conf|grep -n '}'|tail -n 1|grep -oP '\d+'`
     LAST_NUM=`expr $LAST_NUM - 1`
     echo "`cat nginx.conf|head -n $LAST_NUM`" > nginx.conf
-    echo "    # 如果服务器需要上传大文件时需要设置，否则报413 Request Entity Too Large 错误" >> nginx.conf
-    echo "    # client_max_body_size 150m;" >> nginx.conf
     echo "    # 去掉代理响应标识" >> nginx.conf
     echo "    proxy_hide_header X-Powered-By;" >> nginx.conf
     echo "    proxy_hide_header Server;" >> nginx.conf

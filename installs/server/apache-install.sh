@@ -49,7 +49,7 @@ EXTRA_OPTIONS=()
 # 安装依赖
 info_msg "安装相关已知依赖"
 # 开启ssl
-if in_options ssl $CONFIGURE_OPTIONS;then
+if has_option ssl $CONFIGURE_OPTIONS;then
     # 安装openssl-dev
     # apache2.x不兼容openssl1.0.x及以上的版本
     # 注意openssl-0.9.8版本从 a~f 等一些版本在部分服务器中MD5编译不通过需要增加no-asm选项

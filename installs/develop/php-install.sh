@@ -86,11 +86,11 @@ info_msg "安装相关已知依赖"
 package_manager_run install -CA_CERT_PACKAGE_NAMES
 # ***选项处理&选项依赖安装***
 # fpm 附加选项增加
-if in_options fpm $CONFIGURE_OPTIONS;then
+if has_option fpm $CONFIGURE_OPTIONS;then
     parse_options CONFIGURE_OPTIONS fpm-user=phpfpm fpm-group=phpfpm
 fi
 # mcrypt 扩展使用（PHP7已经不再使用）
-if in_options mcrypt $CONFIGURE_OPTIONS;then
+if has_option mcrypt $CONFIGURE_OPTIONS;then
     if if_command libmcrypt-config;then
         info_msg 'libmcrypt ok'
     else
@@ -105,7 +105,7 @@ if in_options mcrypt $CONFIGURE_OPTIONS;then
     fi
 fi
 # iconv扩展
-if ! in_options !iconv $CONFIGURE_OPTIONS;then
+if ! has_option !iconv $CONFIGURE_OPTIONS;then
     # 安装验证 iconv
     install_iconv
     #if if_many_version iconv --version;then
@@ -114,7 +114,7 @@ if ! in_options !iconv $CONFIGURE_OPTIONS;then
     #fi
 fi
 # gmp扩展
-if in_options gmp $CONFIGURE_OPTIONS;then
+if has_option gmp $CONFIGURE_OPTIONS;then
     # 提取gmp最低版本
     GMP_MIN_VERSION=$(grep -oP 'GNU MP Library version \d+(\.\d+)+' $PHP_CONFIGURE_PATH/configure|grep -oP '\d+(\.\d+)+'|tail -n 1)
     repair_version GMP_MIN_VERSION
@@ -122,7 +122,7 @@ if in_options gmp $CONFIGURE_OPTIONS;then
     install_gmp "$GMP_MIN_VERSION"
 fi
 # gd 扩展使用
-if in_options gd $CONFIGURE_OPTIONS;then
+if has_option gd $CONFIGURE_OPTIONS;then
     if if_lib_range 'libpng';then
         info_msg 'libpng ok'
     else
@@ -136,7 +136,7 @@ if in_options gd $CONFIGURE_OPTIONS;then
         package_manager_run install -FREETYPE_DEVEL_PACKAGE_NAMES
     fi
     # jpeg扩展使用
-    if in_options jpeg $CONFIGURE_OPTIONS;then
+    if has_option jpeg $CONFIGURE_OPTIONS;then
         if if_version $PHP_VERSION '>=' 7.4.0;then
             # 安装 libjpeg
             if if_lib_range "libjpeg";then
@@ -158,7 +158,7 @@ if in_options gd $CONFIGURE_OPTIONS;then
     fi
 fi
 # zip 扩展使用
-if in_options zip $CONFIGURE_OPTIONS;then
+if has_option zip $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 7.3.0;then
         MIN_LIBZIP_VERSION=''
     else
@@ -167,7 +167,7 @@ if in_options zip $CONFIGURE_OPTIONS;then
     install_zip "$MIN_LIBZIP_VERSION"
 fi
 # openssl 扩展使用
-if in_options openssl $CONFIGURE_OPTIONS;then
+if has_option openssl $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 7.0.0;then
         MIN_OPENSSL_VERSION=''
         MAX_OPENSSL_VERSION=''
@@ -178,7 +178,7 @@ if in_options openssl $CONFIGURE_OPTIONS;then
     install_openssl "$MIN_OPENSSL_VERSION" "$MAX_OPENSSL_VERSION" "$MAX_OPENSSL_VERSION"
 fi
 # curl 扩展使用
-if in_options curl $CONFIGURE_OPTIONS;then
+if has_option curl $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 8.0.0;then
         MIN_CURL_VERSION=''
     elif ! if_lib_range "libcurl" '7.29.0';then
@@ -192,7 +192,7 @@ if in_options curl $CONFIGURE_OPTIONS;then
     fi
 fi
 # sqlite3 扩展使用
-if ! in_options !sqlite3 $CONFIGURE_OPTIONS || ! in_options !pdo-sqlite $CONFIGURE_OPTIONS;then
+if ! has_option !sqlite3 $CONFIGURE_OPTIONS || ! has_option !pdo-sqlite $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '>=' 7.4.0;then
         MIN_SQLITE_VERSION='3.7.4'
     else
@@ -201,7 +201,7 @@ if ! in_options !sqlite3 $CONFIGURE_OPTIONS || ! in_options !pdo-sqlite $CONFIGU
     install_sqlite "$MIN_SQLITE_VERSION"
 fi
 # xml 扩展使用
-if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;then
+if has_option xml $CONFIGURE_OPTIONS || ! has_option !xml $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '>=' 8.0.0;then
         MIN_LIBXML2_VERSION='2.9.0'
     else
@@ -217,11 +217,12 @@ if in_options xml $CONFIGURE_OPTIONS || ! in_options !xml $CONFIGURE_OPTIONS;the
     fi
 fi
 # 安装swoole，要求gcc-4.8+
-# php编译gcc版本不能过高，暂时限制在 4.8.0+
-install_gcc "4.8.0"
-
+if has_parse_option swoole $DEFAULT_OPTIONS $ARGV_options;then
+    # php编译gcc版本不能过高，暂时限制在 4.8.0+
+    install_gcc "4.8.0"
+fi
 # apxs2 扩展使用
-#if in_options apxs2 $CONFIGURE_OPTIONS;then
+#if has_option apxs2 $CONFIGURE_OPTIONS;then
     # which httpd
     # which apxs
     #parse_options CONFIGURE_OPTIONS apxs2=/apxs
@@ -359,7 +360,7 @@ do
         EXT_VERSION="`echo $EXT_OPTIONS|awk '{print $1}'`"
         EXT_ADD_OPTIONS="`echo $EXT_OPTIONS|awk '{$1=""; print}'`"
     fi
-    if in_parse_options $EXT_NAME $DEFAULT_OPTIONS $ARGV_options && ! $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "^$EXT_NAME\$";then
+    if has_parse_option $EXT_NAME $DEFAULT_OPTIONS $ARGV_options && ! $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "^$EXT_NAME\$";then
         info_msg "安装pecl扩展：$EXT_NAME"
         # 最低PHP版本处理
         get_download_version MIN_PHP_VERSION "https://pecl.php.net/package/$EXT_NAME" "PHP Version: PHP \d+\.\d+\.\d+ or newer" "\d+\.\d+\.\d+"

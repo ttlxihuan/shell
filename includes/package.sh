@@ -363,6 +363,36 @@ download_software(){
     fi
     return 0
 }
+
+# 优化选项，主要是去重选项，如果多个相关选项以最后一个为准
+# @command optimize_options $var_name [$options ...]
+# @param $var_name          优化后写入变量名
+# @param $options           有效选项集
+# return 1|0
+optimize_options(){
+    local ITEM OPTION INDEX=0 OPTIONS_ARRAY=()
+    for ITEM in ${@:2}; do
+        # 去掉前缀
+        if [[ "$ITEM" =~ ^--(enable|with|disable|without)-.+ ]];then
+            OPTION=$(printf '%s' "$ITEM"|sed -r 's/^--(enable|with|disable|without)-+//')
+        else
+            OPTION=$ITEM
+        fi
+        # 去掉赋值
+        if [[ "$OPTION" =~ "=" ]];then
+            OPTION=${OPTION%%=*}
+        fi
+        make_key OPTION $OPTION
+        if has_variable _UNOPT__$OPTION;then
+            warn_msg "舍弃重复选项：$(eval echo \${OPTIONS_ARRAY[\$_UNOPT__$OPTION]})"
+            eval unset OPTIONS_ARRAY[\$_UNOPT__$OPTION]
+        fi
+        OPTIONS_ARRAY[INDEX]="$ITEM"
+        eval local _UNOPT__$OPTION=\$INDEX
+        ((INDEX++))
+    done
+    eval $1="\${OPTIONS_ARRAY[@]} "
+}
 # 解析编译选项
 # @command parse_options $var_name $options1 [$options2 ...]
 # @param $var_name          写入的变量名
@@ -424,28 +454,27 @@ parse_options(){
             OPTIONS_STR="$OPTIONS_STR$OPTION_STR "
         fi
     done
-    eval "$1=\"\$$1\$OPTIONS_STR\""
+    optimize_options $1 eval echo "\${$1}" $OPTIONS_STR
 }
-# 是否存在选项
-# @command exist_options $item [$options ...]
-# @param $item              需要判断的选项，禁用选项加!
+# 可有选项
+# @command has_option $item [$options ...]
+# @param $item              需要判断的选项，禁用前缀加!
 # @param $options           有效选项集
 # return 1|0
-in_options(){
+has_option(){
     local PREFIX='enable|with' OPTION_NAME="$1"
     if [[ "$1" =~ ^'!' ]];then
         PREFIX='disable|without'
         OPTION_NAME=${1:1}
     fi
     printf '%s' "${@:1}"|grep -qP "\--(($PREFIX)-)?($OPTION_NAME)(-dir(=\S+))?"
-    return $?
 }
-# 是否存在待解析选项
-# @command exist_options $item [$options ...]
-# @param $item              需要判断的选项，禁用选项加!
+# 可有待解析选项
+# @command has_parse_options $item [$options ...]
+# @param $item              需要判断的选项，禁用前缀加!
 # @param $options           有效选项集
 # return 1|0
-in_parse_options(){
+has_parse_option(){
     local ITEM
     for ITEM in ${@:2}; do
         if [ "$1" = "$ITEM" -o "$ITEM" = "?$1" ];then
@@ -1406,8 +1435,8 @@ ENV_LOCAL_PATH='/etc/local.export'
 if [ -e "$ENV_LOCAL_PATH" ];then
     source $ENV_LOCAL_PATH
 fi
-# 网络基本工具安装，尽量保证最新
-info_msg "基本网络安装处理"
+# 网络下载工具安装，尽量保证最新
+info_msg "网络下载工具安装"
 for REQUEST_TOOL in wget curl;do
     info_msg "安装 $REQUEST_TOOL 判断处理"
     if if_command_range_version $REQUEST_TOOL -V;then

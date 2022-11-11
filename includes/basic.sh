@@ -931,20 +931,24 @@ get_ip(){
     fi
 }
 # 判断防火墙是否
+# 默认没有iptables.service服务可以自己安装
+# yum install iptables-services
 # @command has_iptables_run
 # return 1|0
 has_iptables_run(){
     #判断是否开启了服务
     if if_command ufw;then
         # ubuntu 系统专用
-        ufw status|grep 'inactive'
-    elif [ -z "`systemctl --version 2>/dev/null|grep "bash: systemctl:"`" ];then
-        service iptables status 2>/dev/null|grep 'not running'
+        ufw status 2>/dev/null|grep -q 'inactive'
+    elif if_command firewalld;then
+        # 高版本系统默认
+        systemctl status firewalld 2>/dev/null|grep -q 'Active: inactive (dead)'
+    elif if_command systemctl;then
+        systemctl status iptables 2>/dev/null|grep -q 'Active: inactive (dead)'
     else
-        # 默认没有iptables.service服务可以自己安装 ，否则需要使用 systemctl stop firewalld 来处理
-        # yum install iptables-services
-        systemctl status iptables 2>/dev/null|grep 'Active: inactive (dead)'
+        service iptables status 2>/dev/null|grep -q 'not running'
     fi
+    [ $? != '0' ];
 }
 # 获取文件系统的信息
 # 此命令主要是处理很长的存储名可能会换行导致awk处理错位
