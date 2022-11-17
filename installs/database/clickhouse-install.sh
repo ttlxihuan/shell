@@ -40,12 +40,16 @@ init_install 21.1.9.41 "https://packages.clickhouse.com/tgz/stable/" 'clickhouse
 #  限制空间大小（G）：编译目录、安装目录、内存
 install_storage_require 4 3 4
 # ************** 编译安装 ******************
+CLICKHOUSE_SUFFIX=''
+if if_version '22.10.1.0' '<=' "$CLICKHOUSE_VERSION";then
+    CLICKHOUSE_SUFFIX='-amd64'
+fi
 # 下载clickhouse包
-download_software https://packages.clickhouse.com/tgz/stable/clickhouse-common-static-$CLICKHOUSE_VERSION.tgz
+download_software https://packages.clickhouse.com/tgz/stable/clickhouse-common-static-$CLICKHOUSE_VERSION$CLICKHOUSE_SUFFIX.tgz
 run_msg ./install/doinst.sh
-download_software https://packages.clickhouse.com/tgz/stable/clickhouse-common-static-dbg-$CLICKHOUSE_VERSION.tgz
+download_software https://packages.clickhouse.com/tgz/stable/clickhouse-common-static-dbg-$CLICKHOUSE_VERSION$CLICKHOUSE_SUFFIX.tgz
 run_msg ./install/doinst.sh
-download_software https://packages.clickhouse.com/tgz/stable/clickhouse-server-$CLICKHOUSE_VERSION.tgz
+download_software https://packages.clickhouse.com/tgz/stable/clickhouse-server-$CLICKHOUSE_VERSION$CLICKHOUSE_SUFFIX.tgz
 # 创建默认密码
 mkdirs ./etc/clickhouse-server/users.d
 if [ ! -e ./etc/clickhouse-server/users.d/default-password.xml ];then
@@ -72,7 +76,7 @@ fi
 run_msg ./install/doinst.sh <<CMD
 $INPUT_VAL
 CMD
-download_software https://packages.clickhouse.com/tgz/stable/clickhouse-client-$CLICKHOUSE_VERSION.tgz
+download_software https://packages.clickhouse.com/tgz/stable/clickhouse-client-$CLICKHOUSE_VERSION$CLICKHOUSE_SUFFIX.tgz
 run_msg ./install/doinst.sh
 
 # 创建用户组
@@ -83,7 +87,10 @@ run_msg ./install/doinst.sh
 # 添加服务配置
 SERVICES_CONFIG=()
 SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="/etc/init.d/clickhouse-server start"
-SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]=""
+SERVICES_CONFIG[$SERVICES_CONFIG_RESTART_RUN]="/etc/init.d/clickhouse-server restart"
+SERVICES_CONFIG[$SERVICES_CONFIG_STOP_RUN]="/etc/init.d/clickhouse-server stop"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="/var/run/clickhouse-server/clickhouse-server.pid"
+
 # 服务并启动服务
 add_service SERVICES_CONFIG
 

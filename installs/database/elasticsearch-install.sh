@@ -137,16 +137,6 @@ DEFINE_RUN_PARAMS="
 #指定对应的大小，单位（B,K,M,G,T），比如：4G
 #不指定单位为B，最大空间30G，超过将截断
 #指定为0时即不配置内存
-[-U, --username='']
-
-[-P, --password='']
-#生成随机密码语法 make:numm,set
-#   make: 是随机生成密码关键字
-#   num   是生成密码长度个数
-#   set   限定密码包含字符，默认：数字、字母大小写、~!@#$%^&*()_-=+,.;:?/\|
-#生成随机10位密码 make:10
-#生成随机10位密码只包含指定字符 make:10,QWERTYU1234567890
-#其它字符均为指定密码串，比如 123456
 "
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
@@ -298,41 +288,6 @@ if [ -n "$ARGV_cluster_name" ];then
     if if_version $ELASTICSEARCH_VERSION '<' '8.0.0'; then
         # 配置最少连接节点数才能进行选举操作并工作
         sed -i -r "s/^#?(gateway\.recover_after_nodes:).*$/\1 $NODES_NUM/" ./config/elasticsearch.yml
-    fi
-fi
-if grep -qP '^logger\.xpack' ./config/*.properties; then
-    # xpack 安全配置处理
-    CA_FILE="./config/certs/elastic-stack-ca.p12"
-    CERT_FILE="./config/certs/elastic-stack-cert.p12"
-    # 生成证书
-    if [ ! -e $CA_FILE ];then
-        ./bin/elasticsearch-certutil ca --pass '' --out $CA_FILE
-    fi
-    if [ -e $CA_FILE -a ! -e $CERT_FILE ];then
-        ./bin/elasticsearch-certutil cert --pass '' --out $CERT_FILE --ca $CA_FILE --ca-pass ''
-        # 创建授权密码
-        ./bin/elasticsearch-keystore create 
-    fi
-
-    
-# 这里没有配置处理，需要了解下
-#
-#
-#
-#
-
-
-
-
-
-    echo '# -------------- xpack --------------' >> ./config/elasticsearch.yml
-    if [ -e $CA_FILE -a -e $CA_FILE ];then
-        echo 'xpack.security.transport.ssl.enabled: true' >> ./config/elasticsearch.yml
-        echo 'xpack.security.transport.ssl.verification_mode: certificate' >> ./config/elasticsearch.yml
-        echo 'xpack.security.transport.ssl.keystore.path: certs/elastic-stack-cert.p12' >> ./config/elasticsearch.yml
-        echo 'xpack.security.transport.ssl.truststore.path: certs/elastic-stack-cert.p12' >> ./config/elasticsearch.yml
-    else
-        echo 'xpack.security.transport.ssl.enabled: false' >> ./config/elasticsearch.yml
     fi
 fi
 # 添加服务配置

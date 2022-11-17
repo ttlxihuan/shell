@@ -32,6 +32,12 @@ download_file https://dl.k8s.io/release/v$KUBERNETES_VERSION/bin/linux/amd64/kub
 download_file https://dl.k8s.io/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl.sha256
 echo "$(<kubectl.sha256) kubectl" | sha256sum --check
 if_error 'sha256sum 验证失败'
+
+# 移动到暂存目录
+mkdirs ./kubernetes
+mv kubectl kubectl.sha256 ./kubernetes
+cd ./kubernetes
+
 # 复制安装包并创建用户
 copy_install kubectl
 
