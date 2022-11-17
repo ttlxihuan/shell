@@ -148,10 +148,10 @@ handle_run(){
                 # 获取进程PID命令
                 local RUN_PID
                 if get_handle_pid RUN_PID "$1";then
-                    info_msg "服务在运行中"
+                    info_msg "验证服务运行状态：运行中"
                     return 0
                 fi
-                warn_msg "服务未运行"
+                warn_msg "验证服务运行状态：未运行"
                 return 1
             fi
         ;;

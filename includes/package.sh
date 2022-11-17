@@ -1348,7 +1348,7 @@ install_iconv(){
 # @param $install_version   没有合适版本时编译安装版本，不指定则安装最小版本
 # return 1|0
 install_gmp(){
-    if ! if_so_range libgmp "$1" "$2";then
+    if ! if_so_range libgmpxx "$1" "$2";then
         if ! install_range_version -GMP_DEVEL_PACKAGE_NAMES "$1" "$2";then
             local GMP_VERSION=${3:-"${1:-$2}"}
             if [ -z "$GMP_VERSION" ];then
@@ -1362,7 +1362,7 @@ install_gmp(){
             configure_install --prefix=$INSTALL_BASE_PATH/gmp/$GMP_VERSION --enable-shared
             add_so_config "$INSTALL_BASE_PATH/gmp/$GMP_VERSION"
         fi
-        if_so_range libgmp "$1" "$2"
+        if_so_range libgmpxx "$1" "$2"
     fi
     print_install_result gmp "$1" "$2"
 }
