@@ -12,7 +12,7 @@ RUN_SHELL_CACHE_FILE="$CURRENT_SHELL_BASH/temp/.run.cache"
 search_shell_set(){
     local SHELL_FILE SHELL_DIR PREV_SHELL_DIR SHELL_FILE_NAME RUN_SHELL_HELP RUN_SHELL_LISTS=''
     local UPDATE_NUM=0
-    live_msg "更新 $1 所有脚本信息：$UPDATE_NUM"
+    live_msg "提取 $1 所有脚本信息：$UPDATE_NUM"
     for SHELL_FILE in $(cd $CURRENT_SHELL_BASH/$1;find ./ -maxdepth 1 -name '*.sh';find ./ -mindepth 2 -name '*.sh'|sort;);do
         SHELL_DIR=$(dirname $SHELL_FILE)
         if [ "$PREV_SHELL_DIR" != "$SHELL_DIR" -a "$SHELL_DIR" != '.' ];then
@@ -36,7 +36,7 @@ search_shell_set(){
         fi
         RUN_SHELL_LISTS="$RUN_SHELL_LISTS$RUN_SHELL_HELP\n"
         ((UPDATE_NUM++))
-        live_msg "更新 $1 所有脚本信息：$UPDATE_NUM"
+        live_msg "提取 $1 所有脚本信息：$UPDATE_NUM"
     done
     echo -e "$2" >> $RUN_SHELL_CACHE_FILE
     echo -e "$RUN_SHELL_LISTS" >> $RUN_SHELL_CACHE_FILE

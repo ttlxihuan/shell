@@ -56,10 +56,9 @@ if if_version "$KEEPALIVED_VERSION" '<' '2.0.0';then
         # 安装popt-dev
         package_manager_run install -POPT_STATIC_PACKAGE_NAMES -POPT_DEVEL_PACKAGE_NAMES
     else
-        package_manager_run install -KERNEL_HEADERS_PACKAGE_NAMES -GLIBC_DEVEL_PACKAGE_NAMES
+        package_manager_run install -GLIBC_DEVEL_PACKAGE_NAMES
     fi
 fi
-
 if if_version "$KEEPALIVED_VERSION" '<' '1.3.0';then
     package_manager_run install -LIBNL_DEVEL_PACKAGE_NAMES
 else
@@ -71,41 +70,15 @@ else
     #     download_software https://ipset.netfilter.org/ipset-6.38.tar.bz2
     #     configure_install
     # fi
-    # # glibc版本2.12以上才可以安装keepalived-2.0+，目前建议安装到2.20
-    # if if_version $(getconf GNU_LIBC_VERSION|grep -oP '\d+(\.\d+)+') '<=' '2.12';then
-    #     # 安装glibc较高点版本，太高安装容易失败
-    #     # Centos 6.4在使用gcc-4.8.4 ~ 4.9.2 编译时容易报错 Error: no such instruction: `vinserti128 $1,%xmm0,%ymm0,%ymm0'
-    #     # 需要错开gcc的这些版本，也可以安装较低的gcc版本
-    #     download_software http://ftp.gnu.org/gnu/libc/glibc-2.20.tar.bz2
-    #     mkdirs bind
-    #     echo '../configure' > bind/configure
-    #     chmod u+x bind/configure
-    #     cd bind
-    #     configure_install --disable-sanity-checks
-    # fi
 fi
-
 
 # 安装验证 openssl
 install_openssl
 
-# 暂时没有看到效果，可能需要更新高版本，预计需要glibc-3.0+
-# package_manager_run install -GLIBC_DEVEL_PACKAGE_NAMES
-
-
-
+# 安装内核头文件，针对问题 fatal error: linux/memfd.h: No such file or directory
+package_manager_run install -KERNEL_HEADERS_PACKAGE_NAMES
 
 cd $KEEPALIVED_CONFIGURE_PATH
-
-# 此文件需要增加头文件
-# keepalived/core/process.c
-
-
-# 高版本依赖
-# package_manager_run install -IPTABLES_DEVEL_PACKAGE_NAMES -IPSET_DEVEL_PACKAGE_NAMES -LIBNL3_DEVEL_PACKAGE_NAMES -LIBNFNETLINK_DEVEL_PACKAGE_NAMES
-
-# yum install -y file-devel net-snmp-devel glib2-devel pcre2-devel libnftnl-devel libmnl-devel systemd-devel kmod-devel
-# yum install glibc-devel
 
 # 编译安装
 configure_install $CONFIGURE_OPTIONS

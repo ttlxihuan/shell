@@ -454,7 +454,7 @@ parse_options(){
             OPTIONS_STR="$OPTIONS_STR$OPTION_STR "
         fi
     done
-    optimize_options $1 eval echo "\${$1}" $OPTIONS_STR
+    optimize_options $1 $(eval echo "\${$1}") $OPTIONS_STR
 }
 # 可有选项
 # @command has_option $item [$options ...]
