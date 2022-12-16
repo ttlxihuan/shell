@@ -205,5 +205,17 @@ elif [ "$ARGV_tool" = "gitlab" ]; then
     info_msg 'gitlab 配置文件：/etc/gitlab/gitlab.rb'
     info_msg 'gitlab 地址: http://127.0.0.1'
     # info_msg 'gitlab 自动启动中，如果需要关闭：systemctl disable gitlab-runsvdir.service'
+    # gitlab会安装很多软件，典型的有：nginx、redis、postgresql
+    # 各软件的配置目录在 /var/opt/gitlab/ 下，比如：nginx配置目录是 /var/opt/gitlab/nginx/conf
+
+    # 语言配置文件：/opt/gitlab/embedded/service/gitlab-rails/lib/gitlab/i18n.rb
+    # 新版可在界面上设置为简体中文，设置方式：Settings -> Preferences -> Localization -> Language，选择“简体中文”即可
+
+    # 初始账号及密码
+    if [ -e /etc/gitlab/initial_root_password ];then
+        # 此文件会被自动删除
+        info_msg "gitlab初始登录账号： root "
+        info_msg "gitlab初始登录密码：$(grep -i '^Password:' /etc/gitlab/initial_root_password|grep -oP '\s+.*')"
+    fi
     info_msg "安装成功：gitlab"
 fi

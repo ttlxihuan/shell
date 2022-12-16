@@ -39,7 +39,7 @@ mkdirs(){
 # @param $user          用户名
 # return 1|0
 has_user(){
-    test "$(id "$1" 2>/dev/null|grep -oP "\([^\)]+\)"|head -n 1)" = "($1)"
+    id "$1" >/dev/null 2>/dev/null
 }
 # 判断上一个命令的成功与否输出错误并退出
 # @command if_error $error_str

@@ -12,9 +12,9 @@ if [ "$(basename "$0")" = "$(basename "${BASH_SOURCE[0]}")" ];then
     error_exit "${BASH_SOURCE[0]} 脚本是共用文件必需使用source调用"
 fi
 
-# 获取安装名
+# 获取脚本名
 INSTALL_NAME=$(basename "$0" '-install.sh')
-# 安装通用参数信息配置
+# 脚本功能说明配置
 SHELL_RUN_DESCRIPTION="安装${INSTALL_NAME}脚本"
 DEFINE_RUN_PARAMS="$DEFINE_RUN_PARAMS
 [version, {regexp:'^(new|[0-9]{1,}(.[0-9]{1,}){1,4})$'}]指定安装版本，不传则是获取最新稳定版本号
@@ -97,6 +97,7 @@ if [ -n "$DEFINE_INSTALL_TYPE" ];then
 "
     fi
 fi
+# 脚本帮助信息配置
 SHELL_RUN_HELP=$SHELL_RUN_HELP"
 1、安装脚本会在脚本所在临时目录创建安装目录，此目录用于下载和编译安装包。
 2、当后续再次安装相同版本时，已经存在的安装包将不再下载而是直接使用。
