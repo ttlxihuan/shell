@@ -70,7 +70,7 @@ for((INDEX=1; INDEX<=$#; INDEX++));do
     esac
 done
 
-if [ -n "$GIT_NAME" ];then
+if [ -z "$GIT_NAME" ];then
     show_error "请指定要创建的版本库名"
 fi
 
@@ -112,6 +112,12 @@ chmod 0600 "$GIT_HOME/.ssh/authorized_keys"
 if_error "证书配置文件处理失败：$GIT_HOME/.ssh/authorized_keys"
 echo "[info] 证书配置文件正常：$GIT_HOME/.ssh/authorized_keys"
 
+# SELinux 限制指定用户sshd访问证书配置文件，导致证书登录失败
+# SELinux is preventing /usr/sbin/sshd from read access on the file authorized_keys.
+if which restorecon 2>/dev/null >/dev/null && [  "$(ls -Z /home/git/.ssh/authorized_keys|grep -oP '[^:]+:s0')" != 'ssh_home_t:s0' ];then
+    restorecon -R "$GIT_HOME"
+fi
+
 # 确认ssh是否开放证书登录
 if [ -e /etc/ssh/sshd_config ];then
     if grep -qP '^\s*RSAAuthentication\s+yes' /etc/ssh/sshd_config &&
@@ -141,19 +147,20 @@ if [ -e /etc/ssh/sshd_config ];then
                     echo 'AuthorizedKeysFile yes' >> /etc/ssh/sshd_config
                 fi
                 # 重启ssh服务
-                if which systemctl;then
+                if which systemctl 2>/dev/null >/dev/null;then
                     systemctl restart sshd
-                elif which service;then
+                elif which service 2>/dev/null >/dev/null;then
                     service sshd restart
                 else
                     echo '[warn] 请手动重启sshd服务！'
                 fi
-                break
             elif [[ "$INPUT_RESULT" =~ ^(N|n)$ ]];then
                 echo '[warn] 已放弃启动证书登录！'
             else
                 echo '[warn] 输入错误，请重新输入！'
+                continue
             fi
+            break
         done
     fi
 else
@@ -168,21 +175,19 @@ if_error "版本库创建失败：$GIT_NAME"
 # 修改钩子自动同步脚本
 if [ -n "$GIT_SYNC_PATH" ];then
     cd "$GIT_NAME/hooks/"
-    cp post-update.sample post-update
+    sudo -u "$GIT_USER" cp post-update.sample post-update
     chmod +x post-update
-
+    sed -i -r 's/^(\s*\w+)/#\1/' post-update
     cat >> post-update <<EOF
 
 echo '+++++++++++++++++++++++++++++++++++++++++';
 echo "[hook] 同步代码";
 
-cd $GIT_SYNC_PATH/$(pwd|grep -oP /[^/]+$);
+cd $GIT_SYNC_PATH/\$(pwd|grep -oP /[^/]+$);
 
-git reset --hard HEAD
+git reset --hard
 
-git pull
-
-if [ \$? = '0' ]; then
+if git pull; then
     echo '[success] 同步成功';
 else
     echo '[fail] 同步失败';
@@ -192,25 +197,26 @@ echo '+++++++++++++++++++++++++++++++++++++++++';
 EOF
     # 创建好对应的目录
     if [ ! -d "$GIT_SYNC_PATH" ];then
-        sudo -u "$GIT_USER" mkdir -p "$GIT_SYNC_PATH"
-    else
-        chown -R "$GIT_USER":"$GIT_USER" "$GIT_SYNC_PATH"
+        mkdir -p "$GIT_SYNC_PATH"
     fi
-    git clone "$GIT_HOME/$GIT_NAME"
+    chown "$GIT_USER":"$GIT_USER" "$GIT_SYNC_PATH"
+    cd "$GIT_SYNC_PATH"
+    sudo -u "$GIT_USER" git clone "$GIT_HOME/$GIT_NAME"
 fi
 
 # 获取ssh端口号
-SSH_PORTS=$(netstat -ntlp|grep sshd|awk '{print $4}'|grep -oP '\d+$')
+SSH_PORTS=$(netstat -ntlp|grep sshd|awk '{print $4}'|grep -oP '\d+$'|uniq)
 # 获取地址
 LOCAL_IPS=$(ifconfig|grep -P 'inet \d+(\.\d+)+' -o|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o)
 # 获取外网IP地址
 PUBLIC_IP=$(curl cip.cc 2>/dev/null|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o|head -n 1)
 
+echo '[info] 注意防火墙是否有限制指定的端口号'
 # 展示可用版本库地址
 echo '[info] 内网库地址：'
 while read -r SSH_PORT;do
     while read -r LOCAL_IP;do
-        echo " ssh://$GIT_USER@$LOCAL_IP:$SSH_PORT/$GIT_SYNC_PATH/$GIT_NAME"
+        echo "  ssh://$GIT_USER@$LOCAL_IP:$SSH_PORT$GIT_HOME/$GIT_NAME"
     done <<EOF
 $LOCAL_IPS
 EOF
@@ -220,9 +226,7 @@ EOF
 
 echo '[info] 公网库地址：'
 while read -r SSH_PORT;do
-    echo "ssh://$GIT_USER@$PUBLIC_IP:$SSH_PORT/$GIT_SYNC_PATH/$GIT_NAME"
+    echo "  ssh://$GIT_USER@$PUBLIC_IP:$SSH_PORT$GIT_HOME/$GIT_NAME"
 done <<EOF
 $SSH_PORTS
 EOF
-
-echo '[info] 注意防火墙是否有限制指定的端口号'

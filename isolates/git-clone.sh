@@ -21,6 +21,7 @@
 #   在报错上面找到 error: 信息段，一般是指定异常文件，需要进行修改
 # 2、git 连接远程服务器时无法使用证书，每次都自动切换到密码模式
 #   核对下本地/etc/ssh/ssh_config是否有对应配置，包括开放域名和证书类型
+# 3、如果ssh证书连接失败，可以查看服务器的日志 /var/log/messages 进行排除
 #
 ############################################################################
 
@@ -229,7 +230,7 @@ fi
 while true;do
     echo -n "[info] 验证证书是否可连接"
     SSH_LOGIN_INFO=$(ssh -Tnv $SSH_HOST -p $SSH_PORT -i $IDENTITY_FILE -o PasswordAuthentication=no -o StrictHostKeyChecking=no 2>&1)
-    if [ $? = 0 ] || echo "$SSH_LOGIN_INFO"|grep -q 'successfully authenticated';then
+    if [ $? = 0 -o $? = 128 ] || echo "$SSH_LOGIN_INFO"|grep -q 'successfully authenticated';then
         echo ' YES'
         break
     fi

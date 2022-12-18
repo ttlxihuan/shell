@@ -62,7 +62,7 @@ for((INDEX=1; INDEX<=$#; INDEX++));do
         -h|-\?)
             show_help
         ;;
-        -p)
+        -w)
             SVN_PATH=${@:((++INDEX)):1}
         ;;
         -s)
@@ -80,7 +80,7 @@ for((INDEX=1; INDEX<=$#; INDEX++));do
     esac
 done
 
-if [ -n "$SVN_NAME" ];then
+if [ -z "$SVN_NAME" ];then
     show_error "请指定要创建的版本库名"
 fi
 
@@ -88,7 +88,7 @@ if ! which svnadmin >/dev/null 2>/dev/null;then
     show_error "没有找到svnadmin命令，请确认安装或配置PATH"
 fi
 
-if [ -n "$SVN_SYNC_PATH" ] && [-z "$SVN_SYNC_USER"];then
+if [ -n "$SVN_SYNC_PATH" ] && [ -z "$SVN_SYNC_USER" ];then
     show_error "请指定同步用户"
 fi
 
@@ -96,7 +96,7 @@ echo "[info] 创建版本库：$SVN_NAME"
 cd "$SVN_PATH"
 
 # 获取工作目录用户名
-SVN_USER=(stat -c '%U' ./)
+SVN_USER=$(stat -c '%U' ./)
 
 sudo -u "$SVN_USER" svnadmin create "$SVN_NAME"
 if_error "版本库创建失败：$SVN_NAME"
@@ -118,6 +118,9 @@ sed -i -r "s,^(\s*#+\s*)?(authz-db\s*=).*,\2 $SVN_PATH/svn-conf/authz," "./$SVN_
 # 访问权限配置
 sed -i -r 's/^(\s*#+\s*)?(anon-access\s*=).*/\2 none/' "./$SVN_NAME/conf/svnserve.conf"
 sed -i -r 's/^(\s*#+\s*)?(auth-access\s*=).*/\2 write/' "./$SVN_NAME/conf/svnserve.conf"
+
+# 获取ssh端口号
+SVN_PORTS=$(netstat -ntlp|grep svnserve|awk '{print $4}'|grep -oP '\d+$'|uniq)
 
 # 修改钩子自动同步脚本
 if [ -n "$SVN_SYNC_PATH" ];then
@@ -142,12 +145,13 @@ if [ -n "$SVN_SYNC_PATH" ];then
     if [ -z "$SVN_SYNC_PASSWD" ];then
         # 创建密码
         SVN_SYNC_PASSWD=$(ifconfig -a 2>&1|md5sum -t|awk '{print $1}')
-        echo "$SVN_SYNC_USER=$SVN_SYNC_PASSWD" >> ./svn-conf/authz
+        echo "$SVN_SYNC_USER=$SVN_SYNC_PASSWD" >> ./svn-conf/passwd
     fi
 
     cd "$SVN_NAME/hooks/"
     cp post-commit.tmpl post-commit
     chmod +x post-commit
+    sed -i -r 's/^(\s*\w+)/#\1/' post-commit
     cat >> post-commit <<EOF
 
 echo '+++++++++++++++++++++++++++++++++++++++++';
@@ -155,13 +159,11 @@ echo "[hook] 同步代码";
 
 export LANG="en_US.UTF-8"
 
-cd $SVN_SYNC_PATH/$(basename "$1");
+cd $SVN_SYNC_PATH/$SVN_NAME;
 
 svn reset
 
-svn update --username=$SVN_SYNC_USER --password=$SVN_SYNC_PASSWD --no-auth-cache
-
-if [ \$? = '0' ]; then
+if svn update --username=$SVN_SYNC_USER --password=$SVN_SYNC_PASSWD --no-auth-cache; then
     echo '[success] 同步成功';
 else
     echo '[fail] 同步失败';
@@ -171,26 +173,25 @@ echo '+++++++++++++++++++++++++++++++++++++++++';
 EOF
     # 创建好对应的目录
     if [ ! -d "$SVN_SYNC_PATH" ];then
-        sudo -u "$SVN_NAME" mkdir -p "$SVN_SYNC_PATH"
+        sudo -u "$SVN_USER" mkdir -p "$SVN_SYNC_PATH"
     else
-        chown -R "$SVN_NAME":"$SVN_NAME" "$SVN_SYNC_PATH"
+        chown -R "$SVN_USER":"$SVN_USER" "$SVN_SYNC_PATH"
     fi
     cd "$SVN_SYNC_PATH"
-    svn checkout "$SVN_PATH/$SVN_NAME"
+    svn checkout "svn://127.0.0.1:$(echo $SVN_PORTS|head -n 1)/$SVN_NAME" --username=$SVN_SYNC_USER --password=$SVN_SYNC_PASSWD
 fi
 
-# 获取ssh端口号
-SVN_PORTS=$(netstat -ntlp|grep svnserve|awk '{print $4}'|grep -oP '\d+$')
 # 获取地址
 LOCAL_IPS=$(ifconfig|grep -P 'inet \d+(\.\d+)+' -o|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o)
 # 获取外网IP地址
 PUBLIC_IP=$(curl cip.cc 2>/dev/null|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o|head -n 1)
 
+echo '[info] 注意防火墙是否有限制指定的端口号'
 # 展示可用版本库地址
 echo '[info] 内网库地址：'
 while read -r SVN_PORT;do
     while read -r LOCAL_IP;do
-        echo " svn://$LOCAL_IP:$SVN_PORT/$SVN_SYNC_PATH/$SVN_NAME"
+        echo "  svn://$LOCAL_IP:$SVN_PORT/$SVN_NAME"
     done <<EOF
 $LOCAL_IPS
 EOF
@@ -200,9 +201,8 @@ EOF
 
 echo '[info] 公网库地址：'
 while read -r SVN_PORT;do
-    echo "svn://$PUBLIC_IP:$SVN_PORT/$SVN_SYNC_PATH/$SVN_NAME"
+    echo "  svn://$PUBLIC_IP:$SVN_PORT/$SVN_NAME"
 done <<EOF
 $SVN_PORTS
 EOF
 
-echo '[info] 注意防火墙是否有限制指定的端口号'
