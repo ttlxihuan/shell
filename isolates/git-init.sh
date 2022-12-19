@@ -70,11 +70,18 @@ for((INDEX=1; INDEX<=$#; INDEX++));do
     esac
 done
 
+# 版本库名判断
 if [ -z "$GIT_NAME" ];then
     show_error "请指定要创建的版本库名"
+elif ! [[ "$GIT_NAME" =~ ^[a-zA-Z0-9_\-\.]+$ ]];then
+    echo "版本库名：$GIT_NAME ，包含（字母、数字、-_.）以外的字符，可能会导致使用异常，确认创建该版本库吗？"
+    if read -p '[read] 输入 [Y/y] 确认，其它任何字符退出: ' -r INPUT_RESULT && [ "$INPUT_RESULT" != 'y' -a "$INPUT_RESULT" != 'Y' ];then
+        show_error "终止创建版本库"
+    fi
 fi
 
-if ! which git >/dev/null 2>/dev/null;then
+GIT_COMMAND=$(which git 2>/dev/null)
+if [ $? != 0 ];then
     show_error "没有找到git命令，请确认安装或配置PATH"
 fi
 
@@ -169,11 +176,16 @@ fi
 
 echo "[info] 创建版本库：$GIT_NAME"
 cd "$GIT_HOME"
-sudo -u "$GIT_USER" git init "$GIT_NAME" --bare
+# 默认分支处理
+if ! sudo -u "$GIT_USER" $GIT_COMMAND config --global --get-all init.defaultBranch 2>/dev/null|grep -q "master";then
+    sudo -u "$GIT_USER" $GIT_COMMAND config --global init.defaultBranch master
+fi
+sudo -u "$GIT_USER" $GIT_COMMAND init "$GIT_NAME" --bare
 if_error "版本库创建失败：$GIT_NAME"
 
 # 修改钩子自动同步脚本
 if [ -n "$GIT_SYNC_PATH" ];then
+    echo "[info] 同步代码目录：$GIT_SYNC_PATH"
     cd "$GIT_NAME/hooks/"
     sudo -u "$GIT_USER" cp post-update.sample post-update
     chmod +x post-update
@@ -184,6 +196,8 @@ echo '+++++++++++++++++++++++++++++++++++++++++';
 echo "[hook] 同步代码";
 
 cd $GIT_SYNC_PATH/\$(pwd|grep -oP /[^/]+$);
+
+unset GIT_DIR
 
 git reset --hard
 
@@ -199,15 +213,20 @@ EOF
     if [ ! -d "$GIT_SYNC_PATH" ];then
         mkdir -p "$GIT_SYNC_PATH"
     fi
-    chown "$GIT_USER":"$GIT_USER" "$GIT_SYNC_PATH"
     cd "$GIT_SYNC_PATH"
-    sudo -u "$GIT_USER" git clone "$GIT_HOME/$GIT_NAME"
+    $GIT_COMMAND clone "$GIT_HOME/$GIT_NAME"
+    # 修改所属用户
+    chown -R "$GIT_USER":"$GIT_USER" "$GIT_SYNC_PATH/$GIT_NAME"
+    # 添加安全目录配置
+    if ! sudo -u "$GIT_USER" $GIT_COMMAND config --global --get-all safe.directory 2>/dev/null|grep -q "$GIT_SYNC_PATH";then
+        sudo -u "$GIT_USER" $GIT_COMMAND config --global --add safe.directory "$GIT_SYNC_PATH"
+    fi
 fi
 
 # 获取ssh端口号
-SSH_PORTS=$(netstat -ntlp|grep sshd|awk '{print $4}'|grep -oP '\d+$'|uniq)
+SSH_PORTS=$(netstat -ntlp|grep sshd|awk '{print $4}'|grep -oP '\d+$'|sort|uniq)
 # 获取地址
-LOCAL_IPS=$(ifconfig|grep -P 'inet \d+(\.\d+)+' -o|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o)
+LOCAL_IPS=$(ifconfig|grep -P 'inet (addr:)?\d+(\.\d+)+' -o|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o|sort|uniq)
 # 获取外网IP地址
 PUBLIC_IP=$(curl cip.cc 2>/dev/null|grep -P '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -o|head -n 1)
 
@@ -216,7 +235,9 @@ echo '[info] 注意防火墙是否有限制指定的端口号'
 echo '[info] 内网库地址：'
 while read -r SSH_PORT;do
     while read -r LOCAL_IP;do
-        echo "  ssh://$GIT_USER@$LOCAL_IP:$SSH_PORT$GIT_HOME/$GIT_NAME"
+        if [ -n "$LOCAL_IP" ];then
+            echo "  ssh://$GIT_USER@$LOCAL_IP:$SSH_PORT$GIT_HOME/$GIT_NAME"
+        fi
     done <<EOF
 $LOCAL_IPS
 EOF
@@ -225,8 +246,10 @@ $SSH_PORTS
 EOF
 
 echo '[info] 公网库地址：'
-while read -r SSH_PORT;do
-    echo "  ssh://$GIT_USER@$PUBLIC_IP:$SSH_PORT$GIT_HOME/$GIT_NAME"
-done <<EOF
+if [ -n "$PUBLIC_IP" ];then
+    while read -r SSH_PORT;do
+            echo "  ssh://$GIT_USER@$PUBLIC_IP:$SSH_PORT$GIT_HOME/$GIT_NAME"
+    done <<EOF
 $SSH_PORTS
 EOF
+fi

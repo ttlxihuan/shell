@@ -260,15 +260,15 @@ while true;do
         5、提交并推送到远程服务器
 
  配置完后可通过ssh验证证书是否成功：
-    ssh -Tnv $SSH_HOST -p $SSH_PORT -i $IDENTITY_FILE
+    ssh -Tnv $SSH_HOST -p $SSH_PORT -i $IDENTITY_FILE -o PasswordAuthentication=no -o StrictHostKeyChecking=no
     
     提示权限成功即可，界面类可能会提示 does not provide shell access.
 "
     fi
     if uname|grep -qP 'MINGW(64|32)';then
-        echo "[info] 即将打开证书目录，请复制公钥：$IDENTITY_FILE.pub"
+        echo "[info] 即将打开证书，请复制公钥：$IDENTITY_FILE.pub"
         sleep 2
-        start $(dirname $IDENTITY_FILE)
+        start $IDENTITY_FILE.pub
         if [ "${GIT_HOST}" = 'github.com' ];then
             echo "[info] 即将打开github密钥配置页面，请将公钥粘贴上进行密钥访问配置"
             sleep 2
