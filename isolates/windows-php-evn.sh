@@ -3,7 +3,11 @@
 # 安装后会自动进行相关的配置处理，安装需要手动确认操作，安装成功后即可使用
 # 安装成功后会在桌面生成一个启动脚本，方便管理
 # 安装工具：php、apache、nginx、mysql 四个，允许指定各自安装版本，不指定则安装最新版
-
+#
+# php-cgi与php-fpm有所区别，windows下使用php-cgi时有两种模式
+#   1、在php.ini配置doc_root绝对路径，所有请求将定位到此根目录下访问，不实用多项目目录配置
+#   2、在php.ini配置doc_root相对路径（比如指定为 .），所有请求将来DOCUMENT_ROOT目录进行定位，适用于多项目目录配置
+#
 # 输出帮助信息
 show_help(){
     echo "
@@ -260,7 +264,7 @@ php_init(){
     sed -i -r 's/^\s*;?\s*(extension_dir\s*=)\s*"ext"\s*/\1 "ext"/' php.ini
     # 访问目录范围限制配置
     # 配置doc_root目录
-    sed -i -r "s,^\s*;?\s*(doc_root\s*=).*,\1 $DOC_ROOT," php.ini
+    sed -i -r "s,^\s*;?\s*(doc_root\s*=).*,\1 .," php.ini
     # 配置user_dir目录，此目录为 /home/ 相下进行的
     # sed -i -r "s,^\s*;?\s*(user_dir\s*=).*,\1 ./," php.ini
 }
@@ -845,7 +849,7 @@ start_php_cgi(){
     if has_run php-cgi;then
         echo "[warn] php-cgi已经在运行中";
     else
-        nohup ./php-$PHP_VERSION/php-cgi.exe -b 127.0.0.1:9000 2>/dev/null &
+        nohup ./php-$PHP_VERSION/php-cgi.exe -b 127.0.0.1:9000 2>/dev/null >/dev/null &
         echo "[info] php-cgi已运行";
     fi
 }
@@ -854,7 +858,7 @@ start_nginx(){
     if has_run nginx;then
         echo "[warn] nginx已经在运行中";
     else
-        nohup ./nginx-$NGINX_VERSION/nginx.exe -p ./nginx-$NGINX_VERSION 2>/dev/null &
+        nohup ./nginx-$NGINX_VERSION/nginx.exe -p ./nginx-$NGINX_VERSION 2>/dev/null >/dev/null &
         echo "[info] nginx已运行";
     fi
 }
@@ -863,7 +867,7 @@ start_httpd(){
     if has_run httpd;then
         echo "[warn] apache已经在运行中";
     else
-        nohup ./httpd-$APACHE_VERSION/bin/httpd.exe 2>/dev/null &
+        nohup ./httpd-$APACHE_VERSION/bin/httpd.exe 2>/dev/null >/dev/null &
         echo "[info] apache已运行";
     fi
 }
@@ -872,7 +876,7 @@ start_mysqld(){
     if has_run mysqld;then
         echo "[warn] mysql已经在运行中";
     else
-        nohup ./mysql-$MYSQL_VERSION/bin/mysqld.exe 2>/dev/null &
+        nohup ./mysql-$MYSQL_VERSION/bin/mysqld.exe 2>/dev/null >/dev/null &
         echo "[info] mysql已运行";
     fi
 }
