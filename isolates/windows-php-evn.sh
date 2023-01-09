@@ -163,7 +163,7 @@ if ! uname|grep -qP 'MINGW(64|32)' || ! echo $BASH|grep -q '^/usr/bin/bash$';the
 fi
 # 运行CURL
 run_curl(){
-    if ! curl -LkN --max-time 1200 --connect-timeout 1200 $@ 2>/dev/null;then
+    if ! curl -LkN --max-time 1800 --connect-timeout 1800 $@ 2>/dev/null;then
         echo '' >&2
         show_error "请确认连接 ${@:$#} 是否能正常访问！"
     fi
@@ -191,7 +191,7 @@ if [ -z "$PHP_VERSION" ];then
 fi
 # 获取下载包名
 # PHP_FILE='php-8.1.9-Win32-vs16-x64.zip'
-echo -n '[info] 提取PHP编译使用VC版本信息：'
+echo -n '[info] 提取PHP编译使用VC版本号：'
 PHP_DOWNLOAD_URL='https://windows.php.net/downloads/releases/'
 PHP_FILE=$(run_curl $PHP_DOWNLOAD_URL|grep -oP "php-$PHP_VERSION-Win32-vs\d+-x$OS_BIT\.zip"|head -n 1)
 if [ -z "$PHP_FILE" ];then
@@ -218,8 +218,9 @@ fi
 if [ -z "$APACHE_VERSION" ];then
     echo -n '[info] 获取apache最新版本号：'
     get_version APACHE_VERSION "https://www.apachelounge.com/download/$VC_NAME/" "(apache|httpd)-\d+\.\d+\.\d+-win$OS_BIT-$VC_NAME\.zip"
-elif [ -z "$APACHE_VC_VERSION" ] && ! run_curl "https://www.apachelounge.com/download/$VC_NAME/"|grep -qP "(apache|httpd)-$APACHE_VERSION-win$OS_BIT-$VC_NAME\.zip";then
-    show_error "找不到匹配的apache版本，请指定 --apache-vc 编译的VC版本号"
+elif [ -z "$APACHE_VC_VERSION" ];then
+    run_curl "https://www.apachelounge.com/download/$VC_NAME/"|grep -oP "(apache|httpd)-$APACHE_VERSION-win$OS_BIT-$VC_NAME\.zip" >/dev/null
+    if_error "找不到匹配的apache版本，请指定 --apache-vc 编译的VC版本号"
 fi
 if [ -z "$NGINX_VERSION" ];then
     echo -n '[info] 获取nginx最新版本号：'

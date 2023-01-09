@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# zookeeper快速编译安装shell脚本
+# zookeeper快速安装shell脚本
 #
 # 安装命令
 # bash zookeeper-install.sh new

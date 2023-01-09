@@ -251,7 +251,7 @@ get_download_version(){
 # @param $save_name     保存文件名，默认提取URL地址
 # return 1|0
 download_file(){
-    FILE_NAME=${2:-$(basename "$1"|sed 's/[\?#].*$//')}
+    local FILE_NAME=${2:-$(basename "$1"|sed 's/[\?#].*$//')}
     chdir shell-install
     info_msg '下载保存目录：'`pwd`
     if [ ! -e "$FILE_NAME" ];then
@@ -808,6 +808,8 @@ install_pip(){
     $PIP_COMMAND_NAME install --upgrade pip
 }
 # 安装 java
+# 下载地址：https://www.oracle.com/java/technologies/downloads/
+# 下载需要登录操作，脚本暂不支持下载官方包，只能通过手动下载
 # @command install_java [$min_version [$max_version]]
 # @param $min_version       安装最低版本
 # @param $max_version       安装最高版本
