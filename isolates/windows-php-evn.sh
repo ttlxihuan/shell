@@ -41,20 +41,22 @@ PHP运行环境安装
 
 # 输出错误信息并终止运行
 show_error(){
-    echo "[error] $1"
+    echo "[error] $1" >&2
     exit 1
 }
-
+# 判断上个命令是否执行错误，错误就终止执行并输出错误说明
 if_error(){
     if [ $? != 0 ];then
         show_error "$1"
     fi
 }
+# 判断指定参数是否为版本号
 is_version(){
     if ! [[ $1 =~ ^[0-9]{1,3}(\.[0-9]{1,3}){2}$ ]];then
         show_error "请指定正确版本号：$1"
     fi
 }
+# 比较版本号大小
 if_version(){
     local RESULT VERSIONS=`echo -e "$1\n$3"|sort -Vrb`
     case "$2" in
@@ -85,6 +87,25 @@ if_version(){
     fi
     return 1;
 }
+# 添加环境变量，直接添加到windows系统环境变量配置中
+# add_path(){
+#     # 判断目录是否存在
+#     if [ -z "$1" ] || [ ! -d $1 ];then
+#         show_error "不存在目录 $1 ，不可添加到环境目录中"
+#     fi
+#     local TEMP_PATH ADD_PATH=$(cd $1;pwd -W)
+#     while read TEMP_PATH;do
+#         if [ "$1" = "$TEMP_PATH" ];then
+#             echo "[warn] $1 目录已经配置windows系统环境变量，跳过配置"
+#             return
+#         fi
+#     done <<EOF
+# echo "$PATH"|grep -oP '[^:]+'
+# EOF
+#     cmd <<EOF
+# SETX PATH %PATH%;$ADD_PATH
+# EOF
+# }
 for((INDEX=1; INDEX<=$#; INDEX++));do
     case "${@:$INDEX:1}" in
         -h|-\?)
@@ -125,40 +146,57 @@ for((INDEX=1; INDEX<=$#; INDEX++));do
             fi
         ;;
         *)
+            INSTALL_PATH=${@:$INDEX:1}
+            if [ ! -d "$INSTALL_PATH" ];then
+                echo "[info] 安装目录不存在，立即创建目录 $INSTALL_PATH"
+                mkdir -p "$INSTALL_PATH"
+                if_error "创建目录 $INSTALL_PATH 失败"
+            fi
             INSTALL_PATH=$(cd ${@:$INDEX:1};pwd)
-            if_error "安装目录错误"
         ;;
     esac
 done
-
+echo "[info] 如果长时间没有反应建议 Ctrl + C 终止脚本，再运行尝试"
+# 必需在windows系统下运行此脚本
 if ! uname|grep -qP 'MINGW(64|32)' || ! echo $BASH|grep -q '^/usr/bin/bash$';then
     show_error "请在windows系统git-bash下运行此脚本"
 fi
-
+# 运行CURL
+run_curl(){
+    if ! curl -LkN --max-time 1200 --connect-timeout 1200 $@ 2>/dev/null;then
+        echo '' >&2
+        show_error "请确认连接 ${@:$#} 是否能正常访问！"
+    fi
+}
 # 获取最新版本号
 get_version(){
-    curl -LkN "$1" 2>/dev/null|grep -oP "$2"|sort -Vrb|head -n 1|grep -oP "\d+(\.\d+){2}"
+    local TEMP_VERSION=$(run_curl "$2"|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "\d+(\.\d+){2}")
+    if [ -z "$TEMP_VERSION" ];then
+        show_error "获取版本号信息失败"
+    else
+        echo $TEMP_VERSION
+    fi
+    eval "$1=\$TEMP_VERSION"
 }
-
+# 获取系统位数
 if uname|grep -qP 'MINGW(64)';then
     OS_BIT=64
 else
     OS_BIT=86
 fi
-
 # 获取新版本
 if [ -z "$PHP_VERSION" ];then
     echo -n '[info] 获取PHP最新版本号：'
-    PHP_VERSION=$(get_version 'https://www.php.net/supported-versions.php' '#v\d+\.\d+\.\d+')
-    echo $PHP_VERSION
+    get_version PHP_VERSION 'https://www.php.net/supported-versions.php' '#v\d+\.\d+\.\d+'
 fi
 # 获取下载包名
 # PHP_FILE='php-8.1.9-Win32-vs16-x64.zip'
+echo -n '[info] 提取PHP编译使用VC版本信息：'
 PHP_DOWNLOAD_URL='https://windows.php.net/downloads/releases/'
-PHP_FILE=$(curl -LkN $PHP_DOWNLOAD_URL 2>/dev/null|grep -oP "php-$PHP_VERSION-Win32-vs\d+-x$OS_BIT\.zip"|head -n 1)
+PHP_FILE=$(run_curl $PHP_DOWNLOAD_URL|grep -oP "php-$PHP_VERSION-Win32-vs\d+-x$OS_BIT\.zip"|head -n 1)
 if [ -z "$PHP_FILE" ];then
     PHP_DOWNLOAD_URL=${PHP_DOWNLOAD_URL}archives/
-    PHP_FILE=$(curl -LkN $PHP_DOWNLOAD_URL 2>/dev/null|grep -oP "php-$PHP_VERSION-Win32-vs\d+-x$OS_BIT\.zip"|head -n 1)
+    PHP_FILE=$(run_curl $PHP_DOWNLOAD_URL|grep -oP "php-$PHP_VERSION-Win32-vs\d+-x$OS_BIT\.zip"|head -n 1)
 fi
 if_error "php-$PHP_VERSION 包不存在无法下载"
 if [ $OS_BIT = '86' ];then
@@ -170,29 +208,26 @@ if [ -n "$APACHE_VC_VERSION" ];then
 else
     VC_VERSION=$(echo "$PHP_FILE"|grep -oP 'vs\d+-'|grep -oP '\d+')
 fi
+echo "$VC_VERSION"
 if (( VC_VERSION >= 16 ));then
     VC_NAME=VS$VC_VERSION
 else
     VC_NAME=VC$VC_VERSION
 fi
-if [ -n "$APACHE_VERSION" ] && [ -z "$(get_version "https://www.apachelounge.com/download/$VC_NAME/" "(apache|httpd)-\d+\.\d+\.\d+-win$OS_BIT-$VC_NAME\.zip")" ];then
-    show_error "找不到匹配的apache版本，请指定apache编译的VC版本号"
-fi
 # 提取对应的版本
 if [ -z "$APACHE_VERSION" ];then
     echo -n '[info] 获取apache最新版本号：'
-    APACHE_VERSION=$(get_version "https://www.apachelounge.com/download/$VC_NAME/" "(apache|httpd)-\d+\.\d+\.\d+-win$OS_BIT-$VC_NAME\.zip")
-    echo $APACHE_VERSION
+    get_version APACHE_VERSION "https://www.apachelounge.com/download/$VC_NAME/" "(apache|httpd)-\d+\.\d+\.\d+-win$OS_BIT-$VC_NAME\.zip"
+elif [ -z "$APACHE_VC_VERSION" ] && ! run_curl "https://www.apachelounge.com/download/$VC_NAME/"|grep -qP "(apache|httpd)-$APACHE_VERSION-win$OS_BIT-$VC_NAME\.zip";then
+    show_error "找不到匹配的apache版本，请指定 --apache-vc 编译的VC版本号"
 fi
 if [ -z "$NGINX_VERSION" ];then
     echo -n '[info] 获取nginx最新版本号：'
-    NGINX_VERSION=$(get_version 'http://nginx.org/en/download.html' 'Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz')
-    echo $NGINX_VERSION
+    get_version NGINX_VERSION 'http://nginx.org/en/download.html' 'Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz'
 fi
 if [ -z "$MYSQL_VERSION" ];then
     echo -n '[info] 获取mysql最新版本号：'
-    MYSQL_VERSION=$(get_version 'https://dev.mysql.com/downloads/mysql/' 'mysql-\d+\.\d+\.\d+')
-    echo $MYSQL_VERSION
+    get_version MYSQL_VERSION 'https://dev.mysql.com/downloads/mysql/' 'mysql-\d+\.\d+\.\d+'
 fi
 
 # 没有指定安装目录
@@ -211,10 +246,9 @@ download_file(){
     local FILE_NAME=$(basename "$1")
     if [ ! -e "$FILE_NAME" ];then
         echo "[info] 下载：$FILE_NAME [下载中...]"
-        curl -OLkN --connect-timeout 7200 -o "$FILE_NAME" "$1" 2>/dev/null
-        if [ $? != 0 ];then
+        if (run_curl -O -o "$FILE_NAME" "$1" 2>/dev/null);then
             rm -f "$FILE_NAME"
-            curl --http1.1 -OLkN --connect-timeout 7200 -o "$FILE_NAME" "$1" 2>/dev/null
+            run_curl --http1.1 -O -o "$FILE_NAME" "$1"
         fi
         if [ $? != 0 ];then
             rm -f "$FILE_NAME"
@@ -267,6 +301,27 @@ php_init(){
     sed -i -r "s,^\s*;?\s*(doc_root\s*=).*,\1 .," php.ini
     # 配置user_dir目录，此目录为 /home/ 相下进行的
     # sed -i -r "s,^\s*;?\s*(user_dir\s*=).*,\1 ./," php.ini
+    ln -svf $INSTALL_PATH/php-$PHP_VERSION/php.exe /usr/bin/php
+    # 安装composer
+    echo "[info] 下载安装 composer"
+    cat > composer-installer.php <<EOF
+<?php
+copy('https://getcomposer.org/installer', 'composer-setup.php');
+if (hash_file('sha384', 'composer-setup.php') === '55ce33d7678c5a611085589f1f3ddf8b3c52d662cd01d4ba75c0ee0459970c2200a51f492d557530c71c15d8dba01eae') {
+    require './composer-setup.php';
+} else {
+    echo "composer 安装文件校验失败\n";
+}
+unlink('composer-setup.php');
+EOF
+    ./php composer-installer.php
+    if [ -e ./composer.phar ];then
+        ln -svf $INSTALL_PATH/php-$PHP_VERSION/composer.phar /usr/bin/composer
+        echo "[info] composer 安装成功";
+    else
+        echo "[warn] composer 安装失败";
+    fi
+    rm -f composer-installer.php
 }
 apache_init(){
     echo "apache配置处理"
@@ -817,6 +872,8 @@ EOF
 fi
 # 根目录
 DOC_ROOT=$(cd ./www;pwd|sed -r 's,^/([a-z]+)/,\1:/,')
+
+exit
 
 php_init
 apache_init

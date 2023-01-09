@@ -149,23 +149,27 @@ if [ "$CERTIFICATE_ALONE" = 1 ];then
     LINE_NUM=0
     # 判断ssh是否配置域名
     HAS_HOST=0
-    while read -r LINE;do
-        ((LINE_NUM++))
-        if [[ "$LINE" =~ ^[[:space:]]*(#.*)?$ ]];then
-            continue
-        fi
-        if [[ "$LINE" =~ ^[[:space:]]*Host[[:space:]]+.*$ ]];then
-            IS_CURRENT_POS=$(echo "$LINE"|sed -r 's/^\s*Host\s+//')
-        elif [ "$IS_CURRENT_POS" = "${GIT_HOST}-${GIT_AS}" ] && 
-            [[ "$LINE" =~ ^[[:space:]]*(IdentityFile)[[:space:]]+ ]];then
-            # 配置内容不符合就修改
-            if ! echo "$LINE"|grep -q "$IDENTITY_FILE";then
-                echo "${LINE_NUM}s,$,\,$IDENTITY_FILE,"
-                sed -i "${LINE_NUM}s,$,\,$IDENTITY_FILE," ~/.ssh/config
+    if [ -e ~/.ssh/config ];then
+        while read -r LINE;do
+            ((LINE_NUM++))
+            if [[ "$LINE" =~ ^[[:space:]]*(#.*)?$ ]];then
+                continue
             fi
-            HAS_HOST=1
-        fi
-    done < ~/.ssh/config
+            if [[ "$LINE" =~ ^[[:space:]]*Host[[:space:]]+.*$ ]];then
+                IS_CURRENT_POS=$(echo "$LINE"|sed -r 's/^\s*Host\s+//')
+            elif [ "$IS_CURRENT_POS" = "${GIT_HOST}-${GIT_AS}" ] && 
+                [[ "$LINE" =~ ^[[:space:]]*(IdentityFile)[[:space:]]+ ]];then
+                # 配置内容不符合就修改
+                if ! echo "$LINE"|grep -q "$IDENTITY_FILE";then
+                    echo "${LINE_NUM}s,$,\,$IDENTITY_FILE,"
+                    sed -i "${LINE_NUM}s,$,\,$IDENTITY_FILE," ~/.ssh/config
+                fi
+                HAS_HOST=1
+            fi
+        done < ~/.ssh/config
+    else
+        touch ~/.ssh/config
+    fi
     # 没有配置块就添加
     if [ "$HAS_HOST" = 0 ];then
         cat >> ~/.ssh/config <<EOF
