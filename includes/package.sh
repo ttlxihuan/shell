@@ -254,6 +254,10 @@ download_file(){
     local FILE_NAME=${2:-$(basename "$1"|sed 's/[\?#].*$//')}
     chdir shell-install
     info_msg '下载保存目录：'`pwd`
+    if [ "$ARGV_download" = 'reset' -a -e "$FILE_NAME" ];then
+        info_msg "删除下载文件重新下载：$FILE_NAME"
+        rm -f $FILE_NAME
+    fi
     if [ ! -e "$FILE_NAME" ];then
         if ! wget --no-check-certificate -T 7200 -O "$FILE_NAME" "$1"; then
             tools_install curl
@@ -287,10 +291,6 @@ download_software(){
     fi
     chdir shell-install
     # 重新下载再安装
-    if [ "$ARGV_download" = 'reset' -a -e "$FILE_NAME" ];then
-        info_msg "删除下载文件重新下载：$FILE_NAME"
-        rm -f $FILE_NAME
-    fi
     if [[ "$ARGV_download" =~ ^(reset|again)$ ]] && [ -d "$DIR_NAME" ];then
         info_msg "删除解压目录重新解压：$DIR_NAME"
         rm -rf $DIR_NAME
@@ -536,16 +536,21 @@ cmake_install(){
     make_install "`echo "$*"|grep -oP "\-DCMAKE_INSTALL_PREFIX=\S+"`"
 }
 # 复制安装，即不需要编译直接复制
-# @command copy_install [$user] [$prefix]
+# @command copy_install [$user] [$prefix] [$file ...]
 # @param $user              安装目录用户组
 # @param $prefix            复制到安装目录，默认是：$INSTALL_PATH$INSTALL_VERSION
+# @param $file              指定要复制的文件或目录，不指定则为当前目录所有文件及子目录
 # return 1|0
 copy_install(){
     local PREFIX_PATH=${2:-"$INSTALL_PATH$INSTALL_VERSION"}
     # 复制安装包
     mkdirs "$PREFIX_PATH"
     info_msg "复制所有文件到：$PREFIX_PATH"
-    cp -R ./* "$PREFIX_PATH"
+    if [ -n "$3" ];then
+        cp -R ${@:3} "$PREFIX_PATH"
+    else
+        cp -R ./* "$PREFIX_PATH"
+    fi
     if_error "复制安装文件失败"
     cd "$PREFIX_PATH"
     if [ -n "$1" ];then
@@ -808,7 +813,6 @@ install_pip(){
     $PIP_COMMAND_NAME install --upgrade pip
 }
 # 安装 java
-# 下载地址：https://www.oracle.com/java/technologies/downloads/
 # 下载需要登录操作，脚本暂不支持下载官方包，只能通过手动下载
 # @command install_java [$min_version [$max_version]]
 # @param $min_version       安装最低版本
@@ -816,8 +820,26 @@ install_pip(){
 # return 1|0
 install_java(){
     if ! if_command_range_version java -version "$1" "$2";then
-        install_range_version -JAVA_PACKAGE_NAMES "$1" "$2"
-        if_command_range_version java -version "$1" "$2"
+        local JAVA_VERSION=${1:-$2}
+        if [ -n "$JAVA_VERSION" ] && if_version "$1" '>' '1.9.0';then
+            install_range_version -JAVA11_PACKAGE_NAMES "$1" "$2"
+        else
+            install_range_version -JAVA8_PACKAGE_NAMES "$1" "$2"
+        fi
+        if ! if_command_range_version java -version "$1" "$2" && [ -n "$JAVA_VERSION" ];then
+            if if_version "$JAVA_VERSION" '<' '17.0.0';then
+                warn_msg "java 8 或 java 11需要手动下载并安装，下载地址：https://www.oracle.com/java/technologies/downloads/"
+            fi
+            # java官方下载地址只提供大版本最新版本，java-8和java-11下载需要登录授权，java-17及更高版本暂时开放下载
+            # 这里暂时只提供开放下载版本
+            local JAVA_MAIN_VERSION=${1%%.*}
+            download_software https://download.oracle.com/java/$JAVA_MAIN_VERSION/latest/jdk-${JAVA_MAIN_VERSION}_linux-x64_bin.tar.gz jdk-${JAVA_MAIN_VERSION}
+            JAVA_VERSION=$(./bin/java --version|grep -oP '\d+(\.\d+){2}'|head -n 1)
+            if [ -n "$JAVA_VERSION" ];then
+                copy_install '' "$INSTALL_BASE_PATH/java/$JAVA_VERSION"
+                add_path "$INSTALL_BASE_PATH/java/$JAVA_VERSION/bin"
+            fi
+        fi
     fi
     print_install_result java "$1" "$2"
 }

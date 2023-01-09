@@ -95,7 +95,8 @@ LIBFFI_DEVEL_PACKAGE_NAMES=('libffi-devel' 'libffi-dev')
 # 安装gettext
 GETTEXT_DEVEL_PACKAGE_NAMES=('gettext-devel' 'gettext-dev')
 # 安装java
-JAVA_PACKAGE_NAMES=('java' 'default-jre')
+JAVA8_PACKAGE_NAMES=('java-1.8.0-openjdk' '-')
+JAVA11_PACKAGE_NAMES=('java-11-openjdk' '-')
 # 安装libnl3
 LIBNL3_DEVEL_PACKAGE_NAMES=('libnl3-devel' 'libnl-genl-3-dev')
 # 安装libnl3-route
