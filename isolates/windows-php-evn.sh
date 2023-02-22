@@ -11,7 +11,7 @@
 # 输出帮助信息
 show_help(){
     echo "
-PHP运行环境安装
+windows系统git-bash内PHP环境安装工具
 
 命令：
     $(basename "${BASH_SOURCE[0]}") install-path [option ...]
@@ -87,6 +87,10 @@ if_version(){
     fi
     return 1;
 }
+# 必需在windows系统下运行此脚本
+if ! uname|grep -qP 'MINGW(64|32)' || ! echo $BASH|grep -q '^/usr/bin/bash$';then
+    show_error "windows系统git-bash环境专用脚本"
+fi
 # 添加环境变量，直接添加到windows系统环境变量配置中
 # add_path(){
 #     # 判断目录是否存在
@@ -157,10 +161,6 @@ for((INDEX=1; INDEX<=$#; INDEX++));do
     esac
 done
 echo "[info] 如果长时间没有反应建议 Ctrl + C 终止脚本，再运行尝试"
-# 必需在windows系统下运行此脚本
-if ! uname|grep -qP 'MINGW(64|32)' || ! echo $BASH|grep -q '^/usr/bin/bash$';then
-    show_error "请在windows系统git-bash下运行此脚本"
-fi
 # 运行CURL
 run_curl(){
     if ! curl -LkN --max-time 1800 --connect-timeout 1800 $@ 2>/dev/null;then

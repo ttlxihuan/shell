@@ -396,6 +396,9 @@ max_connections=16384
 # 单个用户最大连接数据，为0不限制，默认为0
 #max_user_connections=0
 
+# 开启innodb动态自动配置缓存大小和日志刷新频次，一般服务器独占时可开启
+#innodb_dedicated_server=ON
+
 # 配置线程数，线程数过多会在并发时产生过多的线程切换，导致性能不升反降
 # 可动态SQL修改
 innodb_thread_concurrency=$((TOTAL_THREAD_NUM * 2))

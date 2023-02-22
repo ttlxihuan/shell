@@ -46,7 +46,7 @@ search_shell_set(){
 # @command cache_shell_info
 # return 0|1
 cache_shell_info(){
-    search_shell_set installs '可用安装脚本名：';
+    search_shell_set installs '可用安装脚本名：'
     search_shell_set tools '可用工具脚本名：'
     info_msg '脚本信息更新完成'
 }

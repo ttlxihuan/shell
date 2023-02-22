@@ -28,7 +28,7 @@
 # 输出帮助信息
 show_help(){
     echo "
-git代码克隆脚本
+git代码克隆工具
 
 命令：
     $(basename "${BASH_SOURCE[0]}") git-addr [-t type] [-i identity_file] [-s] [-h|-?]
@@ -55,7 +55,7 @@ git代码克隆脚本
 }
 # 输出错误信息并终止运行
 show_error(){
-    echo "[error] $1"
+    echo "[error] $1" >&2
     exit 1
 }
 if_error(){

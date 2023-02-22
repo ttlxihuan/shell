@@ -22,7 +22,7 @@
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
-init_install '1.19.1' "https://kubernetes.io/releases/" '>\d+\.\d+\.\d+'
+init_install '1.19.1' "https://dl.k8s.io/release/stable.txt" 'v\d+\.\d+\.\d+'
 #  限制空间大小（G）：编译目录、安装目录、内存
 install_storage_require 1 1 1
 # ************** 编译安装 ******************
@@ -30,17 +30,11 @@ chdir $INSTALL_NAME
 # 下载kubernetes包
 download_file https://dl.k8s.io/release/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl
 download_file https://dl.k8s.io/v$KUBERNETES_VERSION/bin/linux/amd64/kubectl.sha256
-echo "$(<kubectl.sha256) kubectl" | sha256sum --check
+echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
 if_error 'sha256sum 验证失败'
 
-# 移动到暂存目录
-mkdirs ./kubernetes
-mv kubectl kubectl.sha256 ./kubernetes
-cd ./kubernetes
-
 # 复制安装包并创建用户
-copy_install kubectl
-
+copy_install kubectl '' ./kubectl ./kubectl.sha256
 chmod +x kubectl
 
 # 添加到环境变量中

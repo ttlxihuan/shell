@@ -17,7 +17,7 @@ GIT_SYNC_PATH=/www/testing
 # 输出帮助信息
 show_help(){
     echo "
-git版本库创建并初始化
+git版本库创建配置工具
 
 命令：
     $(basename "${BASH_SOURCE[0]}") name [-u user] [-s path] [-h|-?]
@@ -40,7 +40,7 @@ git版本库创建并初始化
 }
 # 输出错误信息并终止运行
 show_error(){
-    echo "[error] $1"
+    echo "[error] $1" >&2
     exit 1
 }
 if_error(){

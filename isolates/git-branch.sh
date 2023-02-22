@@ -10,11 +10,10 @@
 # 输出帮助信息
 show_help(){
     echo "
-git分支管理工具，分支变动将自动推送到远程版本库中
-当前目录必需是git版本库工作目录。
+git分支管理工具
 
 命令：
-    $(basename "${BASH_SOURCE[0]}") action name [-h|-?]
+    $(basename "${BASH_SOURCE[0]}") action name [-w path] [-h|-?]
 
 参数：
     action              分支操作名
@@ -36,7 +35,7 @@ git分支管理工具，分支变动将自动推送到远程版本库中
 }
 # 输出错误信息并终止运行
 show_error(){
-    echo "[error] $1"
+    echo "[error] $1" >&2
     exit 1
 }
 if_error(){
