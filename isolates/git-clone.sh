@@ -270,13 +270,15 @@ while true;do
 "
     fi
     if uname|grep -qP 'MINGW(64|32)';then
-        echo "[info] 即将打开证书，请复制公钥：$IDENTITY_FILE.pub"
+        clip < $IDENTITY_FILE.pub
+        echo "[info] 已复制公钥：$IDENTITY_FILE.pub 到粘贴板"
         sleep 2
-        start $IDENTITY_FILE.pub
         if [ "${GIT_HOST}" = 'github.com' ];then
-            echo "[info] 即将打开github密钥配置页面，请将公钥粘贴上进行密钥访问配置"
+            echo "[info] 即将打开github密钥配置页面，请配置公钥信息"
             sleep 2
             start https://github.com/${SSH_ADDR##*:}/${GIT_AS}/settings/keys/new
+        else
+            echo "[info] 请配置公钥访问权限"
         fi
     elif [ "${GIT_HOST}" = 'github.com' ];then
         echo "[info] 1、打开： https://github.com/${SSH_ADDR##*:}/${GIT_AS}/settings/keys/new"
