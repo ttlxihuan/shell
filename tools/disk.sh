@@ -30,6 +30,10 @@
 # 2、虚拟机新增磁盘时需要注意磁盘是否增加完成。创建磁盘时可能不会自动加载到虚拟机上，可能还需要增加存在磁盘进行加载处理，否则无法扫描出新增加磁盘。
 # 3、挂载分区无效（无报错），通过 tail -n 30 /var/log/messages 命令查看有：systemd: Unit x.mount is bound to inactive unit dev-x.device. Stopping, too. 之类提示时
 #    首先去掉 /etc/fstab 有相关目录或分区的配置，再执行 systemctl daemon-reload 命令，重新挂载即可。
+# 4、如果配置 /etc/fstab 挂载盘不存在重启服务器会报错：Authorization not available. Check if polkit service is running or see debug message for more
+#    建议配置 /etc/fstab 时多注意，不是肯定会保留的盘不要配置，否则重启异常
+#
+#
 
 # 参数信息配置
 SHELL_RUN_DESCRIPTION='硬盘分区和挂载处理脚本'
@@ -71,6 +75,7 @@ DEFINE_RUN_PARAMS='
 #非强制GPT分区模式会在磁盘空间超过2TB时自动选择GPT模式
 #GPT分区模式支持更大磁盘容量
 [--temp]临时挂载，指定后将不写 /etc/fstab 配置文件
+# 写到配置文件中的磁盘在卸载磁盘时需要清楚配置否则重启容易报错
 '
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../includes/tool.sh || exit
 # 格式化处理
