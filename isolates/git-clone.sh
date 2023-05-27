@@ -182,10 +182,9 @@ EOF
     # 修改git版本库地址
     GIT_ADDR=$(echo "$GIT_ADDR"|sed "s/@$GIT_HOST:/@${GIT_HOST}-${GIT_AS}:/")
 fi
-
-# 配置ssh允许证书类型
 SSH_KEY_NAME=$(grep -oP '^\S+' ${IDENTITY_FILE}.pub)
-if [ -n "$SSH_KEY_NAME" ];then
+# 高版本的openssh（大概是8.0以上版本）支持PubkeyAcceptedAlgorithms选项，需要配置开放的证书类型
+if [ -n "$SSH_KEY_NAME" ] && ssh -Q PubkeyAcceptedAlgorithms >/dev/null 2>/dev/null;then
     echo "[info] 配置证书类型许可"
     LINE_NUM=0
     # 判断ssh是否开放了对应的证书类型

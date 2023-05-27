@@ -300,6 +300,7 @@ php_init(){
     # 访问目录范围限制配置
     # 配置doc_root目录
     sed -i -r "s,^\s*;?\s*(doc_root\s*=).*,\1 .," php.ini
+    sed -i -r "s,^\s*;?\s*(open_basedir\s*=).*,\1 .," php.ini
     # 配置user_dir目录，此目录为 /home/ 相下进行的
     # sed -i -r "s,^\s*;?\s*(user_dir\s*=).*,\1 ./," php.ini
     ln -svf $INSTALL_PATH/php-$PHP_VERSION/php.exe /usr/bin/php
