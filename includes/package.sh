@@ -260,7 +260,6 @@ download_file(){
     fi
     if [ ! -e "$FILE_NAME" ];then
         if ! wget --no-check-certificate -T 7200 -O "$FILE_NAME" "$1"; then
-            tools_install curl
             curl -OLkN --connect-timeout 7200 -o "$FILE_NAME" "$1"
         fi
         if [ $? != '0' ];then
