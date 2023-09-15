@@ -11,24 +11,26 @@
 # 输出帮助信息
 show_help(){
     echo "
-windows系统git-bash内PHP环境安装工具
+windows系统git-bash内PHP环境安装工具，允许多版本并存
 
 命令：
     $(basename "${BASH_SOURCE[0]}") install-path [option ...]
 
 参数：
-    install-path        安装目录，不指定则只取最新版本号
+    install-path        安装目录
 
 选项：
-    --php version       指定php安装版本号，默认最新版
-    --apache version    指定apache安装版本号，默认最新版（不建议指定）
-                        不指定脚本会自动获取php使用相同的VC编译版本进行匹配下载
-                        如果PHP与apache没有匹配的VC版本时则需要指定apache编译VC号
-    --apache-vc version 指定apache编译使用的VC版本号
+    --all               安装php,apache,nginx,mysql,redis最新版本
+    --php[=version]     安装php，不指定版本即安装最新版本
+    --apache[=version]  安装php，不指定版本即安装最新版本
+    --apache-vc=version 指定apache编译使用的VC版本号
                         当apache不匹配的PHP编译VC版本时可指定
                         指定后如果PHP的VC与apache的VC不相同则只能使用cgi模式
-    --nginx version     指定nginx安装版本号，默认最新版
-    --mysql version     指定mysql安装版本号，默认最新版
+    --nginx[=version]   安装nginx，不指定版本即安装最新版本
+    --mysql[=version]   安装mysql，不指定版本即安装最新版本
+    --redis[=version]   安装redis，不指定版本即安装最新版本
+    --proxy [protocol://]host[:port]
+                        使用代理下载
     -h, -?              显示帮助信息
 
 说明：
@@ -111,66 +113,114 @@ fi
 # EOF
 # }
 for((INDEX=1; INDEX<=$#; INDEX++));do
-    case "${@:$INDEX:1}" in
+    PARAM_ITEM=${@:$INDEX:1}
+    case "${PARAM_ITEM}" in
         -h|-\?)
             show_help
         ;;
+        --all)
+            PHP_VERSION=new
+            APACHE_VERSION=new
+            NGINX_VERSION=new
+            MYSQL_VERSION=new
+            REDIS_VERSION=new
+        ;;
         --php)
-            PHP_VERSION=${@:((++INDEX)):1}
+            PHP_VERSION=new
+        ;;
+        --php=*)
+            PHP_VERSION=${PARAM_ITEM#*=}
             is_version "$PHP_VERSION"
             if if_version "$PHP_VERSION" '<' '7.0.0';then
                 show_error "php最小安装版本：7.0.0"
             fi
         ;;
         --apache)
-            APACHE_VERSION=${@:((++INDEX)):1}
+            APACHE_VERSION=new
+        ;;
+        --apache=*)
+            APACHE_VERSION=${PARAM_ITEM#*=}
             is_version "$APACHE_VERSION"
             if if_version "$APACHE_VERSION" '<' '2.0.50';then
                 show_error "apache最小安装版本：2.0.50"
             fi
         ;;
-        --apache-vc)
-            APACHE_VC_VERSION=${@:((++INDEX)):1}
+        --apache-vc=*)
+            APACHE_VC_VERSION=${PARAM_ITEM#*=}
             if [[ "$APACHE_VC_VERSION" =~ ^[1-9][0-9]$ ]];then
                 show_error "apache编译VC版本号错误，必需是两位数字"
             fi
         ;;
         --nginx)
-            NGINX_VERSION=${@:((++INDEX)):1}
+            NGINX_VERSION=new
+        ;;
+        --nginx=*)
+            NGINX_VERSION=${PARAM_ITEM#*=}
             is_version "$NGINX_VERSION"
             if if_version "$NGINX_VERSION" '<' '1.0.0';then
                 show_error "nginx最小安装版本：1.0.0"
             fi
         ;;
         --mysql)
-            MYSQL_VERSION=${@:((++INDEX)):1}
+            MYSQL_VERSION=new
+        ;;
+        --mysql=*)
+            MYSQL_VERSION=${PARAM_ITEM#*=}
             is_version "$MYSQL_VERSION"
             if if_version "$MYSQL_VERSION" '<' '5.0.0';then
                 show_error "mysql最小安装版本：5.0.0"
             fi
         ;;
+        --redis)
+            REDIS_VERSION=new
+        ;;
+        --redis=*)
+            REDIS_VERSION=${PARAM_ITEM#*=}
+            is_version "$REDIS_VERSION"
+            if if_version "$REDIS_VERSION" '<' '4.0.0';then
+                show_error "redis最小安装版本：4.0.0"
+            fi
+        ;;
+        --proxy=*)
+            PROXY_ADDR="--proxy ${PARAM_ITEM#*=}"
+        ;;
         *)
-            INSTALL_PATH=${@:$INDEX:1}
+            INSTALL_PATH=${PARAM_ITEM}
             if [ ! -d "$INSTALL_PATH" ];then
                 echo "[info] 安装目录不存在，立即创建目录 $INSTALL_PATH"
                 mkdir -p "$INSTALL_PATH"
                 if_error "创建目录 $INSTALL_PATH 失败"
             fi
-            INSTALL_PATH=$(cd ${@:$INDEX:1};pwd)
+            INSTALL_PATH=$(cd ${PARAM_ITEM};pwd)
         ;;
     esac
 done
+# 没有指定安装目录
+if [ -z "$INSTALL_PATH" ];then
+    show_error "请指定安装目录"
+    exit 0
+fi
+
+if ! [[ "$INSTALL_PATH" =~ ^([a-zA-Z0-9]|/|-|_|\.)+$ ]];then
+    show_error "安装目录不可包含[a-z0-9/-_.]以外的字符，否则可能导致安装后的服务不可用，请确认安装目录：$INSTALL_PATH"
+fi
+
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)/$(basename "${BASH_SOURCE[0]}")"
+
+cd "$INSTALL_PATH"
+
 echo "[info] 如果长时间没有反应建议 Ctrl + C 终止脚本，再运行尝试"
+
 # 运行CURL
 run_curl(){
-    if ! curl -LkN --max-time 1800 --connect-timeout 1800 $@ 2>/dev/null;then
+    if ! curl -LkN --max-time 1800 --connect-timeout 1800 $PROXY_ADDR $@ 2>/dev/null;then
         echo '' >&2
         show_error "请确认连接 ${@:$#} 是否能正常访问！"
     fi
 }
 # 获取最新版本号
 get_version(){
-    local TEMP_VERSION=$(run_curl "$2"|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "\d+(\.\d+){2}")
+    local TEMP_VERSION=$(run_curl "$2"|grep -oP "$3"|sort -Vrb|head -n 1|grep -oP "\d+(\.\d+){2,}")
     if [ -z "$TEMP_VERSION" ];then
         show_error "获取版本号信息失败"
     else
@@ -181,66 +231,80 @@ get_version(){
 # 获取系统位数
 if uname|grep -qP 'MINGW(64)';then
     OS_BIT=64
+    AOS_BIT=64
 else
     OS_BIT=86
+    AOS_BIT=32
 fi
-# 获取新版本
-if [ -z "$PHP_VERSION" ];then
-    echo -n '[info] 获取PHP最新版本号：'
-    get_version PHP_VERSION 'https://www.php.net/supported-versions.php' '#v\d+\.\d+\.\d+'
-fi
-# 获取下载包名
-# PHP_FILE='php-8.1.9-Win32-vs16-x64.zip'
-echo -n '[info] 提取PHP编译使用VC版本号：'
-PHP_DOWNLOAD_URL='https://windows.php.net/downloads/releases/'
-PHP_FILE=$(run_curl $PHP_DOWNLOAD_URL|grep -oP "php-$PHP_VERSION-Win32-vs\d+-x$OS_BIT\.zip"|head -n 1)
-if [ -z "$PHP_FILE" ];then
-    PHP_DOWNLOAD_URL=${PHP_DOWNLOAD_URL}archives/
+
+# 获取PHP下载包名信息
+if [ -n "$PHP_VERSION" ];then
+    # 获取新版本
+    if [ "$PHP_VERSION" = 'new' ];then
+        echo -n '[info] 获取PHP最新版本号：'
+        get_version PHP_VERSION 'https://www.php.net/supported-versions.php' '#v\d+\.\d+\.\d+'
+    fi
+    # 获取下载包名
+    # PHP_FILE='php-8.1.9-Win32-vs16-x64.zip'
+    echo -n '[info] 提取PHP编译使用VC版本号：'
+    PHP_DOWNLOAD_URL='https://windows.php.net/downloads/releases/'
     PHP_FILE=$(run_curl $PHP_DOWNLOAD_URL|grep -oP "php-$PHP_VERSION-Win32-vs\d+-x$OS_BIT\.zip"|head -n 1)
+    if [ -z "$PHP_FILE" ];then
+        PHP_DOWNLOAD_URL=${PHP_DOWNLOAD_URL}archives/
+        PHP_FILE=$(run_curl $PHP_DOWNLOAD_URL|grep -oP "php-$PHP_VERSION-Win32-vs\d+-x$OS_BIT\.zip"|head -n 1)
+    fi
+    if_error "php-$PHP_VERSION 包不存在无法下载"
 fi
-if_error "php-$PHP_VERSION 包不存在无法下载"
-if [ $OS_BIT = '86' ];then
-    OS_BIT=32
+
+# 获取apache下载包名信息
+if [ -n "$APACHE_VERSION" ];then
+    # 提取VC信息
+    if [ -n "$APACHE_VC_VERSION" ];then
+        VC_VERSION=$APACHE_VC_VERSION
+    elif [ -n "$PHP_FILE" ];then
+        VC_VERSION=$(echo "$PHP_FILE"|grep -oP 'vs\d+-'|grep -oP '\d+')
+    else
+        # 在安装目录里找已经安装的php再进行数据匹配
+        PHP_INSTALL_DIR=$(find ./ -maxdepth 1 -type d -name 'php-*' 2>/dev/null|sort -r|head -n 1)
+        if [ -z "$PHP_INSTALL_DIR" ];then
+            show_error "没有安装PHP，请指定VC版本信息"
+        fi
+        # 自动匹配
+        VC_VERSION=$($PHP_INSTALL_DIR/php.exe -i|grep -P 'PHP Extension Build .*VS\d+$'|grep -oP '\d+$')
+    fi
+    echo "$VC_VERSION"
+    if (( VC_VERSION >= 16 ));then
+        VC_NAME=VS$VC_VERSION
+    else
+        VC_NAME=VC$VC_VERSION
+    fi
+    # 提取对应的版本
+    if [ "$APACHE_VERSION" = 'new' ];then
+        echo -n '[info] 获取apache最新版本号：'
+        get_version APACHE_VERSION "https://www.apachelounge.com/download/$VC_NAME/" "(apache|httpd)-\d+\.\d+\.\d+-win$AOS_BIT-$VC_NAME\.zip"
+    elif [ -z "$APACHE_VC_VERSION" ];then
+        run_curl "https://www.apachelounge.com/download/$VC_NAME/"|grep -oP "(apache|httpd)-$APACHE_VERSION-win$AOS_BIT-$VC_NAME\.zip" >/dev/null
+        if_error "找不到匹配的apache版本，请指定 --apache-vc 编译的VC版本号"
+    fi
 fi
-# 提取VC信息
-if [ -n "$APACHE_VC_VERSION" ];then
-    VC_VERSION=$APACHE_VC_VERSION
-else
-    VC_VERSION=$(echo "$PHP_FILE"|grep -oP 'vs\d+-'|grep -oP '\d+')
-fi
-echo "$VC_VERSION"
-if (( VC_VERSION >= 16 ));then
-    VC_NAME=VS$VC_VERSION
-else
-    VC_NAME=VC$VC_VERSION
-fi
-# 提取对应的版本
-if [ -z "$APACHE_VERSION" ];then
-    echo -n '[info] 获取apache最新版本号：'
-    get_version APACHE_VERSION "https://www.apachelounge.com/download/$VC_NAME/" "(apache|httpd)-\d+\.\d+\.\d+-win$OS_BIT-$VC_NAME\.zip"
-elif [ -z "$APACHE_VC_VERSION" ];then
-    run_curl "https://www.apachelounge.com/download/$VC_NAME/"|grep -oP "(apache|httpd)-$APACHE_VERSION-win$OS_BIT-$VC_NAME\.zip" >/dev/null
-    if_error "找不到匹配的apache版本，请指定 --apache-vc 编译的VC版本号"
-fi
-if [ -z "$NGINX_VERSION" ];then
+
+# 获取nginx下载包名信息
+if [ "$NGINX_VERSION" = 'new' ];then
     echo -n '[info] 获取nginx最新版本号：'
     get_version NGINX_VERSION 'http://nginx.org/en/download.html' 'Stable version.*?nginx-\d+\.\d+\.\d+\.tar\.gz'
 fi
-if [ -z "$MYSQL_VERSION" ];then
+
+# 获取mysql下载包名信息
+if [ "$MYSQL_VERSION" = 'new' ];then
     echo -n '[info] 获取mysql最新版本号：'
     get_version MYSQL_VERSION 'https://dev.mysql.com/downloads/mysql/' 'mysql-\d+\.\d+\.\d+'
 fi
 
-# 没有指定安装目录
-if [ -z "$INSTALL_PATH" ];then
-    exit 0
+# 获取redis下载包名信息
+if [ "$REDIS_VERSION" = 'new' ];then
+    echo -n '[info] 获取redis最新版本号：'
+    get_version REDIS_VERSION 'https://github.com/tporadowski/redis/tags' 'v\d+(\.\d+){2,3}'
 fi
-
-if ! [[ "$INSTALL_PATH" =~ ^([a-zA-Z0-9]|/|-|_|\.)+$ ]];then
-    show_error "安装目录不可包含[a-z0-9/-_.]以外的字符，否则可能导致安装后的服务不可用，请确认安装目录：$INSTALL_PATH"
-fi
-
-cd "$INSTALL_PATH"
 
 # 下载安装包
 download_file(){
@@ -305,25 +369,24 @@ php_init(){
     # sed -i -r "s,^\s*;?\s*(user_dir\s*=).*,\1 ./," php.ini
     ln -svf $INSTALL_PATH/php-$PHP_VERSION/php.exe /usr/bin/php
     # 安装composer
-    echo "[info] 下载安装 composer"
-    cat > composer-installer.php <<EOF
+    if which composer;then
+        echo "[info] 已安装 composer"
+    else
+        echo "[info] 下载安装 composer"
+        cat > composer-installer.php <<EOF
 <?php
 copy('https://getcomposer.org/installer', 'composer-setup.php');
-if (hash_file('sha384', 'composer-setup.php') === '55ce33d7678c5a611085589f1f3ddf8b3c52d662cd01d4ba75c0ee0459970c2200a51f492d557530c71c15d8dba01eae') {
-    require './composer-setup.php';
-} else {
-    echo "composer 安装文件校验失败\n";
-}
-unlink('composer-setup.php');
+require './composer-setup.php';
 EOF
-    ./php composer-installer.php
-    if [ -e ./composer.phar ];then
-        ln -svf $INSTALL_PATH/php-$PHP_VERSION/composer.phar /usr/bin/composer
-        echo "[info] composer 安装成功";
-    else
-        echo "[warn] composer 安装失败";
+        ./php composer-installer.php
+        if [ -e ./composer.phar ];then
+            ln -svf $INSTALL_PATH/php-$PHP_VERSION/composer.phar /usr/bin/composer
+            echo "[info] composer 安装成功";
+        else
+            echo "[warn] composer 安装失败";
+        fi
+        rm -f composer-installer.php
     fi
-    rm -f composer-installer.php
 }
 apache_init(){
     echo "apache配置处理"
@@ -391,13 +454,13 @@ EOF
     # 开启gcgi代理模块
     sed -i -r 's/\s*#\s*(LoadModule\s+proxy_module\s+.*)/\1/' ./conf/httpd.conf
     sed -i -r 's/\s*#\s*(LoadModule\s+proxy_fcgi_module\s+.*)/\1/' ./conf/httpd.conf
-    # 配置代理
     cat >> ./conf/extra/httpd-vhosts.conf <<EOF
 # 示例模板
 <VirtualHost _default_:80>
     ServerName localhost
     DocumentRoot "$DOC_ROOT/localhost/public"
-    ProxyPass "/" "fcgi://127.0.0.1:9000/"
+    # 指定使用的PHP版本
+    # Include conf/extra/httpd-php-${PHP_VERSION}.conf
 </VirtualHost>
 EOF
 }
@@ -454,30 +517,6 @@ location /websocket {
     proxy_set_header Upgrade \$http_upgrade;
     proxy_set_header Connection "upgrade";
 }
-conf
-        cat > php <<conf
-# 此文件为共用文件，用于其它 server 块引用
-# PHP配置
-if (!-e \$request_filename) {
-    rewrite  ^/(.*)$ /index.php?s=\$1  last;
-    break;
-}
-
-# 代理 http://127.0.0.1:80 地址
-#location ~ \.php$ {
-#    proxy_pass   http://127.0.0.1;
-#}
-
-# fastcgi接口监听 127.0.0.1:9000
-# 转到php-fpm上
-location ~ \.php\$ {
-    fastcgi_pass   127.0.0.1:9000;
-    fastcgi_index  index.php;
-    fastcgi_param  SCRIPT_FILENAME  \$document_root\$fastcgi_script_name;
-    include        fastcgi_params;
-}
-# 使用静态配置
-include vhosts/static;
 conf
         cat > static <<conf
 # 此文件为共用文件，用于其它 server 块引用
@@ -848,15 +887,33 @@ MY_CONF
     fi
 }
 
+redis_init(){
+    # 修改配置
+    echo "redis配置处理"
+    [ -d "$INSTALL_PATH/redis-$REDIS_VERSION" ] || show_error "redis-$REDIS_VERSION 下载解压失败，安装终止"
+}
+
 echo '[info] 下载各软件包'
-# PHP下载
-download_file "$PHP_DOWNLOAD_URL$PHP_FILE" "php-$PHP_VERSION" &
-# apache下载
-download_file https://www.apachelounge.com/download/$VC_NAME/binaries/httpd-$APACHE_VERSION-win$OS_BIT-$VC_NAME.zip "httpd-$APACHE_VERSION" &
-# nginx下载
-download_file http://nginx.org/download/nginx-$NGINX_VERSION.zip "nginx-$NGINX_VERSION" &
-# mysql下载
-download_file https://dev.mysql.com/get/Downloads/mysql-${MYSQL_VERSION%.*}/mysql-$MYSQL_VERSION-winx64.zip "mysql-$MYSQL_VERSION" &
+if [ -n "$PHP_VERSION" ];then
+    # PHP下载
+    download_file "$PHP_DOWNLOAD_URL$PHP_FILE" "php-$PHP_VERSION" &
+fi
+if [ -n "$APACHE_VERSION" ];then
+    # apache下载
+    download_file https://www.apachelounge.com/download/$VC_NAME/binaries/httpd-$APACHE_VERSION-win$AOS_BIT-$VC_NAME.zip "httpd-$APACHE_VERSION" &
+fi
+if [ -n "$NGINX_VERSION" ];then
+    # nginx下载
+    download_file http://nginx.org/download/nginx-$NGINX_VERSION.zip "nginx-$NGINX_VERSION" &
+fi
+if [ -n "$MYSQL_VERSION" ];then
+    # mysql下载
+    download_file https://dev.mysql.com/get/Downloads/mysql-${MYSQL_VERSION%.*}/mysql-$MYSQL_VERSION-winx64.zip "mysql-$MYSQL_VERSION" &
+fi
+if [ -n "$REDIS_VERSION" ];then
+    # redis下载
+    download_file https://github.com/tporadowski/redis/releases/download/v$REDIS_VERSION/Redis-x64-$REDIS_VERSION.zip "redis-$REDIS_VERSION" &
+fi
 
 # 等待下载完
 echo '[wait] 等待下载解压完成'
@@ -875,178 +932,371 @@ fi
 # 根目录
 DOC_ROOT=$(cd ./www;pwd|sed -r 's,^/([a-z]+)/,\1:/,')
 
+[ -n "$APACHE_VERSION" ] && apache_init
+[ -n "$NGINX_VERSION" ] && nginx_init
+[ -n "$MYSQL_VERSION" ] && mysql_init
+[ -n "$REDIS_VERSION" ] && redis_init
+if [ -n "$PHP_VERSION" ];then
+    PHP_CGI_PORT=${PHP_VERSION//./}
+    php_init
+    # 追加apache配置
+    for HTTPD_DIR in $(find ./ -maxdepth 1 -type d -name 'httpd-*' 2>/dev/null);do
+        cat >> ${HTTPD_DIR}/conf/extra/httpd-php-${PHP_VERSION}.conf <<EOF
+ProxyPass "/" "fcgi://127.0.0.1:${PHP_CGI_PORT}/"
+EOF
+    done
+    # 追加nginx配置
+    for NGINX_DIR in $(find ./ -maxdepth 1 -type d -name 'nginx-*' 2>/dev/null);do
+        cat > ${NGINX_DIR}/conf/vhosts/php-${PHP_VERSION} <<conf
+# 此文件为共用文件，用于其它 server 块引用
+# PHP配置
+if (!-e \$request_filename) {
+    rewrite  ^/(.*)$ /index.php?s=\$1  last;
+    break;
+}
+
+# 代理 http://127.0.0.1:80 地址
+#location ~ \.php$ {
+#    proxy_pass   http://127.0.0.1;
+#}
+
+# fastcgi接口监听 127.0.0.1:${PHP_CGI_PORT}
+# 转到php-fpm上
+location ~ \.php\$ {
+    fastcgi_pass   127.0.0.1:${PHP_CGI_PORT};
+    fastcgi_index  index.php;
+    fastcgi_param  SCRIPT_FILENAME  \$document_root\$fastcgi_script_name;
+    include        fastcgi_params;
+}
+# 使用静态配置
+include vhosts/static;
+conf
+    done
+fi
+
+
+echo "[info] 生成控制脚本文件"
+cd "$INSTALL_PATH"
+
+sed -n "$((LINENO + 4)),\$p" ${SCRIPT_PATH} > run.sh
+sed -i "s,__INSTALL_PATH__,\"$INSTALL_PATH\"," run.sh
 exit
 
-php_init
-apache_init
-nginx_init
-mysql_init
-
-echo "[info] 生成启动脚本文件"
-cd "$INSTALL_PATH"
-
-cat > run.sh <<EOF
 #!/bin/bash
-APM_HAS_PHP=$([ -z "$APACHE_VC_VERSION" -o "$APACHE_VC_VERSION" = "$VC_VERSION" ];echo $?)
-has_run(){
-    ps ax|grep \$1|grep -q "/\$1"
+SERVICES=(httpd nginx mysql php redis)
+CONFIG_PATH='./run.conf'
+cd __INSTALL_PATH__
+# 初始配置
+init_conf(){
+    local _NAME _VERSIONS
+    > $CONFIG_PATH
+    for _NAME in ${SERVICES[@]};do
+        _VERSIONS=($(find ./ -maxdepth 1 -type d -name "${_NAME}-*" 2>/dev/null|grep -oP '\d+(\.\d+)+$'|sort -r))
+        echo "${_NAME}=${_VERSIONS[@]}" >> $CONFIG_PATH
+    done
 }
-stop_run(){
-    if has_run \$1;then
-        kill \$(ps ax|grep \$1|grep "/\$1"|awk '{print \$1}')
-        if [ \$? = 0 ];then
-            echo "[info] 已停止 \$1"
+# 设置配置
+set_conf(){
+    local SET_LINE
+    if [ -e "$CONFIG_PATH" ];then
+        SET_LINE=$(grep -m 1 -noP "^${1}$" $CONFIG_PATH|grep -oP '^\d+')
+    else
+        init_conf
+    fi
+    if [ -n "$SET_LINE" ];then
+        sed -i "${SET_LINE}c${2}" $CONFIG_PATH
+    else
+        echo "${2}" >> $CONFIG_PATH
+    fi
+}
+# 获取进程ID
+get_pid(){
+    local _PID
+    eval "_PID=\${${1//[\.\-]/_}}"
+    if [ -n "$_PID" ];then
+        if [ -e /proc/$_PID/exe ] && stat /proc/$_PID/exe -c '%N'|grep -q "${1}";then
+            echo $_PID
         else
-            echo "[warn] 无法停止 \$1"
+            set_pid "${1}" ""
         fi
-    else
-        echo "[warn] 未找到启动进程，无法停止 \$1"
     fi
 }
-start_php_cgi(){
-    # 启动PHP
-    if has_run php-cgi;then
-        echo "[warn] php-cgi已经在运行中";
-    else
-        nohup ./php-$PHP_VERSION/php-cgi.exe -b 127.0.0.1:9000 2>/dev/null >/dev/null &
-        echo "[info] php-cgi已运行";
-    fi
+set_pid(){
+    eval "${1//[\.\-]/_}=${2}"
+    set_conf "^${1}-pid=.*" "${1}-pid=${2}" &
 }
-start_nginx(){
-    # 启动nginx，需要指定目前前缀或者在nginx安装目录中启动，否则报错 failed (3: The system cannot find the path specified)
-    if has_run nginx;then
-        echo "[warn] nginx已经在运行中";
-    else
-        nohup ./nginx-$NGINX_VERSION/nginx.exe -p ./nginx-$NGINX_VERSION 2>/dev/null >/dev/null &
-        echo "[info] nginx已运行";
-    fi
+# 获取服务版本集
+get_versions(){
+    eval "echo \${$(echo "$1"|tr '[:lower:]' '[:upper:]')_VERSIONS[@]}"
 }
-start_httpd(){
-    # 启动apache
-    if has_run httpd;then
-        echo "[warn] apache已经在运行中";
-    else
-        nohup ./httpd-$APACHE_VERSION/bin/httpd.exe 2>/dev/null >/dev/null &
-        echo "[info] apache已运行";
-    fi
-}
-start_mysqld(){
-    # 启动mysql
-    if has_run mysqld;then
-        echo "[warn] mysql已经在运行中";
-    else
-        nohup ./mysql-$MYSQL_VERSION/bin/mysqld.exe 2>/dev/null >/dev/null &
-        echo "[info] mysql已运行";
-    fi
-}
-start_apm(){
-    start_httpd
-    if [ "\$APM_HAS_PHP" = 1 ];then
-        start_php_cgi
-    fi
-    start_mysqld
-}
-stop_apm(){
-    stop_run httpd
-    if [ "\$APM_HAS_PHP" = 1 ];then
-        stop_run php-cgi
-    fi
-    stop_run mysqld
-}
-start_npm(){
-    start_nginx
-    start_php_cgi
-    start_mysqld
-}
-stop_npm(){
-    stop_run nginx
-    stop_run php-cgi
-    stop_run mysqld
-}
-show_status(){
-    if [ "\$1" = 0 ];then
-        echo "\e[40;35m已启动\e[0m";
-    else
-        echo "\e[40;37m未已启动\e[0m";
-    fi
-}
-cd "$INSTALL_PATH"
-while true;do
-    clear
-    PHP_CGI_STATUS=\$(has_run php-cgi; echo \$?)
-    NGINX_STATUS=\$(has_run nginx; echo \$?)
-    HTTPD_STATUS=\$(has_run httpd; echo \$?)
-    MYSQLD_STATUS=\$(has_run mysqld; echo \$?)
-    NPM_STATUS=\$([ "\$NGINX_STATUS\$PHP_CGI_STATUS\$MYSQLD_STATUS" = '000' ]; echo \$?)
-    if [ "\$APM_HAS_PHP" = 1 ];then
-        APM_STATUS=\$([ "\$HTTPD_STATUS\$PHP_CGI_STATUS\$MYSQLD_STATUS" = '000' ]; echo \$?)
-    else
-        APM_STATUS=\$([ "\$HTTPD_STATUS\$MYSQLD_STATUS" = '00' ]; echo \$?)
-    fi
-
-    echo -e "
-\e[40;33m可操作序号：\e[0m
-
-\e[40;32m 1、启停apache+php+mysql\e[0m    [\$(show_status \$APM_STATUS)]
-\e[40;32m 2、启停nginx+php+mysql\e[0m     [\$(show_status \$NPM_STATUS)]
-\e[40;32m 3、启停apache\e[0m  [\$(show_status \$HTTPD_STATUS)]
-\e[40;32m 4、启停nginx\e[0m   [\$(show_status \$NGINX_STATUS)]
-\e[40;32m 5、启停mysql\e[0m   [\$(show_status \$MYSQLD_STATUS)]
-\e[40;32m 6、启停php-cgi\e[0m [\$(show_status \$PHP_CGI_STATUS)]
-\e[40;31m 7、刷新状态\e[0m
-\e[40;31m 8、退出界面\e[0m
-
-\e[40;35m服务处理：启动（+） 停止（-） 重启（*）\e[0m
-\e[40;36m输入示例：重启 apache，输入 *3\e[0m
-
-"
-    while read -p "请输入要功能+操作序号：" -r INPUT_NUM;do
-        case "\$INPUT_NUM" in
-            [\+\-\*]1)
-                SERVER_NAME=apm
+# 启动服务
+start_run(){
+    local _VERSION _PARAMS _NAME _PID
+    for _VERSION in $(get_versions "$1");do
+        _NAME="$1-$_VERSION"
+        if [ ! -d "./${_NAME}" ];then
+            echo "[warn] ${_NAME}未安装";
+            continue
+        fi
+        case "$1" in
+            httpd)
+                _PARAMS=(./httpd-$_VERSION/bin/httpd.exe)
             ;;
-            [\+\-\*]2)
-                SERVER_NAME=npm
+            nginx)
+                _PARAMS=(./nginx-$_VERSION/nginx.exe -p ./nginx-$_VERSION)
             ;;
-            [\+\-\*]3)
-                SERVER_NAME=httpd
+            mysql)
+                _PARAMS=(./mysql-$_VERSION/bin/mysqld.exe)
             ;;
-            [\+\-\*]4)
-                SERVER_NAME=nginx
+            php)
+                PHP_CGI_PORT=${_VERSION//./}
+                _PARAMS=(./php-$_VERSION/php-cgi.exe -b 127.0.0.1:$PHP_CGI_PORT)
             ;;
-            [\+\-\*]5)
-                SERVER_NAME=mysqld
-            ;;
-            [\+\-\*]6)
-                SERVER_NAME=php-cgi
-            ;;
-            7)
-                break
-            ;;
-            8)
-                exit
+            redis)
+                _PARAMS=(./redis-$_VERSION/redis-server.exe)
             ;;
             *)
-                echo "请输入处理+操作序号，请重新输入"
-                continue
+                echo "[warn] 未知服务：$1";
+                return 1
             ;;
         esac
-        ACTION_NAME=\${INPUT_NUM:0:1}
-        if [ "\$ACTION_NAME" = '-' -o "\$ACTION_NAME" = '*' ];then
-            if declare -F stop_\${SERVER_NAME//-/_} >/dev/null 2>/dev/null;then
-                stop_\${SERVER_NAME//-/_}
+        if has_run "${1}";then
+            echo "[warn] ${_NAME}已经在运行中";
+        else
+            nohup ${_PARAMS[@]} 2>/dev/null >/dev/null &
+            set_pid "${_NAME}" "$!"
+            echo "[info] ${_NAME}已运行";
+        fi
+    done
+}
+# 停止服务
+stop_run(){
+    local _VERSION _NAME _PID
+    echo $1
+    for _VERSION in $(get_versions "$1");do
+        _NAME="$1-$_VERSION"
+        echo $_NAME
+        _PID=$(get_pid "${_NAME}")
+        if [ -n "$_PID" ];then
+            if kill $_PID;then
+                echo "[info] ${_NAME} 执行停止"
             else
-                stop_run \$SERVER_NAME
+                echo "[warn] ${_NAME} 停止失败"
             fi
+        else
+            echo "[warn] 未找到启动进程，跳过停止 ${_NAME}"
         fi
-        if [ "\$ACTION_NAME" = '+' -o "\$ACTION_NAME" = '*' ];then
-            start_\${SERVER_NAME//-/_}
+    done
+}
+# 是否运行
+has_run(){
+    local _VERSION _RUN=0 _STOP=0
+    for _VERSION in $(get_versions "$1");do
+        if [ -n "$(get_pid "$1-$_VERSION")" ];then
+            ((_RUN++))
+        else
+            ((_STOP++))
         fi
-        echo '[info] 即将刷新界面'
-        sleep 2s
-        break
+    done
+    if (( _RUN <= 0 ));then
+        return 2
+    elif (( _STOP > 0 ));then
+        return 1
+    else
+        return 0
+    fi
+}
+# 是否停止
+has_stop(){
+    has_run $1
+    return $((2-$?))
+}
+# 显示状态
+show_status(){
+    has_run $1
+    local _RES=$?
+    if [ "$_RES" = 0 ];then
+        echo "\e[40;35m已启动\e[0m";
+    elif [ "$_RES" = 1 ];then
+        echo "\e[40;33m部分启动\e[0m";
+    else
+        echo "\e[40;37m未启动\e[0m";
+    fi
+}
+update_default_run(){
+    local _NAME _INDEX _ACTION=$1
+    shift
+    for _NAME;do
+        echo $_NAME
+        for ((_INDEX=0;_INDEX<${#DEFAULT_RUN_NAME[@]};_INDEX++));do
+            if [ "$_NAME" = "${DEFAULT_RUN_NAME[$_INDEX]}" ];then
+                if [ "$_ACTION" = 'del' ];then
+                    unset DEFAULT_RUN_NAME[$_INDEX]
+                else
+                    continue 2
+                fi
+            fi
+        done
+        if [ "$_ACTION" = 'add' ];then
+            DEFAULT_RUN_NAME[${#DEFAULT_RUN_NAME[@]}]=$_NAME
+        fi
+    done
+    set_conf 'run=.*' "run=${DEFAULT_RUN_NAME[*]}" &
+}
+# 处理时间
+START_TIME=0
+CURRENT_TIME=0
+DEFAULT_RUN=()
+DEFAULT_RUN_NAME=()
+# 配置文件
+if [ ! -e $CONFIG_PATH ];then
+    init_conf
+fi
+# 读取配置文件
+while read CONF_LINE;do
+    # 不是合理的配置跳过
+    if [[ -z "$CONF_LINE" || "$CONF_LINE" =~ ^[[:space:]]*# ]] || ! [[ "$CONF_LINE" =~ = ]];then
+        continue
+    fi
+    # 服务配置
+    for _NAME in ${SERVICES[@]};do
+        if [[ "${CONF_LINE}" == ${_NAME}* ]];then
+            if [ "${CONF_LINE%%=*}" == "${_NAME}" ];then
+                # 启动版本信息
+                eval "$(echo "$_NAME"|tr '[:lower:]' '[:upper:]')_VERSIONS=(${CONF_LINE#*=})"
+            elif [[ "${CONF_LINE%%=*}" =~ ^${_NAME}-[0-9]+(\.[0-9]+)+-pid$ ]];then
+                # 进程ID配置
+                set_pid "${CONF_LINE%%-pid=*}" "${CONF_LINE#*=}"
+            fi
+            continue 2
+        fi
+    done
+    # 默认启动配置
+    if [ "${CONF_LINE%%=*}" == "run" ];then
+        DEFAULT_RUN=(${CONF_LINE#*=})
+    fi
+done < $CONFIG_PATH
+# 默认启动
+if ((${#DEFAULT_RUN[@]} > 0));then
+    HANDLE_LISTS=(${DEFAULT_RUN[@]});
+    HANDLE_NAMES=('init');
+    START_TIME=$(date +'%s')
+else
+    HANDLE_LISTS=();
+    HANDLE_NAMES=();
+fi
+# 服务别名
+httpd_ALIAS=apache
+php_ALIAS=php-cgi
+# 启动状态
+HANDLE_STATUS='stop'
+while true;do
+    CURRENT_TIME=$(date +'%s')
+    PRINT_TEXT="\n\e[40;33m可操作序号：\e[0m
+
+\e[40;32m 1、启停apache+php+mysql\e[0m
+\e[40;32m 2、启停nginx+php+mysql\e[0m
+"
+    # 单个启停
+    HANDLE_INDEX=3
+    for ((_INDEX=0;_INDEX<${#SERVICES[@]};_INDEX++));do
+        _NAME=${SERVICES[${_INDEX}]}
+        PRINT_TEXT="$PRINT_TEXT\e[40;32m $((_INDEX+3))、启停$(eval "echo \${${_NAME}_ALIAS:-${_NAME}}")\e[0m  [$(show_status ${_NAME})]\n"
+    done
+    # 处理完前不接受输入
+    case "${HANDLE_NAMES[0]}" in
+        has_*)
+            # 判断是否成功
+            HAS_SUCCESS=0
+            for SERVER_NAME in ${HANDLE_LISTS[@]};do
+                if ${HANDLE_NAMES[0]} $SERVER_NAME;then
+                    HAS_SUCCESS=1
+                    break
+                fi
+            done
+            if [ "${HANDLE_NAMES[0]}" = 'has_stop' ];then
+                PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m停止中... $((CURRENT_TIME-START_TIME))s\e[0m"
+            else
+                PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m启动中... $((CURRENT_TIME-START_TIME))s\e[0m"
+            fi
+            if [ "$HAS_SUCCESS" = 1 ];then
+                HANDLE_NAMES=(${HANDLE_NAMES[@]:1})
+            fi
+        ;;
+        \-)
+            PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m停止中...\e[0m"
+            for SERVER_NAME in ${HANDLE_LISTS[@]};do
+                stop_run $SERVER_NAME
+            done
+            HANDLE_NAMES[0]=has_stop
+            HANDLE_STATUS=stop
+            # 更新自动启动
+            update_default_run 'del' ${HANDLE_LISTS[@]}
+        ;;
+        \+)
+            PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m启动中...\e[0m"
+            for SERVER_NAME in ${HANDLE_LISTS[@]};do
+                start_run $SERVER_NAME
+            done
+            HANDLE_NAMES[0]=has_run
+            HANDLE_STATUS=run
+            # 更新自动启动
+            update_default_run 'add' ${HANDLE_LISTS[@]}
+        ;;
+        init)
+            HANDLE_NAMES=('+')
+        ;;
+        \*)
+            HANDLE_NAMES=('-' '+')
+        ;;
+        *)
+            PRINT_TEXT="$PRINT_TEXT\n
+\e[40;35m 功能：启动（+） 停止（-） 重启（*）\e[0m \e[40;36m输入示例：重启 apache，输入 *3\e[0m
+\e[40;31m 退出界面输入：q|Q\e[0m\n\n"
+        ;;
+    esac
+    clear
+    echo -e "$PRINT_TEXT"
+    if (( START_TIME > 0 ));then
+        sleep 0.05
+        # 超时就清除操作
+        if ((${#HANDLE_NAMES[@]} <= 0 || START_TIME < CURRENT_TIME - 60));then
+            START_TIME=0
+            HANDLE_NAMES=()
+        fi
+        continue
+    fi
+    echo -n '请输入要功能+序号：'
+    while [ $START_TIME = 0 ];do
+        # 补偿启动处理
+        if [ "$HANDLE_STATUS" = 'run' ];then
+            for SERVER_NAME in ${HANDLE_LISTS[@]};do
+                start_run $SERVER_NAME >/dev/null
+            done
+        fi
+        # 输入提取处理
+        while read -t 5 -r INPUT_NUM;do
+            case "$INPUT_NUM" in
+                [\+\-\*]1)
+                    HANDLE_LISTS=(httpd php mysql)
+                ;;
+                [\+\-\*]2)
+                    HANDLE_LISTS=(nginx php mysql)
+                ;;
+                [\+\-\*][34567])
+                    HANDLE_LISTS=(${SERVICES[$((${INPUT_NUM:1} - 3))]})
+                ;;
+                q|Q)
+                    exit
+                ;;
+                *)
+                    echo -n "未知操作码，请重新输入："
+                    continue
+                ;;
+            esac
+            HANDLE_NAMES=(${INPUT_NUM:0:1})
+            START_TIME=$(date +'%s')
+            break
+        done
     done
 done
-
-EOF
-
