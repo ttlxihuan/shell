@@ -1072,10 +1072,8 @@ start_run(){
 # 停止服务
 stop_run(){
     local _VERSION _NAME _PID
-    echo $1
     for _VERSION in $(get_versions "$1");do
         _NAME="$1-$_VERSION"
-        echo $_NAME
         _PID=$(get_pid "${_NAME}")
         if [ -n "$_PID" ];then
             if kill $_PID;then
