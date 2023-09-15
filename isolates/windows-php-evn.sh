@@ -89,6 +89,16 @@ if_version(){
     fi
     return 1;
 }
+# 创建目录
+mkdirs(){
+    local _PATH
+    for _PATH;do
+        if [ ! -d "$_PATH" ];then
+            mkdir -p "$_PATH"
+            if_error "创建目录 $_PATH 失败"
+        fi
+    done
+}
 # 必需在windows系统下运行此脚本
 if ! uname|grep -qP 'MINGW(64|32)' || ! echo $BASH|grep -q '^/usr/bin/bash$';then
     show_error "windows系统git-bash环境专用脚本"
@@ -186,12 +196,6 @@ for((INDEX=1; INDEX<=$#; INDEX++));do
         ;;
         *)
             INSTALL_PATH=${PARAM_ITEM}
-            if [ ! -d "$INSTALL_PATH" ];then
-                echo "[info] 安装目录不存在，立即创建目录 $INSTALL_PATH"
-                mkdir -p "$INSTALL_PATH"
-                if_error "创建目录 $INSTALL_PATH 失败"
-            fi
-            INSTALL_PATH=$(cd ${PARAM_ITEM};pwd)
         ;;
     esac
 done
@@ -205,9 +209,18 @@ if ! [[ "$INSTALL_PATH" =~ ^([a-zA-Z0-9]|/|-|_|\.)+$ ]];then
     show_error "安装目录不可包含[a-z0-9/-_.]以外的字符，否则可能导致安装后的服务不可用，请确认安装目录：$INSTALL_PATH"
 fi
 
+echo "[info] 安装目录：$INSTALL_PATH"
+
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)/$(basename "${BASH_SOURCE[0]}")"
 
-cd "$INSTALL_PATH"
+mkdirs "$INSTALL_PATH/downloads" "$INSTALL_PATH/servers" "$INSTALL_PATH/www"
+
+INSTALL_PATH=$(cd ${INSTALL_PATH};pwd)
+
+# 下载目录
+DOWNLOADS_PATH="$INSTALL_PATH/downloads"
+# 服务目标
+SERVERS_PATH="$INSTALL_PATH/servers"
 
 echo "[info] 如果长时间没有反应建议 Ctrl + C 终止脚本，再运行尝试"
 
@@ -245,13 +258,16 @@ if [ -n "$PHP_VERSION" ];then
         get_version PHP_VERSION 'https://www.php.net/supported-versions.php' '#v\d+\.\d+\.\d+'
     fi
     # 获取下载包名
-    # PHP_FILE='php-8.1.9-Win32-vs16-x64.zip'
-    echo -n '[info] 提取PHP编译使用VC版本号：'
+    if if_version "$PHP_VERSION" '>=' '8.0.0';then
+        VC_VS=vs
+    else
+        VC_VS=vc
+    fi
     PHP_DOWNLOAD_URL='https://windows.php.net/downloads/releases/'
-    PHP_FILE=$(run_curl $PHP_DOWNLOAD_URL|grep -oP "php-$PHP_VERSION-Win32-vs\d+-x$OS_BIT\.zip"|head -n 1)
+    PHP_FILE=$(run_curl $PHP_DOWNLOAD_URL|grep -oP "php-$PHP_VERSION-Win32-$VC_VS\d+-x$OS_BIT\.zip"|head -n 1)
     if [ -z "$PHP_FILE" ];then
         PHP_DOWNLOAD_URL=${PHP_DOWNLOAD_URL}archives/
-        PHP_FILE=$(run_curl $PHP_DOWNLOAD_URL|grep -oP "php-$PHP_VERSION-Win32-vs\d+-x$OS_BIT\.zip"|head -n 1)
+        PHP_FILE=$(run_curl $PHP_DOWNLOAD_URL|grep -oP "php-$PHP_VERSION-Win32-$VC_VS\d+-x$OS_BIT\.zip"|head -n 1)
     fi
     if_error "php-$PHP_VERSION 包不存在无法下载"
 fi
@@ -270,9 +286,8 @@ if [ -n "$APACHE_VERSION" ];then
             show_error "没有安装PHP，请指定VC版本信息"
         fi
         # 自动匹配
-        VC_VERSION=$($PHP_INSTALL_DIR/php.exe -i|grep -P 'PHP Extension Build .*VS\d+$'|grep -oP '\d+$')
+        VC_VERSION=$($PHP_INSTALL_DIR/php.exe -i|grep -P 'PHP Extension Build .*V[SC]\d+$'|grep -oP '\d+$')
     fi
-    echo "$VC_VERSION"
     if (( VC_VERSION >= 16 ));then
         VC_NAME=VS$VC_VERSION
     else
@@ -309,6 +324,7 @@ fi
 # 下载安装包
 download_file(){
     local FILE_NAME=$(basename "$1")
+    cd "$DOWNLOADS_PATH"
     if [ ! -e "$FILE_NAME" ];then
         echo "[info] 下载：$FILE_NAME [下载中...]"
         if (run_curl -O -o "$FILE_NAME" "$1" 2>/dev/null);then
@@ -322,13 +338,15 @@ download_file(){
     else
         echo "[info] 下载：$FILE_NAME [已下载]"
     fi
-    if [ ! -d ${3:-$2} ];then
+    local SAVE_PATH="$SERVERS_PATH/${2}"
+    if [ ! -d "$SAVE_PATH" ];then
         echo "[info] 解压：$FILE_NAME [解压中...]"
-        unzip "$FILE_NAME" -d $2 >/dev/null 2>/dev/null
+        unzip "$FILE_NAME" -d "$SAVE_PATH" >/dev/null 2>/dev/null
         if [ $? != 0 ];then
             rm -f "$FILE_NAME"
             show_error "解压 $FILE_NAME 失败，下载地址：$1"
         fi
+        cd "$SERVERS_PATH"
         # 目录迁移
         local DEC_PATH
         while [ $(find $2 -maxdepth 1 -type d|grep -P '/.+'|wc -l) = 1 ];do
@@ -343,9 +361,9 @@ download_file(){
 }
 
 php_init(){
+    [ -d "$SERVERS_PATH/php-$PHP_VERSION" ] || show_error "php-$PHP_VERSION 下载解压失败，安装终止"
     echo "PHP配置处理"
-    [ -d "$INSTALL_PATH/php-$PHP_VERSION" ] || show_error "php-$PHP_VERSION 下载解压失败，安装终止"
-    cd "$INSTALL_PATH/php-$PHP_VERSION"
+    cd "$SERVERS_PATH/php-$PHP_VERSION"
     if [ ! -e ./php.ini ];then
         cp php.ini-development php.ini
         if_error "php.ini 配置文件丢失，无法进行配置"
@@ -367,7 +385,7 @@ php_init(){
     sed -i -r "s,^\s*;?\s*(open_basedir\s*=).*,\1 .," php.ini
     # 配置user_dir目录，此目录为 /home/ 相下进行的
     # sed -i -r "s,^\s*;?\s*(user_dir\s*=).*,\1 ./," php.ini
-    ln -svf $INSTALL_PATH/php-$PHP_VERSION/php.exe /usr/bin/php
+    ln -svf $SERVERS_PATH/php-$PHP_VERSION/php.exe /usr/bin/php
     # 安装composer
     if which composer;then
         echo "[info] 已安装 composer"
@@ -380,7 +398,7 @@ require './composer-setup.php';
 EOF
         ./php composer-installer.php
         if [ -e ./composer.phar ];then
-            ln -svf $INSTALL_PATH/php-$PHP_VERSION/composer.phar /usr/bin/composer
+            ln -svf $SERVERS_PATH/php-$PHP_VERSION/composer.phar /usr/bin/composer
             echo "[info] composer 安装成功";
         else
             echo "[warn] composer 安装失败";
@@ -389,9 +407,9 @@ EOF
     fi
 }
 apache_init(){
+    [ -d "$SERVERS_PATH/httpd-$APACHE_VERSION" ] || show_error "apache-$APACHE_VERSION 下载解压失败，安装终止"
     echo "apache配置处理"
-    [ -d "$INSTALL_PATH/httpd-$APACHE_VERSION" ] || show_error "apache-$APACHE_VERSION 下载解压失败，安装终止"
-    cd "$INSTALL_PATH/httpd-$APACHE_VERSION"
+    cd "$SERVERS_PATH/httpd-$APACHE_VERSION"
     # 已经配置过的就跳过
     if grep -qP '^LoadModule\s+vhost_alias_module\s+' ./conf/httpd.conf;then
         return
@@ -420,9 +438,9 @@ apache_init(){
     if [ -z "$APACHE_VC_VERSION" -o "$APACHE_VC_VERSION" = "$VC_VERSION" ];then
         # 配置PHP模块，所有目录的反斜线应转换为正斜线
         local APACHE_MODULE_VERSION=${APACHE_VERSION%.*}
-        local PHP_MODULE_PATH=$(find "$INSTALL_PATH/php-$PHP_VERSION" -name "*${APACHE_MODULE_VERSION//./_}.dll")
+        local PHP_MODULE_PATH=$(find "$SERVERS_PATH/php-$PHP_VERSION" -name "*${APACHE_MODULE_VERSION//./_}.dll")
         if [ $? = 0 ];then
-            local PHP_INSTALL_PATH=$(cd $INSTALL_PATH/php-$PHP_VERSION;pwd|sed -r 's,^/([a-z]+)/,\1:/,')
+            local PHP_INSTALL_PATH=$(cd $SERVERS_PATH/php-$PHP_VERSION;pwd|sed -r 's,^/([a-z]+)/,\1:/,')
             cat >> ./conf/httpd.conf <<EOF
 
 LoadModule php_module "$PHP_INSTALL_PATH/$(basename $PHP_MODULE_PATH)"
@@ -465,9 +483,9 @@ EOF
 EOF
 }
 nginx_init(){
+    [ -d "$SERVERS_PATH/nginx-$NGINX_VERSION" ] || show_error "nginx-$NGINX_VERSION 下载解压失败，安装终止"
     echo "nginx配置处理"
-    [ -d "$INSTALL_PATH/nginx-$NGINX_VERSION" ] || show_error "nginx-$NGINX_VERSION 下载解压失败，安装终止"
-    cd "$INSTALL_PATH/nginx-$NGINX_VERSION/conf"
+    cd "$SERVERS_PATH/nginx-$NGINX_VERSION/conf"
     if [ ! -d ./vhosts ];then
         mkdir ./vhosts
         LAST_NUM=$(grep -n '^}' nginx.conf|tail -n 1|grep -oP '\d+')
@@ -620,9 +638,9 @@ conf
     
 }
 mysql_init(){
+    [ -d "$SERVERS_PATH/mysql-$MYSQL_VERSION" ] || show_error "mysql-$MYSQL_VERSION 下载解压失败，安装终止"
     echo "mysql配置处理"
-    [ -d "$INSTALL_PATH/mysql-$MYSQL_VERSION" ] || show_error "mysql-$MYSQL_VERSION 下载解压失败，安装终止"
-    cd "$INSTALL_PATH/mysql-$MYSQL_VERSION"
+    cd "$SERVERS_PATH/mysql-$MYSQL_VERSION"
     if [ ! -d ./database/mysql ];then
         echo '[info] 初始化数据库'
         if [ -e "./scripts/mysql_install_db" ];then
@@ -889,8 +907,8 @@ MY_CONF
 
 redis_init(){
     # 修改配置
+    [ -d "$SERVERS_PATH/redis-$REDIS_VERSION" ] || show_error "redis-$REDIS_VERSION 下载解压失败，安装终止"
     echo "redis配置处理"
-    [ -d "$INSTALL_PATH/redis-$REDIS_VERSION" ] || show_error "redis-$REDIS_VERSION 下载解压失败，安装终止"
 }
 
 echo '[info] 下载各软件包'
@@ -917,18 +935,18 @@ fi
 
 # 等待下载完
 echo '[wait] 等待下载解压完成'
+
 wait
-# 创建web目录
-if [ ! -d ./www ];then
-    mkdir ./www
-    # 生成测试文件
-    cat >> ./www/index.php <<EOF
+
+cd "$INSTALL_PATH/www"
+# 生成测试文件
+cat >> ./www/index.php <<EOF
 <?php
 
 phpinfo();
 
 EOF
-fi
+
 # 根目录
 DOC_ROOT=$(cd ./www;pwd|sed -r 's,^/([a-z]+)/,\1:/,')
 
@@ -984,7 +1002,7 @@ exit
 
 #!/bin/bash
 SERVICES=(httpd nginx mysql php redis)
-CONFIG_PATH='./run.conf'
+CONFIG_PATH='./servers/run.conf'
 cd __INSTALL_PATH__
 # 初始配置
 init_conf(){
