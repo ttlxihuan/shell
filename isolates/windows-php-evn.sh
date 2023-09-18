@@ -221,6 +221,8 @@ INSTALL_PATH=$(cd ${INSTALL_PATH};pwd)
 DOWNLOADS_PATH="$INSTALL_PATH/downloads"
 # 服务目标
 SERVERS_PATH="$INSTALL_PATH/servers"
+# 文档目录
+DOC_ROOT=$(cd "$INSTALL_PATH/www";pwd|sed -r 's,^/([a-z]+)/,\1:/,')
 
 echo "[info] 如果长时间没有反应建议 Ctrl + C 终止脚本，再运行尝试"
 
@@ -279,9 +281,10 @@ if [ -n "$APACHE_VERSION" ];then
         VC_VERSION=$APACHE_VC_VERSION
     elif [ -n "$PHP_FILE" ];then
         VC_VERSION=$(echo "$PHP_FILE"|grep -oP 'vs\d+-'|grep -oP '\d+')
+        PHP_INSTALL_DIR="$SERVERS_PATH/php-$PHP_VERSION"
     else
         # 在安装目录里找已经安装的php再进行数据匹配
-        PHP_INSTALL_DIR=$(find ./ -maxdepth 1 -type d -name 'php-*' 2>/dev/null|sort -r|head -n 1)
+        PHP_INSTALL_DIR=$(find "$SERVERS_PATH" -maxdepth 1 -type d -name 'php-*' 2>/dev/null|sort -r|head -n 1)
         if [ -z "$PHP_INSTALL_DIR" ];then
             show_error "没有安装PHP，请指定VC版本信息"
         fi
@@ -362,7 +365,7 @@ download_file(){
 
 php_init(){
     [ -d "$SERVERS_PATH/php-$PHP_VERSION" ] || show_error "php-$PHP_VERSION 下载解压失败，安装终止"
-    echo "PHP配置处理"
+    echo "[info] PHP配置处理"
     cd "$SERVERS_PATH/php-$PHP_VERSION"
     if [ ! -e ./php.ini ];then
         cp php.ini-development php.ini
@@ -380,11 +383,10 @@ php_init(){
     # 扩展目录
     sed -i -r 's/^\s*;?\s*(extension_dir\s*=)\s*"ext"\s*/\1 "ext"/' php.ini
     # 访问目录范围限制配置
-    # 配置doc_root目录
-    sed -i -r "s,^\s*;?\s*(doc_root\s*=).*,\1 .," php.ini
-    sed -i -r "s,^\s*;?\s*(open_basedir\s*=).*,\1 .," php.ini
-    # 配置user_dir目录，此目录为 /home/ 相下进行的
-    # sed -i -r "s,^\s*;?\s*(user_dir\s*=).*,\1 ./," php.ini
+    # 配置目录访问目录，注意：open_basedir尽量不要配置，否则会影响可访问根目录
+    sed -i -r "s,^\s*;?\s*(doc_root\s*=).*,\1," php.ini
+    sed -i -r "s,^\s*;?\s*(open_basedir\s*=).*,; \1," php.ini
+    sed -i -r "s,^\s*;?\s*(user_dir\s*=).*,\1," php.ini
     ln -svf $SERVERS_PATH/php-$PHP_VERSION/php.exe /usr/bin/php
     # 安装composer
     if which composer;then
@@ -408,12 +410,8 @@ EOF
 }
 apache_init(){
     [ -d "$SERVERS_PATH/httpd-$APACHE_VERSION" ] || show_error "apache-$APACHE_VERSION 下载解压失败，安装终止"
-    echo "apache配置处理"
+    echo "[info] apache配置处理"
     cd "$SERVERS_PATH/httpd-$APACHE_VERSION"
-    # 已经配置过的就跳过
-    if grep -qP '^LoadModule\s+vhost_alias_module\s+' ./conf/httpd.conf;then
-        return
-    fi
     # 通用配置开启
     # 开启rewrite模块
     sed -i -r 's/\s*#\s*(LoadModule\s+rewrite_module\s+.*)/\1/' ./conf/httpd.conf
@@ -424,34 +422,9 @@ apache_init(){
     # 打开vhosts
     sed -i -r 's,\s*#\s*(Include\s+conf/extra/httpd-vhosts.conf.*),\1,' ./conf/httpd.conf
     # 注释配置
-    if [ -e conf/extra/httpd-vhosts.conf ];then
+    if [ -e conf/extra/httpd-vhosts.conf ] && ! grep -qP 'ServerName localhost' ./conf/extra/httpd-vhosts.conf;then
         sed -i -r 's/^(\s*[^#]+)/# \1/' ./conf/extra/httpd-vhosts.conf
-    fi
-    # 修改SRVROOT或ServerRoot
-    local APACHE_INSTALL_PATH=$(pwd|sed -r 's,^/([a-z]+)/,\1:/,')
-    if ! sed -i -r "s,\s*(Define\s+SRVROOT)\s+.*,\1 \"$APACHE_INSTALL_PATH\"," ./conf/httpd.conf;then
-        sed -i -r "s,\s*(ServerRoot)\s+.*,\1 \"$APACHE_INSTALL_PATH\"," ./conf/httpd.conf
-    fi
-    # 配置ServerName，否则启动会有警告
-    sed -i -r 's/\s*#\s*(ServerName\s+)[a-zA-Z0-9_\.:]+\s*$/\1 localhost/' ./conf/httpd.conf
-    # 配置与PHP连接
-    if [ -z "$APACHE_VC_VERSION" -o "$APACHE_VC_VERSION" = "$VC_VERSION" ];then
-        # 配置PHP模块，所有目录的反斜线应转换为正斜线
-        local APACHE_MODULE_VERSION=${APACHE_VERSION%.*}
-        local PHP_MODULE_PATH=$(find "$SERVERS_PATH/php-$PHP_VERSION" -name "*${APACHE_MODULE_VERSION//./_}.dll")
-        if [ $? = 0 ];then
-            local PHP_INSTALL_PATH=$(cd $SERVERS_PATH/php-$PHP_VERSION;pwd|sed -r 's,^/([a-z]+)/,\1:/,')
-            cat >> ./conf/httpd.conf <<EOF
-
-LoadModule php_module "$PHP_INSTALL_PATH/$(basename $PHP_MODULE_PATH)"
-<FilesMatch \.php$>
-    SetHandler application/x-httpd-php
-</FilesMatch>
-# 配置 php.ini 的路径
-PHPIniDir "$PHP_INSTALL_PATH"
-
-EOF
-            cat >> ./conf/extra/httpd-vhosts.conf <<EOF
+        cat >> ./conf/extra/httpd-vhosts.conf <<EOF
 # 示例模板
 <VirtualHost _default_:80>
     ServerName localhost
@@ -465,26 +438,41 @@ EOF
     </Directory>
 </VirtualHost>
 EOF
-            return
+    fi
+    # 修改SRVROOT或ServerRoot
+    local APACHE_INSTALL_PATH=$(pwd|sed -r 's,^/([a-z]+)/,\1:/,')
+    if ! sed -i -r "s,\s*(Define\s+SRVROOT)\s+.*,\1 \"$APACHE_INSTALL_PATH\"," ./conf/httpd.conf;then
+        sed -i -r "s,\s*(ServerRoot)\s+.*,\1 \"$APACHE_INSTALL_PATH\"," ./conf/httpd.conf
+    fi
+    # 配置ServerName，否则启动会有警告
+    sed -i -r 's/\s*#\s*(ServerName\s+)[a-zA-Z0-9_\.:]+\s*$/\1 localhost/' ./conf/httpd.conf
+    # 配置与PHP连接
+    if [ -n "${PHP_INSTALL_DIR}" ] && [ -z "$APACHE_VC_VERSION" -o "$APACHE_VC_VERSION" = "$VC_VERSION" ];then
+        # 配置PHP模块，所有目录的反斜线应转换为正斜线
+        local APACHE_MODULE_VERSION=${APACHE_VERSION%.*}
+        local PHP_MODULE_PATH=$(find "$PHP_INSTALL_DIR" -name "*${APACHE_MODULE_VERSION//./_}.dll")
+        if [ $? = 0 ] && ! grep -qP '^LoadModule php_module' ./conf/httpd.conf;then
+            local PHP_INSTALL_PATH=$(cd $PHP_INSTALL_DIR;pwd|sed -r 's,^/([a-z]+)/,\1:/,')
+            cat >> ./conf/httpd.conf <<EOF
+
+LoadModule php_module "$PHP_INSTALL_PATH/$(basename $PHP_MODULE_PATH)"
+<FilesMatch \.php$>
+    SetHandler application/x-httpd-php
+</FilesMatch>
+# 配置 php.ini 的路径
+PHPIniDir "$PHP_INSTALL_PATH"
+
+EOF
         fi
     fi
     # 配置cgi模式
     # 开启gcgi代理模块
     sed -i -r 's/\s*#\s*(LoadModule\s+proxy_module\s+.*)/\1/' ./conf/httpd.conf
     sed -i -r 's/\s*#\s*(LoadModule\s+proxy_fcgi_module\s+.*)/\1/' ./conf/httpd.conf
-    cat >> ./conf/extra/httpd-vhosts.conf <<EOF
-# 示例模板
-<VirtualHost _default_:80>
-    ServerName localhost
-    DocumentRoot "$DOC_ROOT/localhost/public"
-    # 指定使用的PHP版本
-    # Include conf/extra/httpd-php-${PHP_VERSION}.conf
-</VirtualHost>
-EOF
 }
 nginx_init(){
     [ -d "$SERVERS_PATH/nginx-$NGINX_VERSION" ] || show_error "nginx-$NGINX_VERSION 下载解压失败，安装终止"
-    echo "nginx配置处理"
+    echo "[info] nginx配置处理"
     cd "$SERVERS_PATH/nginx-$NGINX_VERSION/conf"
     if [ ! -d ./vhosts ];then
         mkdir ./vhosts
@@ -586,6 +574,30 @@ server {
     include vhosts/static;
 }
 conf
+        cat > php <<conf
+# 此文件为共用文件，用于其它 server 块引用
+# PHP配置
+if (!-e \$request_filename) {
+    rewrite  ^/(.*)$ /index.php?s=\$1  last;
+    break;
+}
+
+# 代理 http://127.0.0.1:80 地址
+#location ~ \.php$ {
+#    proxy_pass   http://127.0.0.1;
+#}
+
+# fastcgi接口监听
+# 转到php-fpm上
+location ~ \.php\$ {
+    fastcgi_pass   127.0.0.1:\$PHP_CGI_PORT;
+    fastcgi_index  index.php;
+    fastcgi_param  SCRIPT_FILENAME  \$document_root\$fastcgi_script_name;
+    include        fastcgi_params;
+}
+# 使用静态配置
+include vhosts/static;
+conf
         cat > php.conf.default <<conf
 # 此文件为PHP服务配置模板
 # 使用时建议复制文件并去掉文件名后缀 .default
@@ -610,6 +622,9 @@ server {
 
     # 检查请求实体大小，超出返回413状态码，为0则不检查。
     # client_max_body_size 10m;
+
+    # 指定使用PHP版本
+    
 
     # 引用PHP基础配置
     include vhosts/php;
@@ -639,7 +654,7 @@ conf
 }
 mysql_init(){
     [ -d "$SERVERS_PATH/mysql-$MYSQL_VERSION" ] || show_error "mysql-$MYSQL_VERSION 下载解压失败，安装终止"
-    echo "mysql配置处理"
+    echo "[info] mysql配置处理"
     cd "$SERVERS_PATH/mysql-$MYSQL_VERSION"
     if [ ! -d ./database/mysql ];then
         echo '[info] 初始化数据库'
@@ -908,7 +923,7 @@ MY_CONF
 redis_init(){
     # 修改配置
     [ -d "$SERVERS_PATH/redis-$REDIS_VERSION" ] || show_error "redis-$REDIS_VERSION 下载解压失败，安装终止"
-    echo "redis配置处理"
+    echo "[info] redis配置处理"
 }
 
 echo '[info] 下载各软件包'
@@ -940,15 +955,12 @@ wait
 
 cd "$INSTALL_PATH/www"
 # 生成测试文件
-cat >> ./www/index.php <<EOF
+cat >> ./index.php <<EOF
 <?php
 
 phpinfo();
 
 EOF
-
-# 根目录
-DOC_ROOT=$(cd ./www;pwd|sed -r 's,^/([a-z]+)/,\1:/,')
 
 [ -n "$APACHE_VERSION" ] && apache_init
 [ -n "$NGINX_VERSION" ] && nginx_init
@@ -957,69 +969,46 @@ DOC_ROOT=$(cd ./www;pwd|sed -r 's,^/([a-z]+)/,\1:/,')
 if [ -n "$PHP_VERSION" ];then
     PHP_CGI_PORT=${PHP_VERSION//./}
     php_init
+    cd "$SERVERS_PATH"
     # 追加apache配置
     for HTTPD_DIR in $(find ./ -maxdepth 1 -type d -name 'httpd-*' 2>/dev/null);do
-        cat >> ${HTTPD_DIR}/conf/extra/httpd-php-${PHP_VERSION}.conf <<EOF
-ProxyPass "/" "fcgi://127.0.0.1:${PHP_CGI_PORT}/"
+        cat >> ${HTTPD_DIR}/conf/extra/httpd-vhosts.conf <<EOF
+# 示例模板
+<VirtualHost _default_:80>
+    ServerName localhost
+    DocumentRoot "$DOC_ROOT/localhost/public"
+    # 指定使用的PHP-$PHP_VERSION
+    ProxyPass "/" "fcgi://127.0.0.1:${PHP_CGI_PORT}/"
+</VirtualHost>
 EOF
     done
     # 追加nginx配置
     for NGINX_DIR in $(find ./ -maxdepth 1 -type d -name 'nginx-*' 2>/dev/null);do
-        cat > ${NGINX_DIR}/conf/vhosts/php-${PHP_VERSION} <<conf
-# 此文件为共用文件，用于其它 server 块引用
-# PHP配置
-if (!-e \$request_filename) {
-    rewrite  ^/(.*)$ /index.php?s=\$1  last;
-    break;
-}
-
-# 代理 http://127.0.0.1:80 地址
-#location ~ \.php$ {
-#    proxy_pass   http://127.0.0.1;
-#}
-
-# fastcgi接口监听 127.0.0.1:${PHP_CGI_PORT}
-# 转到php-fpm上
-location ~ \.php\$ {
-    fastcgi_pass   127.0.0.1:${PHP_CGI_PORT};
-    fastcgi_index  index.php;
-    fastcgi_param  SCRIPT_FILENAME  \$document_root\$fastcgi_script_name;
-    include        fastcgi_params;
-}
-# 使用静态配置
-include vhosts/static;
-conf
+        if ! grep -q "set \$PHP_CGI_PORT ${PHP_CGI_PORT};" ${NGINX_DIR}/conf/vhosts/php.conf.default;then
+            sed -i "25 a\   # set \$PHP_CGI_PORT ${PHP_CGI_PORT}; # php-$PHP_VERSION" ${NGINX_DIR}/conf/vhosts/php.conf.default
+        fi
     done
 fi
-
 
 echo "[info] 生成控制脚本文件"
 cd "$INSTALL_PATH"
 
 sed -n "$((LINENO + 4)),\$p" ${SCRIPT_PATH} > run.sh
-sed -i "s,__INSTALL_PATH__,\"$INSTALL_PATH\"," run.sh
+sed -i "s,__INSTALL_PATH__,\"$SERVERS_PATH\"," run.sh
 exit
 
 #!/bin/bash
+echo -e "\e[40;35m初始化中...\e[0m";
 SERVICES=(httpd nginx mysql php redis)
-CONFIG_PATH='./servers/run.conf'
-cd __INSTALL_PATH__
-# 初始配置
-init_conf(){
-    local _NAME _VERSIONS
-    > $CONFIG_PATH
-    for _NAME in ${SERVICES[@]};do
-        _VERSIONS=($(find ./ -maxdepth 1 -type d -name "${_NAME}-*" 2>/dev/null|grep -oP '\d+(\.\d+)+$'|sort -r))
-        echo "${_NAME}=${_VERSIONS[@]}" >> $CONFIG_PATH
-    done
-}
+CONFIG_PATH='./run.conf'
+cd "/d/php-env/servers"
 # 设置配置
 set_conf(){
     local SET_LINE
     if [ -e "$CONFIG_PATH" ];then
         SET_LINE=$(grep -m 1 -noP "^${1}$" $CONFIG_PATH|grep -oP '^\d+')
     else
-        init_conf
+        > $CONFIG_PATH
     fi
     if [ -n "$SET_LINE" ];then
         sed -i "${SET_LINE}c${2}" $CONFIG_PATH
@@ -1068,7 +1057,7 @@ start_run(){
             ;;
             php)
                 PHP_CGI_PORT=${_VERSION//./}
-                _PARAMS=(./php-$_VERSION/php-cgi.exe -b 127.0.0.1:$PHP_CGI_PORT)
+                _PARAMS=(./php-$_VERSION/php-cgi.exe -b 127.0.0.1:$PHP_CGI_PORT -c ./php-$_VERSION/php.ini)
             ;;
             redis)
                 _PARAMS=(./redis-$_VERSION/redis-server.exe)
@@ -1143,7 +1132,6 @@ update_default_run(){
     local _NAME _INDEX _ACTION=$1
     shift
     for _NAME;do
-        echo $_NAME
         for ((_INDEX=0;_INDEX<${#DEFAULT_RUN_NAME[@]};_INDEX++));do
             if [ "$_NAME" = "${DEFAULT_RUN_NAME[$_INDEX]}" ];then
                 if [ "$_ACTION" = 'del' ];then
@@ -1166,8 +1154,15 @@ DEFAULT_RUN=()
 DEFAULT_RUN_NAME=()
 # 配置文件
 if [ ! -e $CONFIG_PATH ];then
-    init_conf
+    > $CONFIG_PATH
 fi
+echo -e "\e[40;35m读取版本信息...\e[0m";
+# 获取安装的版本信息
+for _NAME in ${SERVICES[@]};do
+    _VERSIONS=($(find ./ -maxdepth 1 -type d -name "${_NAME}-*" 2>/dev/null|grep -oP '\d+(\.\d+)+$'|sort -r))
+    eval "$(echo "$_NAME"|tr '[:lower:]' '[:upper:]')_VERSIONS=(${_VERSIONS[@]})"
+done
+echo -e "\e[40;35m读取启动配置...\e[0m";
 # 读取配置文件
 while read CONF_LINE;do
     # 不是合理的配置跳过
@@ -1176,14 +1171,9 @@ while read CONF_LINE;do
     fi
     # 服务配置
     for _NAME in ${SERVICES[@]};do
-        if [[ "${CONF_LINE}" == ${_NAME}* ]];then
-            if [ "${CONF_LINE%%=*}" == "${_NAME}" ];then
-                # 启动版本信息
-                eval "$(echo "$_NAME"|tr '[:lower:]' '[:upper:]')_VERSIONS=(${CONF_LINE#*=})"
-            elif [[ "${CONF_LINE%%=*}" =~ ^${_NAME}-[0-9]+(\.[0-9]+)+-pid$ ]];then
-                # 进程ID配置
-                set_pid "${CONF_LINE%%-pid=*}" "${CONF_LINE#*=}"
-            fi
+        if [[ "${CONF_LINE}" == ${_NAME}* && "${CONF_LINE%%=*}" =~ ^${_NAME}-[0-9]+(\.[0-9]+)+-pid$ ]];then
+            # 进程ID配置
+            set_pid "${CONF_LINE%%-pid=*}" "${CONF_LINE#*=}"
             continue 2
         fi
     done
@@ -1206,6 +1196,7 @@ httpd_ALIAS=apache
 php_ALIAS=php-cgi
 # 启动状态
 HANDLE_STATUS='stop'
+echo -e "\e[40;35m启动处理...\e[0m";
 while true;do
     CURRENT_TIME=$(date +'%s')
     PRINT_TEXT="\n\e[40;33m可操作序号：\e[0m
@@ -1241,29 +1232,17 @@ while true;do
         ;;
         \-)
             PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m停止中...\e[0m"
-            for SERVER_NAME in ${HANDLE_LISTS[@]};do
-                stop_run $SERVER_NAME
-            done
-            HANDLE_NAMES[0]=has_stop
-            HANDLE_STATUS=stop
-            # 更新自动启动
-            update_default_run 'del' ${HANDLE_LISTS[@]}
         ;;
         \+)
             PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m启动中...\e[0m"
-            for SERVER_NAME in ${HANDLE_LISTS[@]};do
-                start_run $SERVER_NAME
-            done
-            HANDLE_NAMES[0]=has_run
-            HANDLE_STATUS=run
-            # 更新自动启动
-            update_default_run 'add' ${HANDLE_LISTS[@]}
         ;;
         init)
+            PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m初始启动中...\e[0m"
             HANDLE_NAMES=('+')
         ;;
         \*)
             HANDLE_NAMES=('-' '+')
+            echo "重启进行" >&2;
         ;;
         *)
             PRINT_TEXT="$PRINT_TEXT\n
@@ -1273,8 +1252,28 @@ while true;do
     esac
     clear
     echo -e "$PRINT_TEXT"
+    case "${HANDLE_NAMES[0]}" in
+        \-)
+            for SERVER_NAME in ${HANDLE_LISTS[@]};do
+                stop_run $SERVER_NAME
+            done
+            HANDLE_NAMES[0]=has_stop
+            HANDLE_STATUS=stop
+            # 更新自动启动
+            update_default_run 'del' ${HANDLE_LISTS[@]}
+        ;;
+        \+)
+            for SERVER_NAME in ${HANDLE_LISTS[@]};do
+                start_run $SERVER_NAME
+            done
+            HANDLE_NAMES[0]=has_run
+            HANDLE_STATUS=run
+            # 更新自动启动
+            update_default_run 'add' ${HANDLE_LISTS[@]}
+        ;;
+    esac
     if (( START_TIME > 0 ));then
-        sleep 0.05
+        sleep 0.1
         # 超时就清除操作
         if ((${#HANDLE_NAMES[@]} <= 0 || START_TIME < CURRENT_TIME - 60));then
             START_TIME=0
@@ -1300,17 +1299,17 @@ while true;do
                     HANDLE_LISTS=(nginx php mysql)
                 ;;
                 [\+\-\*][34567])
-                    HANDLE_LISTS=(${SERVICES[$((${INPUT_NUM:1} - 3))]})
+                    HANDLE_LISTS=("${SERVICES[$((${INPUT_NUM:1} - 3))]}")
                 ;;
                 q|Q)
                     exit
                 ;;
                 *)
-                    echo -n "未知操作码，请重新输入："
+                    echo -n "未知操作码：${INPUT_NUM}，请重新输入："
                     continue
                 ;;
             esac
-            HANDLE_NAMES=(${INPUT_NUM:0:1})
+            HANDLE_NAMES=("${INPUT_NUM:0:1}")
             START_TIME=$(date +'%s')
             break
         done
