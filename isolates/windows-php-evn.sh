@@ -425,18 +425,13 @@ apache_init(){
     if [ -e conf/extra/httpd-vhosts.conf ] && ! grep -qP 'ServerName localhost' ./conf/extra/httpd-vhosts.conf;then
         sed -i -r 's/^(\s*[^#]+)/# \1/' ./conf/extra/httpd-vhosts.conf
         cat >> ./conf/extra/httpd-vhosts.conf <<EOF
-# 示例模板
-<VirtualHost _default_:80>
-    ServerName localhost
-    DocumentRoot "$DOC_ROOT"
-    <Directory "./">
-        Options -Indexes -FollowSymLinks +ExecCGI
-        AllowOverride All
-        Order allow,deny
-        Allow from all
-        Require all granted
-    </Directory>
-</VirtualHost>
+# 配置访问权限
+<Directory "$DOC_ROOT">
+    Options FollowSymLinks
+    AllowOverride All
+    Require all granted
+    DirectoryIndex index.html index.php index.htm
+</Directory>
 EOF
     fi
     # 修改SRVROOT或ServerRoot
@@ -975,10 +970,20 @@ if [ -n "$PHP_VERSION" ];then
         cat >> ${HTTPD_DIR}/conf/extra/httpd-vhosts.conf <<EOF
 # 示例模板
 <VirtualHost _default_:80>
-    ServerName localhost
+    # 服务域名只能一个
+    ServerName api.game.loc
+    # 别名域名可以多个
+    ServerAlias admin.game.loc
+    # 工作目录
     DocumentRoot "$DOC_ROOT/localhost/public"
     # 指定使用的PHP-$PHP_VERSION
-    ProxyPass "/" "fcgi://127.0.0.1:${PHP_CGI_PORT}/"
+    <FilesMatch "\.php\$">
+        # apache-2.4.26起有两个值 FPM|GENERIC
+        # php 使用的是GENERIC模式，不指定则会出现 No input file specified.
+        ProxyFCGIBackendType GENERIC
+        SetHandler "proxy:fcgi://127.0.0.1:${PHP_CGI_PORT}/"
+        ProxyFCGISetEnvIf "reqenv('SCRIPT_FILENAME') =~ m#^/?(.*)\$#" SCRIPT_FILENAME "\$1"
+    </FilesMatch>
 </VirtualHost>
 EOF
     done
@@ -1000,37 +1005,11 @@ exit
 #!/bin/bash
 echo -e "\e[40;35m初始化中...\e[0m";
 SERVICES=(httpd nginx mysql php redis)
-CONFIG_PATH='./run.conf'
+DEFAULT_RUN_CONF='./.default.run'
 cd "/d/php-env/servers"
-# 设置配置
-set_conf(){
-    local SET_LINE
-    if [ -e "$CONFIG_PATH" ];then
-        SET_LINE=$(grep -m 1 -noP "^${1}$" $CONFIG_PATH|grep -oP '^\d+')
-    else
-        > $CONFIG_PATH
-    fi
-    if [ -n "$SET_LINE" ];then
-        sed -i "${SET_LINE}c${2}" $CONFIG_PATH
-    else
-        echo "${2}" >> $CONFIG_PATH
-    fi
-}
 # 获取进程ID
 get_pid(){
-    local _PID
-    eval "_PID=\${${1//[\.\-]/_}}"
-    if [ -n "$_PID" ];then
-        if [ -e /proc/$_PID/exe ] && stat /proc/$_PID/exe -c '%N'|grep -q "${1}";then
-            echo $_PID
-        else
-            set_pid "${1}" ""
-        fi
-    fi
-}
-set_pid(){
-    eval "${1//[\.\-]/_}=${2}"
-    set_conf "^${1}-pid=.*" "${1}-pid=${2}" &
+    ps aux|grep "/${1}/"|awk '{print $1}'
 }
 # 获取服务版本集
 get_versions(){
@@ -1068,11 +1047,10 @@ start_run(){
             ;;
         esac
         if has_run "${1}";then
-            echo "[warn] ${_NAME}已经在运行中";
+            echo "[warn] ${_NAME} 已在运行中";
         else
             nohup ${_PARAMS[@]} 2>/dev/null >/dev/null &
-            set_pid "${_NAME}" "$!"
-            echo "[info] ${_NAME}已运行";
+            echo "[info] ${_NAME} 启动中";
         fi
     done
 }
@@ -1145,16 +1123,17 @@ update_default_run(){
             DEFAULT_RUN_NAME[${#DEFAULT_RUN_NAME[@]}]=$_NAME
         fi
     done
-    set_conf 'run=.*' "run=${DEFAULT_RUN_NAME[*]}" &
+    echo "${DEFAULT_RUN_NAME[*]}"|base64 -i > $DEFAULT_RUN_CONF
 }
 # 处理时间
 START_TIME=0
 CURRENT_TIME=0
-DEFAULT_RUN=()
 DEFAULT_RUN_NAME=()
-# 配置文件
-if [ ! -e $CONFIG_PATH ];then
-    > $CONFIG_PATH
+# 默认启动
+if [ -e $DEFAULT_RUN_CONF ];then
+    DEFAULT_RUN=($(cat $DEFAULT_RUN_CONF|base64 -d))
+else
+    DEFAULT_RUN=()
 fi
 echo -e "\e[40;35m读取版本信息...\e[0m";
 # 获取安装的版本信息
@@ -1163,26 +1142,6 @@ for _NAME in ${SERVICES[@]};do
     eval "$(echo "$_NAME"|tr '[:lower:]' '[:upper:]')_VERSIONS=(${_VERSIONS[@]})"
 done
 echo -e "\e[40;35m读取启动配置...\e[0m";
-# 读取配置文件
-while read CONF_LINE;do
-    # 不是合理的配置跳过
-    if [[ -z "$CONF_LINE" || "$CONF_LINE" =~ ^[[:space:]]*# ]] || ! [[ "$CONF_LINE" =~ = ]];then
-        continue
-    fi
-    # 服务配置
-    for _NAME in ${SERVICES[@]};do
-        if [[ "${CONF_LINE}" == ${_NAME}* && "${CONF_LINE%%=*}" =~ ^${_NAME}-[0-9]+(\.[0-9]+)+-pid$ ]];then
-            # 进程ID配置
-            set_pid "${CONF_LINE%%-pid=*}" "${CONF_LINE#*=}"
-            continue 2
-        fi
-    done
-    # 默认启动配置
-    if [ "${CONF_LINE%%=*}" == "run" ];then
-        DEFAULT_RUN=(${CONF_LINE#*=})
-    fi
-done < $CONFIG_PATH
-# 默认启动
 if ((${#DEFAULT_RUN[@]} > 0));then
     HANDLE_LISTS=(${DEFAULT_RUN[@]});
     HANDLE_NAMES=('init');
@@ -1196,7 +1155,7 @@ httpd_ALIAS=apache
 php_ALIAS=php-cgi
 # 启动状态
 HANDLE_STATUS='stop'
-echo -e "\e[40;35m启动处理...\e[0m";
+echo -e "\e[40;35m初始完成...\e[0m";
 while true;do
     CURRENT_TIME=$(date +'%s')
     PRINT_TEXT="\n\e[40;33m可操作序号：\e[0m
@@ -1210,6 +1169,7 @@ while true;do
         _NAME=${SERVICES[${_INDEX}]}
         PRINT_TEXT="$PRINT_TEXT\e[40;32m $((_INDEX+3))、启停$(eval "echo \${${_NAME}_ALIAS:-${_NAME}}")\e[0m  [$(show_status ${_NAME})]\n"
     done
+    RUN_ACTION=''
     # 处理完前不接受输入
     case "${HANDLE_NAMES[0]}" in
         has_*)
@@ -1218,23 +1178,32 @@ while true;do
             for SERVER_NAME in ${HANDLE_LISTS[@]};do
                 if ${HANDLE_NAMES[0]} $SERVER_NAME;then
                     HAS_SUCCESS=1
+                    if [ "${HANDLE_NAMES[0]}" = 'has_stop' ];then
+                        CURRENT_STATUS="已停止"
+                    else
+                        CURRENT_STATUS="已启动"
+                    fi
                     break
                 fi
             done
-            if [ "${HANDLE_NAMES[0]}" = 'has_stop' ];then
-                PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m停止中... $((CURRENT_TIME-START_TIME))s\e[0m"
-            else
-                PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m启动中... $((CURRENT_TIME-START_TIME))s\e[0m"
-            fi
             if [ "$HAS_SUCCESS" = 1 ];then
                 HANDLE_NAMES=(${HANDLE_NAMES[@]:1})
+            else
+                if [ "${HANDLE_NAMES[0]}" = 'has_stop' ];then
+                    CURRENT_STATUS="停止中..."
+                else
+                    CURRENT_STATUS="启动中..."
+                fi
             fi
+            PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m${CURRENT_STATUS} $((CURRENT_TIME-START_TIME))s\e[0m"
         ;;
         \-)
             PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m停止中...\e[0m"
+            RUN_ACTION='stop'
         ;;
         \+)
             PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m启动中...\e[0m"
+            RUN_ACTION='start'
         ;;
         init)
             PRINT_TEXT="$PRINT_TEXT\n\n\e[40;31m初始启动中...\e[0m"
@@ -1252,8 +1221,8 @@ while true;do
     esac
     clear
     echo -e "$PRINT_TEXT"
-    case "${HANDLE_NAMES[0]}" in
-        \-)
+    case "${RUN_ACTION}" in
+        stop)
             for SERVER_NAME in ${HANDLE_LISTS[@]};do
                 stop_run $SERVER_NAME
             done
@@ -1262,7 +1231,7 @@ while true;do
             # 更新自动启动
             update_default_run 'del' ${HANDLE_LISTS[@]}
         ;;
-        \+)
+        start)
             for SERVER_NAME in ${HANDLE_LISTS[@]};do
                 start_run $SERVER_NAME
             done
@@ -1275,43 +1244,43 @@ while true;do
     if (( START_TIME > 0 ));then
         sleep 0.1
         # 超时就清除操作
-        if ((${#HANDLE_NAMES[@]} <= 0 || START_TIME < CURRENT_TIME - 60));then
+        if ((${#HANDLE_NAMES[@]} <= 0 || START_TIME < CURRENT_TIME - 30));then
             START_TIME=0
             HANDLE_NAMES=()
         fi
         continue
     fi
     echo -n '请输入要功能+序号：'
-    while [ $START_TIME = 0 ];do
-        # 补偿启动处理
-        if [ "$HANDLE_STATUS" = 'run' ];then
-            for SERVER_NAME in ${HANDLE_LISTS[@]};do
-                start_run $SERVER_NAME >/dev/null
-            done
-        fi
-        # 输入提取处理
-        while read -t 5 -r INPUT_NUM;do
-            case "$INPUT_NUM" in
-                [\+\-\*]1)
-                    HANDLE_LISTS=(httpd php mysql)
-                ;;
-                [\+\-\*]2)
-                    HANDLE_LISTS=(nginx php mysql)
-                ;;
-                [\+\-\*][34567])
-                    HANDLE_LISTS=("${SERVICES[$((${INPUT_NUM:1} - 3))]}")
-                ;;
-                q|Q)
-                    exit
-                ;;
-                *)
-                    echo -n "未知操作码：${INPUT_NUM}，请重新输入："
-                    continue
-                ;;
-            esac
-            HANDLE_NAMES=("${INPUT_NUM:0:1}")
-            START_TIME=$(date +'%s')
-            break
+    # 补偿启动处理
+    if [ "$HANDLE_STATUS" = 'run' ];then
+        for SERVER_NAME in ${HANDLE_LISTS[@]};do
+            start_run $SERVER_NAME >/dev/null
         done
+    fi
+    # 输入提取处理
+    while read -t 5 -r INPUT_NUM;do
+        case "$INPUT_NUM" in
+            [\+\-\*]1)
+                HANDLE_LISTS=(httpd php mysql)
+            ;;
+            [\+\-\*]2)
+                HANDLE_LISTS=(nginx php mysql)
+            ;;
+            [\+\-\*][34567])
+                HANDLE_LISTS=("${SERVICES[$((${INPUT_NUM:1} - 3))]}")
+            ;;
+            q|Q)
+                exit
+            ;;
+            *)
+                echo -n -e "未知操作码：${INPUT_NUM}\n请重新输入："
+                continue
+            ;;
+        esac
+        HANDLE_NAMES=("${INPUT_NUM:0:1}")
+        START_TIME=$(date +'%s')
+        echo -e "\n执行操作：${INPUT_NUM}"
+        break
     done
+    echo -e '\n即将刷新...'
 done
