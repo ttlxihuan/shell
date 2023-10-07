@@ -220,7 +220,7 @@ server {
     root /www/localhost/dist;
 
     # 独立日志文件，方便查看
-    access_log logs/\$host-access.log
+    access_log logs/\$host-access.log;
 
     # 引用静态文件基础配置
     include vhosts/static;
