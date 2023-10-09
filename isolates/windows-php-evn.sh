@@ -1131,9 +1131,9 @@ CURRENT_TIME=0
 DEFAULT_RUN_NAME=()
 # 默认启动
 if [ -e $DEFAULT_RUN_CONF ];then
-    DEFAULT_RUN=($(cat $DEFAULT_RUN_CONF|base64 -d))
+    DEFAULT_RUN_NAME=($(cat $DEFAULT_RUN_CONF|base64 -d))
 else
-    DEFAULT_RUN=()
+    DEFAULT_RUN_NAME=()
 fi
 echo -e "\e[40;35m读取版本信息...\e[0m";
 # 获取安装的版本信息
@@ -1142,8 +1142,8 @@ for _NAME in ${SERVICES[@]};do
     eval "$(echo "$_NAME"|tr '[:lower:]' '[:upper:]')_VERSIONS=(${_VERSIONS[@]})"
 done
 echo -e "\e[40;35m读取启动配置...\e[0m";
-if ((${#DEFAULT_RUN[@]} > 0));then
-    HANDLE_LISTS=(${DEFAULT_RUN[@]});
+if ((${#DEFAULT_RUN_NAME[@]} > 0));then
+    HANDLE_LISTS=(${DEFAULT_RUN_NAME[@]});
     HANDLE_NAMES=('init');
     START_TIME=$(date +'%s')
 else
