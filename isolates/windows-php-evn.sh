@@ -1114,6 +1114,7 @@ update_default_run(){
             if [ "$_NAME" = "${DEFAULT_RUN_NAME[$_INDEX]}" ];then
                 if [ "$_ACTION" = 'del' ];then
                     unset DEFAULT_RUN_NAME[$_INDEX]
+                    DEFAULT_RUN_NAME=(${DEFAULT_RUN_NAME[@]})
                 else
                     continue 2
                 fi
