@@ -421,13 +421,28 @@ sed -i -r "s/^(worker_connections\s+)[0-9]+;/\1 $MAX_CONNECTIONS;/" nginx.conf
 # 添加引入虚拟配置目录
 if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then
     LAST_NUM=`cat nginx.conf|grep -n '}'|tail -n 1|grep -oP '\d+'`
-    LAST_NUM=`expr $LAST_NUM - 1`
-    echo "`cat nginx.conf|head -n $LAST_NUM`" > nginx.conf
-    echo "    # 去掉代理响应标识" >> nginx.conf
-    echo "    proxy_hide_header X-Powered-By;" >> nginx.conf
-    echo "    proxy_hide_header Server;" >> nginx.conf
-    echo "    include vhosts/*.conf;" >> nginx.conf
-    echo "}" >> nginx.conf
+    sed -i "${LAST_NUM}d" nginx.conf
+    cat >> nginx.conf <<EOF
+    # 压缩配置
+    gzip_min_length 512; # 最小压缩文件
+    gzip_buffers     4 16k;  # 压缩缓存
+    # gzip_http_version 1.1;
+    gzip_comp_level 9;  # 压缩等级，1~9，等级高压缩率大CPU开销也大
+    # 压缩响应类型
+    gzip_types     *;  # 压缩所有数据
+    gzip_vary on;
+    gzip_proxied   any;
+    # 禁止在低端浏览器上压缩
+    gzip_disable   "MSIE [1-6]\.";
+
+    # 去掉代理响应标识
+    proxy_hide_header X-Powered-By;
+    proxy_hide_header Server;
+
+    # 加载站点配置
+    include vhosts/*.conf;
+}
+EOF
 fi
 
 cd $INSTALL_PATH$NGINX_VERSION/sbin
