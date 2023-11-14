@@ -72,7 +72,7 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
 # 注意：有依赖的扩展包需要提前安装好依赖，需要通过phpize安装的扩展并在这里设置好相关编译配置
 # 配置格式：扩展名={版本 编译选项集...}
 # 版本默认为new是最新，其它为指定版本号
-PECL_OPTIONS='swoole={new ?openssl ?http2} yar gmagick mongodb'
+PECL_OPTIONS='swoole={new ?openssl ?http2} yar gmagick mongodb event={new event-core event-openssl event-sockets sockets}'
 # ************** 编译安装 ******************
 # 下载PHP包
 download_software https://$PHP_HOST/distributions/php-$PHP_VERSION.tar.gz
@@ -220,6 +220,10 @@ fi
 if has_parse_option swoole $DEFAULT_OPTIONS $ARGV_options;then
     # php编译gcc版本不能过高，暂时限制在 4.8.0+
     install_gcc "4.8.0"
+fi
+# 安装swoole，要求libevent
+if has_parse_option event $DEFAULT_OPTIONS $ARGV_options;then
+    install_libevent "2.0.0"
 fi
 # apxs2 扩展使用
 #if has_option apxs2 $CONFIGURE_OPTIONS;then
@@ -409,7 +413,7 @@ done
 # 添加服务配置
 SERVICES_CONFIG=()
 SERVICES_CONFIG[$SERVICES_CONFIG_START_RUN]="./sbin/php-fpm -c ./lib/ -y ./etc/php-fpm.conf --pid=./run/php-fpm.pid"
-SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./run/php-fpm.pid"
+SERVICES_CONFIG[$SERVICES_CONFIG_PID_FILE]="./var/run/php-fpm.pid"
 # 服务并启动服务
 add_service SERVICES_CONFIG
 

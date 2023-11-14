@@ -1091,6 +1091,7 @@ install_pcre_config(){
 # return 1|0
 install_bzip2(){
     if ! if_command_range_version bzip2 --help "$1" "$2";then
+        install_range_version -BZIP2_PACKAGE_NAMES "$1" "$2"
         install_range_version -BZIP2_DEVEL_PACKAGE_NAMES "$1" "$2"
         if_command_range_version bzip2 --help "$1" "$2"
     fi
@@ -1314,7 +1315,7 @@ install_gettext(){
 # return 1|0
 install_libevent(){
     if ! if_lib_range libevent "$1" "$2";then
-        if ! install_range_version -LIBXML2_DEVEL_PACKAGE_NAMES "$1" "$2";then
+        if ! install_range_version -LIBEVENT_DEVEL_PACKAGE_NAMES "$1" "$2";then
             local LIBEVENT_VERSION=${3:-"${1:-$2}"}
             if [ -z "$LIBEVENT_VERSION" ];then
                 # 获取最新版

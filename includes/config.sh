@@ -66,6 +66,7 @@ SQLITE_DEVEL_PACKAGE_NAMES=('sqlite-devel' 'sqlite-dev')
 GCC_C_PACKAGE_NAMES=('gcc-c++' 'g++')
 # 安装bzip2
 BZIP2_DEVEL_PACKAGE_NAMES=('bzip2-devel' 'bzip2-dev')
+BZIP2_PACKAGE_NAMES=('bzip2' 'bzip2')
 # 安装m4
 M4_PACKAGE_NAMES=('m4')
 # 安装autoconf
@@ -117,3 +118,5 @@ LIBNFNETLINK_DEVEL_PACKAGE_NAMES=('libnfnetlink-devel' 'libnfnetlink-dev')
 GLIBC_DEVEL_PACKAGE_NAMES=('glibc-devel' 'linux-libc-dev')
 # 安装kernel-headers
 KERNEL_HEADERS_PACKAGE_NAMES=('kernel-headers' "linux-headers-$(uname -r)")
+# 安装libevent-devel
+LIBEVENT_DEVEL_PACKAGE_NAMES=('libevent-devel' 'libevent-dev')

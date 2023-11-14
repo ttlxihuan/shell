@@ -172,6 +172,13 @@ location ~ \.php\$ {
     fastcgi_index  index.php;
     fastcgi_param  SCRIPT_FILENAME  \$document_root\$fastcgi_script_name;
     include        fastcgi_params;
+    # php配置调整，仅在当前配置下有效
+    # 禁用函数
+    # fastcgi_param  PHP_ADMIN_VALUE "disable_functions=eval";
+    # 禁用类
+    # fastcgi_param  PHP_ADMIN_VALUE "disable_classes=PDO";
+    # 限制可打开目录
+    # fastcgi_param  PHP_ADMIN_VALUE "open_basedir=/www";
 }
 # 使用静态配置
 include vhosts/static;
