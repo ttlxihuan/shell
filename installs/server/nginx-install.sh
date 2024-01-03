@@ -418,7 +418,7 @@ fi
 # 修改工作用户
 sed -i -r 's/^#(user\s+)nobody/\1nginx/' nginx.conf
 # 开户gzip
-sed -i -r 's/^#(gzip\s+)on/\1 on/' nginx.conf
+sed -i -r 's/^(\s*)#(gzip\s+)on/\1\2 on/' nginx.conf
 # 修改工作子进程数，最优化，子进程数 = CPU数 * 3 / 2
 math_compute PROCESSES_NUM "$TOTAL_THREAD_NUM * 3 / 2"
 sed -i -r "s/^(worker_processes\s+)[0-9]+;/\1 $PROCESSES_NUM;/" nginx.conf
