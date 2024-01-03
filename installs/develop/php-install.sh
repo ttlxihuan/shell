@@ -72,7 +72,7 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
 # 注意：有依赖的扩展包需要提前安装好依赖，需要通过phpize安装的扩展并在这里设置好相关编译配置
 # 配置格式：扩展名={版本 编译选项集...}
 # 版本默认为new是最新，其它为指定版本号
-PECL_OPTIONS='swoole={new ?openssl ?http2} yar gmagick mongodb event={new event-core event-openssl event-sockets sockets}'
+PECL_OPTIONS='swoole={new ?openssl ?http2} yar gmagick mongodb event={new ?event-core ?event-openssl ?event-sockets ?sockets}'
 # ************** 编译安装 ******************
 # 下载PHP包
 download_software https://$PHP_HOST/distributions/php-$PHP_VERSION.tar.gz
@@ -357,14 +357,18 @@ sed -i -r 's/^\s*(expose_php\s*=)\s*On/\1Off/' lib/php.ini
 
 info_msg '处理pecl扩展'
 # 解析处理pecl扩展
-echo "$PECL_OPTIONS"|grep -oP '\w[\w\-]+(\s*=\s*\{[^\{\}]+\})?\s+'| while read EXT_CONFIG
+echo "$PECL_OPTIONS"|grep -oP '[\w\-]+(\s*=\s*\{[^\{\}]+\})?\s*'| while read EXT_CONFIG
 do
     EXT_NAME="`echo $EXT_CONFIG|grep -oP '^\w[\w\-]+'`"  EXT_OPTIONS="`echo $EXT_CONFIG|grep -oP '\{[^\{\}]+\}'|grep -oP '[^\{\}]+'`" EXT_VERSION='new' EXT_ADD_OPTIONS=''
     if [ -n "$EXT_OPTIONS" ];then
         EXT_VERSION="`echo $EXT_OPTIONS|awk '{print $1}'`"
         EXT_ADD_OPTIONS="`echo $EXT_OPTIONS|awk '{$1=""; print}'`"
     fi
-    if has_parse_option $EXT_NAME $DEFAULT_OPTIONS $ARGV_options && ! $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "^$EXT_NAME\$";then
+    if ! has_parse_option $EXT_NAME $DEFAULT_OPTIONS $ARGV_options;then
+        # 不安装跳过
+        continue
+    fi
+    if ! $INSTALL_PATH$PHP_VERSION/bin/php -m|grep -qP "^$EXT_NAME\$";then
         info_msg "安装pecl扩展：$EXT_NAME"
         # 最低PHP版本处理
         get_download_version MIN_PHP_VERSION "https://pecl.php.net/package/$EXT_NAME" "PHP Version: PHP \d+\.\d+\.\d+ or newer" "\d+\.\d+\.\d+"

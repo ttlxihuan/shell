@@ -380,8 +380,9 @@ php_init(){
     done
     # 开启cgi
     sed -i -r "s/^\s*;\s*(cgi.fix_pathinfo=1)/\1/" php.ini
-    # 扩展目录
-    sed -i -r 's/^\s*;?\s*(extension_dir\s*=)\s*"ext"\s*/\1 "ext"/' php.ini
+    # 扩展目录，不写全目录会影响apache模块加载
+    sed -i -r 's/^\s*;?\s*(extension_dir)\s*=\s*"ext"\s*/\1 = /' php.ini
+    sed -i "s,extension_dir = ,\0\"$(cd "$SERVERS_PATH/php-$PHP_VERSION";pwd -W)\"," php.ini
     # 访问目录范围限制配置
     # 配置目录访问目录，注意：open_basedir尽量不要配置，否则会影响可访问根目录
     sed -i -r "s,^\s*;?\s*(doc_root\s*=).*,\1," php.ini

@@ -1468,7 +1468,7 @@ for REQUEST_TOOL in wget curl;do
         get_package_version $REQUEST_TOOL REQUEST_TOOL_VERSION
         # 如果已经是最新版本就跳过
         if [ "$REQUEST_TOOL_VERSION" = "$(eval echo "\$INSTALL_${REQUEST_TOOL}_VERSION")" ];then
-            info_msg "$REQUEST_TOOL 已经包管理串中最新版本，跳过"
+            info_msg "$REQUEST_TOOL 已经包管理器中最新版本，跳过"
             continue
         fi
         INSTALL_TOOL_TYPE=update

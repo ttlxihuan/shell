@@ -113,6 +113,9 @@ cd $INSTALL_PATH$SVN_VERSION
 # 创建用户
 add_user svnserve
 
+# 添加执行文件连接
+add_local_run $INSTALL_PATH$SVN_VERSION/bin/ 'svn' 'svnserve' 'svnadmin'
+
 # 基本项配置
 if [ -n "$ARGV_work_dir" ];then
     # 创建库存目录

@@ -193,9 +193,14 @@ install_ncurses
 package_manager_run remove mariadb*
 
 # 获取当前安装要求最低gcc版本
-GCC_MIN_VERSION=`grep -P 'GCC \d+(\.\d+)+' cmake/os/Linux.cmake -o|grep -P '\d+(\.\d+)+' -o|tail -n 1`
+GCC_MIN_VERSION=`grep -P 'GCC \d+(\.\d+){0,2}' cmake/os/Linux.cmake -o|grep -P '\d+(\.\d+){0,2}' -o|tail -n 1`
+if [[ "$GCC_MIN_VERSION" =~ ^[0-9]+$ ]];then
+    GCC_MIN_VERSION="$GCC_MIN_VERSION.1"
+fi
+
 # 补齐版本号
 repair_version GCC_MIN_VERSION
+
 # 安装验证 GCC
 install_gcc "$GCC_MIN_VERSION"
 CMAKE_CONFIG="-DCMAKE_C_COMPILER=${INSTALL_gcc_PATH%/*}/gcc -DCMAKE_CXX_COMPILER=${INSTALL_gcc_PATH%/*}/g++ $CMAKE_CONFIG"
