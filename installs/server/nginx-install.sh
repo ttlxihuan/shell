@@ -431,6 +431,8 @@ if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then
     sed -i "${LAST_NUM}d" nginx.conf
     cat >> nginx.conf <<EOF
     # 压缩配置
+    # 打开静态压缩，会尝试请求 \$request_filename.gz 预压缩文件如果存在直接返回，不存在会尝试 \$request_filename 文件并返回
+    gzip_static  on;
     gzip_min_length 512; # 最小压缩文件
     gzip_buffers     4 16k;  # 压缩缓存
     # gzip_http_version 1.1;
