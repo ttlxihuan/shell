@@ -1290,7 +1290,7 @@ install_libxml2(){
 # @param $install_version   没有合适版本时编译安装版本，不指定则安装最小版本
 # return 1|0
 install_gettext(){
-    if ! if_command_range_version gettext --version "$1" "$2";then
+    if ! if_command_range_version msgfmt --version "$1" "$2";then
         if ! install_range_version -GETTEXT_DEVEL_PACKAGE_NAMES "$1" "$2";then
             local GETTEXT_VERSION=${3:-"${1:-$2}"}
             if [ -z "$GETTEXT_VERSION" ];then

@@ -27,7 +27,7 @@ LIBTOOL_PACKAGE_NAMES=('libtool')
 # 安装openssl
 OPENSSL_DEVEL_PACKAGE_NAMES=('openssl-devel' 'libssl-dev')
 # 安装zlib
-ZLIB_DEVEL_PACKAGE_NAMES=('zlib-devel' 'zlib1g.dev')
+ZLIB_DEVEL_PACKAGE_NAMES=('zlib-devel' 'zlib1g-dev')
 # 安装pcre
 PCRE_DEVEL_PACKAGE_NAMES=('pcre-devel' 'libpcre3-dev')
 # 安装ca证书

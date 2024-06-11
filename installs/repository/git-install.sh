@@ -123,6 +123,9 @@ fi
 # 安装验证 libxml2
 install_libxml2
 
+# 安装zlib库
+install_zlib
+
 # msgfmt命令在gettext包中
 # 安装验证 msgfmt
 install_gettext
