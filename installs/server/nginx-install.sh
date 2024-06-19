@@ -57,7 +57,7 @@ NGINX_HOST='nginx.org'
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 编译默认项（这里的配置会随着编译版本自动生成编译项）
-DEFAULT_OPTIONS='threads ?ipv6 http_ssl_module http_stub_status_module'
+DEFAULT_OPTIONS='threads ?ipv6 http_ssl_module http_stub_status_module ?http_gzip_static_module'
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
