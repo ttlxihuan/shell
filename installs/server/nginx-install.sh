@@ -127,7 +127,7 @@ if (\$scheme = "http") {
 }
 
 # 发送HSTS头信息，强制浏览器使用https协议发送数据
-add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload";
 conf
     cat > host.cert <<conf
 # 注意修改证书名
