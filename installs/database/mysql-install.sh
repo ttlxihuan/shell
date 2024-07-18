@@ -150,15 +150,41 @@ fi
 parse_use_memory BUFFER_MEMORY "${ARGV_buffer_memory}"
 
 # ************** 编译安装 ******************
-MYSQL_MAIN_VERSION=${MYSQL_VERSION%.*}
+get_download_url(){
+	local DOMAIN=$(echo $1|grep -oP 'https://[^/]+')
+    local MYSQL_ARCHIVES=$(curl "$1?tpl=platform&os=src&version=${MYSQL_VERSION}&osva=All%20Operating%20Systems%20(Generic)%20(Architecture%20Independent)" 2>&1)
+    MYSQL_DOWNLOAD_URL=$(echo "$MYSQL_ARCHIVES"|grep -oP "\"[^\"]+mysql-$MYSQL_VERSION.tar.gz\">Download</a>"|grep -oP '"[^"]+"')
+    if [ -n "$MYSQL_DOWNLOAD_URL" ];then
+        MYSQL_DOWNLOAD_URL=${DOMAIN}${MYSQL_DOWNLOAD_URL//\"/}
+    else
+        return 1
+    fi
+    MYSQL_BOOST_DOWNLOAD_URL=$(echo "$MYSQL_ARCHIVES"|grep -oP "\"[^\"]+mysql-boost-$MYSQL_VERSION.tar.gz\">Download</a>"|grep -oP '"[^"]+"')
+    if [ -n "$MYSQL_BOOST_DOWNLOAD_URL" ];then
+        MYSQL_BOOST_DOWNLOAD_URL=${DOMAIN}${MYSQL_BOOST_DOWNLOAD_URL//\"/}
+    fi
+}
+get_download_url 'https://downloads.mysql.com/archives/community/' || get_download_url 'https://dev.mysql.com/downloads/mysql/'
+if [ -z "$MYSQL_DOWNLOAD_URL" ];then
+    echo "无法获取下载mysql地址"
+	exit
+fi
+if [[ "$MYSQL_DOWNLOAD_URL" =~ //dev.mysql.com/ ]];then
+    MYSQL_MAIN_VERSION=${MYSQL_VERSION%.*}
+    MYSQL_DOWNLOAD_URL="https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/mysql-$MYSQL_VERSION.tar.gz"
+    if [ -n "$MYSQL_BOOST_DOWNLOAD_URL" ];then
+        MYSQL_BOOST_DOWNLOAD_URL="https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/mysql-boost-$MYSQL_VERSION.tar.gz"
+    fi
+fi
+
 # 下载mysql包
-download_software https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/mysql-$MYSQL_VERSION.tar.gz
+download_software "$MYSQL_DOWNLOAD_URL"
 # 暂存编译目录
-MYSQL_CONFIGURE_PATH=`pwd`
+MYSQL_CONFIGURE_PATH=$(pwd)
 # mysql-5.7 开始需要使用boots包才能编译
 info_msg "验证mysql-boost版本"
-if [ -n "`curl "https://downloads.mysql.com/archives/community/?tpl=version&os=src&version=$MYSQL_VERSION&osva=" 2>&1 | grep "mysql-boost-$MYSQL_VERSION.tar.gz" -o`" ] || [ -n "`curl "https://dev.mysql.com/downloads/mysql/?tpl=platform&os=src&osva="  2>&1 | grep "mysql-boost-$MYSQL_VERSION.tar.gz" -o`" ];then
-    download_software https://dev.mysql.com/get/Downloads/MySQL-$MYSQL_MAIN_VERSION/mysql-boost-$MYSQL_VERSION.tar.gz $MYSQL_CONFIGURE_PATH/boost/
+if [ -n "$MYSQL_BOOST_DOWNLOAD_URL" ];then
+    download_software "$MYSQL_BOOST_DOWNLOAD_URL" $MYSQL_CONFIGURE_PATH/boost/
     CMAKE_CONFIG="-DWITH_BOOST=../boost/"
     cd $MYSQL_CONFIGURE_PATH
 else
