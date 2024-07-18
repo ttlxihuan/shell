@@ -468,7 +468,7 @@ log-bin=mysql-bin-sync
 # 配置自动删除几秒前历史二进制日志。默认2592000，即30天前。
 # 为0即禁止自动删除，此配置为新增并建议使用
 # 二进制日志可用于复制和恢复等操作，但占用空间
-binlog_expire_logs_seconds=2592000
+# binlog_expire_logs_seconds=2592000
 
 # 配置主从唯一ID
 server-id=$SERVER_ID
