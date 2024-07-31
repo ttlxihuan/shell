@@ -36,7 +36,7 @@ parse_conf(){
             continue
         fi
         # 提取块名
-        if [[ "$CONF_LINE" =~ ^[[:space:]]*\[[[:space:]]*[~!@#\$%\^\&\*_\-\+/|:\.\?[:alnum:]]+[[:space:]]*\] ]];then
+        if [[ "$CONF_LINE" =~ ^[[:space:]]*\[[[:space:]]*([[:alnum:]]|[-+:.~\!@#$%^&*])+[[:space:]]*\] ]];then
             ITEM_NAME=${CONF_LINE#*[}
             ITEM_NAME=${ITEM_NAME%%]*}
             ITEM_NAME=${ITEM_NAME//[[:space:]]/]}
@@ -66,7 +66,7 @@ parse_conf(){
             done
         # 提取块值
         elif [ -n "$BLOCK_NAME" ];then
-            if [[ "$CONF_LINE" =~ ^[[:space:]]*[~!@#\$%\^\&\*_\-\+/|:\.\?[:alnum:]]+[[:space:]]*= ]];then
+            if [[ "$CONF_LINE" =~ ^[[:space:]]*([[:alnum:]]|[-+:.~\!@#$%^&*])+[[:space:]]*= ]];then
                 ITEM_NAME=${CONF_LINE%%=*}
                 # 去掉配置前面的空格
                 ITEM_VALUE=$(printf '%s' "${CONF_LINE#*=}"|sed -r 's/^[[:space:]]+//')
