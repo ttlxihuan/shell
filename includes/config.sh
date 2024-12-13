@@ -120,3 +120,5 @@ GLIBC_DEVEL_PACKAGE_NAMES=('glibc-devel' 'linux-libc-dev')
 KERNEL_HEADERS_PACKAGE_NAMES=('kernel-headers' "linux-headers-$(uname -r)")
 # 安装libevent-devel
 LIBEVENT_DEVEL_PACKAGE_NAMES=('libevent-devel' 'libevent-dev')
+# 安装libpsl-devel
+LIBPSL_DEVEL_PACKAGE_NAMES=('libpsl-devel' 'libpsl-dev')

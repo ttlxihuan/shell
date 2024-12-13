@@ -757,6 +757,42 @@ package_manager_run(){
         fi
     done
 }
+# 判断版本大小
+# @command if_version $version1 $if $version2
+# @param $version1  版本号1
+# @param $if        判断条件：>=,>,<=,<,==,!=
+# @param $version2  版本号2
+# return 1|0
+if_version(){
+    local RESULT VERSIONS=`echo -e "$1\n$3"|sort -Vrb`
+    case "$2" in
+        "==")
+            RESULT=`echo -e "$VERSIONS"|uniq|wc -l|grep 1`
+        ;;
+        "!=")
+            RESULT=`echo -e "$VERSIONS"|uniq|wc -l|grep 2`
+        ;;
+        ">")
+            RESULT=`echo -e "$VERSIONS"|uniq -u|head -n 1|grep "$1"`
+        ;;
+        ">=")
+            RESULT=`echo -e "$VERSIONS"|uniq|head -n 1|grep "$1"`
+        ;;
+        "<")
+            RESULT=`echo -e "$VERSIONS"|uniq -u|tail -n 1|grep "$1"`
+        ;;
+        "<=")
+            RESULT=`echo -e "$VERSIONS"|uniq|tail -n 1|grep "$1"`
+        ;;
+        *)
+            error_exit "未知版本判断条件：$2"
+        ;;
+    esac
+    if [ -n "$RESULT" ]; then
+        return 0;
+    fi
+    return 1;
+}
 # 获取包管理对应包最新版本号
 # @command get_package_version $package_name $set_val
 # @param $package_name  操作的包名，或变量名，变量名前面需要增加
