@@ -56,7 +56,7 @@ PHP_HOST='www.php.net'
 # 定义安装类型
 DEFINE_INSTALL_TYPE='configure'
 # 编译默认项（这里的配置会随着编译版本自动生成编译项）
-DEFAULT_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 ?swoole ?pcntl gmp'
+DEFAULT_OPTIONS='sockets ?pdo-mysql mysqli fpm openssl curl bcmath ?xml mhash mbstring zip zlib gd jpeg ?png freetype ?gd-native-ttf ?mcrypt ?!pdo-sqlite ?!sqlite3 ?pcntl gmp'
 # 加载基本处理
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"/../../includes/install.sh || exit
 # 初始化安装
@@ -72,7 +72,7 @@ CONFIGURE_OPTIONS="--prefix=$INSTALL_PATH$PHP_VERSION "
 # 注意：有依赖的扩展包需要提前安装好依赖，需要通过phpize安装的扩展并在这里设置好相关编译配置
 # 配置格式：扩展名={版本 编译选项集...}
 # 版本默认为new是最新，其它为指定版本号
-PECL_OPTIONS='swoole={new ?openssl ?http2} yar gmagick mongodb event={new ?event-core ?event-openssl ?event-sockets ?sockets}'
+PECL_OPTIONS='swoole={new ?openssl ?http2} yar gmagick mongodb event={new ?event-core ?event-openssl ?event-sockets ?sockets} redis'
 # ************** 编译安装 ******************
 # 下载PHP包
 download_software https://$PHP_HOST/distributions/php-$PHP_VERSION.tar.gz
@@ -194,7 +194,7 @@ fi
 # sqlite3 扩展使用
 if ! has_option !sqlite3 $CONFIGURE_OPTIONS || ! has_option !pdo-sqlite $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '>=' 7.4.0;then
-        MIN_SQLITE_VERSION='3.7.4'
+        MIN_SQLITE_VERSION='3.8.4'
     else
         MIN_SQLITE_VERSION='3.0.0'
     fi
@@ -220,6 +220,8 @@ fi
 if has_parse_option swoole $DEFAULT_OPTIONS $ARGV_options;then
     # php编译gcc版本不能过高，暂时限制在 4.8.0+
     install_gcc "4.8.0"
+    # 需要单独运行，否则容易报错：configure: error: C++ preprocessor "/lib/cpp" fails sanity check
+    package_manager_run install -GCC_C_PACKAGE_NAMES
 fi
 # 安装swoole，要求libevent
 if has_parse_option event $DEFAULT_OPTIONS $ARGV_options;then
