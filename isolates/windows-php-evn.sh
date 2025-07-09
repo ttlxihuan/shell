@@ -373,7 +373,7 @@ php_init(){
     fi
     local EXTENSION_NAME
     # 开启扩展
-    for EXTENSION_NAME in bz2 curl gd gettext gmp mbstring openssl pdo pdo_mysql sockets;do
+    for EXTENSION_NAME in bz2 curl gd gettext gmp mbstring openssl pdo pdo_mysql sockets fileinfo;do
         if [ -e ./ext/php_${EXTENSION_NAME}.dll ];then
             sed -i -r "s/^\s*;\s*(extension=${EXTENSION_NAME})/\1/" php.ini
         fi
@@ -381,7 +381,7 @@ php_init(){
     # 开启cgi
     sed -i -r "s/^\s*;\s*(cgi.fix_pathinfo=1)/\1/" php.ini
     # 扩展目录，不写全目录会影响apache模块加载
-    sed -i -r 's/^\s*;?\s*(extension_dir)\s*=\s*"ext"\s*/\1 = /' php.ini
+    sed -i -r 's/^\s*;?\s*(extension_dir)\s*=.*/\1 = /' php.ini
     sed -i "s,extension_dir = ,\0\"$(cd "$SERVERS_PATH/php-$PHP_VERSION";pwd -W)\"," php.ini
     # 访问目录范围限制配置
     # 配置目录访问目录，注意：open_basedir尽量不要配置，否则会影响可访问根目录
@@ -389,6 +389,11 @@ php_init(){
     sed -i -r "s,^\s*;?\s*(open_basedir\s*=).*,; \1," php.ini
     sed -i -r "s,^\s*;?\s*(user_dir\s*=).*,\1," php.ini
     ln -svf $SERVERS_PATH/php-$PHP_VERSION/php.exe /usr/bin/php
+    # 证书处理 主要针对 https 类的请求处理
+    # 更新证书命令会造成 fsockopen 使用ssl 出错等
+    if (run_curl -O -o 'cacert.pem' 'https://curl.haxx.se/ca/cacert.pem' 2>/dev/null); then
+        sed -i -r "s,^\s*;?\s*(openssl\.cafile\s*=).*,\1 cacert.pem," php.ini
+    fi
     # 安装composer
     if which composer;then
         echo "[info] 已安装 composer"
@@ -399,7 +404,7 @@ php_init(){
 copy('https://getcomposer.org/installer', 'composer-setup.php');
 require './composer-setup.php';
 EOF
-        ./php composer-installer.php
+        $SERVERS_PATH/php-$PHP_VERSION/php composer-installer.php
         if [ -e ./composer.phar ];then
             ln -svf $SERVERS_PATH/php-$PHP_VERSION/composer.phar /usr/bin/composer
             echo "[info] composer 安装成功";
@@ -659,6 +664,9 @@ mysql_init(){
         else
             ./bin/mysqld --initialize --basedir=./ --datadir=./database
         fi
+    fi
+    if [ -e ./database/mysqld.log ];then
+        echo '[info] 默认密码： '$(grep -oP 'root@localhost:.*' ./database/mysqld.log)
     fi
     if [ ! -e ./my.ini ];then
         # 版本专用配置
