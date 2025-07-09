@@ -925,6 +925,8 @@ install_sqlite(){
 install_zip(){
     if ! if_lib_range libzip "$1" "$2";then
         if ! install_range_version -ZIP_DEVEL_PACKAGE_NAMES "$1" "$2";then
+            # curl: (35) Cannot communicate securely with peer: no common encryption algorithm(s).
+            install_curl 7.40.0
             local LIBZIP_VERSION=${3:-"${1:-$2}"}
             # 这里需要判断是否达到版本要求，达到了就不需要再安装了
             # libzip-1.4+ 版本需要使用cmake更高版本来安装

@@ -116,10 +116,19 @@ fi
 # gmp扩展
 if has_option gmp $CONFIGURE_OPTIONS;then
     # 提取gmp最低版本
-    GMP_MIN_VERSION=$(grep -oP 'GNU MP Library version \d+(\.\d+)+' $PHP_CONFIGURE_PATH/configure|grep -oP '\d+(\.\d+)+'|tail -n 1)
+    GMP_MIN_VERSION=$(grep -oiP 'GNU MP Library version \d+(\.\d+)+' $PHP_CONFIGURE_PATH/configure|grep -oP '\d+(\.\d+)+'|tail -n 1)
     repair_version GMP_MIN_VERSION
     # 安装验证 gmp
     install_gmp "$GMP_MIN_VERSION"
+fi
+# zlib扩展
+if has_option zlib $CONFIGURE_OPTIONS;then
+    if if_version $PHP_VERSION '<=' 8.3.0;then
+        MIN_LIBZIP_VERSION=''
+    else
+        MIN_LIBZIP_VERSION='1.2.11'
+    fi
+    install_zlib $MIN_LIBZIP_VERSION
 fi
 # gd 扩展使用
 if has_option gd $CONFIGURE_OPTIONS;then
@@ -171,8 +180,11 @@ if has_option openssl $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 7.0.0;then
         MIN_OPENSSL_VERSION=''
         MAX_OPENSSL_VERSION=''
-    else
+    elif if_version $PHP_VERSION '<=' 8.3.0;then
         MIN_OPENSSL_VERSION='1.0.2'
+        MAX_OPENSSL_VERSION='1.1.1g'
+    else
+        MIN_OPENSSL_VERSION='1.1.1'
         MAX_OPENSSL_VERSION='1.1.1g'
     fi
     install_openssl "$MIN_OPENSSL_VERSION" "$MAX_OPENSSL_VERSION" "$MAX_OPENSSL_VERSION"
@@ -181,6 +193,8 @@ fi
 if has_option curl $CONFIGURE_OPTIONS;then
     if if_version $PHP_VERSION '<' 8.0.0;then
         MIN_CURL_VERSION=''
+    elif if_version $PHP_VERSION '>=' 8.4.0;then
+        MIN_CURL_VERSION='7.61.0'
     elif ! if_lib_range "libcurl" '7.29.0';then
         MIN_CURL_VERSION='7.29.0'
     fi
@@ -202,7 +216,9 @@ if ! has_option !sqlite3 $CONFIGURE_OPTIONS || ! has_option !pdo-sqlite $CONFIGU
 fi
 # xml 扩展使用
 if has_option xml $CONFIGURE_OPTIONS || ! has_option !xml $CONFIGURE_OPTIONS;then
-    if if_version $PHP_VERSION '>=' 8.0.0;then
+    if if_version $PHP_VERSION '>=' 8.4.0;then
+        MIN_LIBXML2_VERSION='2.9.9'
+    elif if_version $PHP_VERSION '>=' 8.0.0;then
         MIN_LIBXML2_VERSION='2.9.0'
     else
         MIN_LIBXML2_VERSION='2.7.6'

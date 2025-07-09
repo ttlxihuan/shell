@@ -203,7 +203,7 @@ server_tokens off;
 
 # 静态可访问后缀
 location ~* ^.+\.(jpg|jpeg|png|css|js|gif|html|htm|xls)$ {
-    access_log  off;
+    # access_log  off;
     expires     30d;
 }
 conf
@@ -227,7 +227,7 @@ server {
     root /www/localhost/dist;
 
     # 独立日志文件，方便查看
-    access_log logs/\$host-access.log;
+    access_log logs/\$host-access.log main;
 
     # 引用静态文件基础配置
     include vhosts/static;
@@ -253,7 +253,7 @@ server {
     root /www/localhost/public;
 
     # 独立日志文件，方便查看
-    access_log logs/\$host-access.log;
+    access_log logs/\$host-access.log main;
 
     # 检查请求实体大小，超出返回413状态码，为0则不检查。
     # client_max_body_size 10m;
@@ -381,7 +381,7 @@ server {
     server_name  localhost;
 
     # 独立日志文件，方便查看
-    # access_log logs/\$host-access.log
+    # access_log logs/\$host-access.log main;
 
     location / {
         # 负载均衡各节点使用http
@@ -419,6 +419,8 @@ fi
 sed -i -r 's/^#(user\s+)nobody/\1nginx/' nginx.conf
 # 开户gzip
 sed -i -r 's/^(\s*)#(gzip\s+)on/\1\2 on/' nginx.conf
+# 修改日志格式
+sed -i -r "s/#log_format\s+.*/log_format  main '\$remote_addr - \$remote_user [\$time_local] \"\$request\" \"\$host\" \$status \$request_length \$bytes_sent \"\$http_referer\" \"\$http_user_agent\" \"\$http_x_forwarded_for\"';/" nginx.conf
 # 修改工作子进程数，最优化，子进程数 = CPU数 * 3 / 2
 math_compute PROCESSES_NUM "$TOTAL_THREAD_NUM * 3 / 2"
 sed -i -r "s/^(worker_processes\s+)[0-9]+;/\1 $PROCESSES_NUM;/" nginx.conf
@@ -447,6 +449,11 @@ if [ -z "`cat nginx.conf|grep "vhosts/*"`" ];then
     # 去掉代理响应标识
     proxy_hide_header X-Powered-By;
     proxy_hide_header Server;
+
+    # 域名hash表整体大小（域名过多需要调整）
+    # server_names_hash_max_size      1024;
+    # 域名hash存储单个大小（域名过长需要调整）
+    # server_names_hash_bucket_size    64;
 
     # 加载站点配置
     include vhosts/*.conf;
