@@ -1237,11 +1237,15 @@ install_libxml2(){
             local LIBXML2_VERSION=${3:-"${1:-$2}"}
             if [ -z "$LIBXML2_VERSION" ];then
                 # 获取最新版
-                get_download_version LIBXML2_VERSION "ftp://xmlsoft.org/libxml2/" 'libxml2-sources-\d+\.\d+\.\d+\.tar\.gz'
+                get_download_version LIBXML2_VERSION "https://gitlab.gnome.org/GNOME/libxml2/-/releases" 'libxml2-sources-\d+\.\d+\.\d+\.tar\.gz'
             fi
             info_msg "安装：libxml2-$LIBXML2_VERSION"
             # 下载
-            download_software ftp://xmlsoft.org/libxml2/libxml2-sources-$LIBXML2_VERSION.tar.gz libxml2-$LIBXML2_VERSION
+            SUFFIX='gz'
+            if if_version "$LIBXML2_VERSION" '>=' '2.7.0';then
+                SUFFIX='xz'
+            fi
+            download_software "https://download.gnome.org/sources/libxml2/${LIBXML2_VERSION%.*}/libxml2-$LIBXML2_VERSION.tar.${SUFFIX}" libxml2-$LIBXML2_VERSION
             # 部分低版系统环境不好，所以直接禁止编译到python中
             # 编译安装
             configure_install --prefix=$INSTALL_BASE_PATH/libxml2/$LIBXML2_VERSION --with-python=no
