@@ -8,6 +8,7 @@
 #   内核在2.6.25之前是固定内核写死的 2**20 = 1048576 即单进程最多连接数100万多，超过配置无效并影响使用。
 #   内核在2.6.25之后通过/proc/sys/fs/nr_open限制（默认是1048576），通过修改/ect/sysct.conf的fs.nr_open值然后运行sysctl -p生效，一般没有特殊情况不建议修改最大连接数
 #   系统一般默认单进程最大连接数为 1024，所有要突破最大连接数就必需修改相关配置，同时还要调整连接状态和数据处理相关配置
+#   系统限制进程可用系统资源（如文件描述符、进程数、内存等），使用 ulimit -n 查看当前系统最大连接数
 
 # 参数信息配置
 SHELL_RUN_DESCRIPTION='linux系统连接限制优化'
@@ -91,6 +92,13 @@ case "$ARGV_type_nofile" in
         edit_conf /etc/security/limits.conf "#*\s*(${SECURITY_USERNAME}\s+soft\s+nofile)\s+.*" "${ARGU_user} soft nofile ${ARGV_set_nofile}"
         # 添加hard nofile限制
         edit_conf /etc/security/limits.conf "#*\s*(${SECURITY_USERNAME}\s+hard\s+nofile)\s+.*" "${ARGU_user} hard nofile ${ARGV_set_nofile}"
+        # 通配有的系统不支持root用户（比如：Ubuntu），为兼容增加下root用户配置
+        if [ "$ARGU_user" = '*' ];then
+            # 添加soft nproc限制
+            edit_conf /etc/security/limits.conf "#*\s*(root\s+soft\s+nproc)\s+.*" "root soft nproc ${ARGV_set_nproc}"
+            # 添加hard nproc限制
+            edit_conf /etc/security/limits.conf "#*\s*(root\s+hard\s+nproc)\s+.*" "root hard nproc ${ARGV_set_nproc}"
+        fi
     ;;
 esac
 

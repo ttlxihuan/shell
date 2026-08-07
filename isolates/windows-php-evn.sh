@@ -477,6 +477,7 @@ nginx_init(){
     cd "$SERVERS_PATH/nginx-$NGINX_VERSION/conf"
     if [ ! -d ./vhosts ];then
         mkdir ./vhosts
+        sed -i -r "s/^(worker_processes\s+)[0-9]+;/\1 6;/" nginx.conf
         LAST_NUM=$(grep -n '^}' nginx.conf|tail -n 1|grep -oP '\d+')
         sed -i "${LAST_NUM}i include vhosts/*.conf;" nginx.conf
         cd ./vhosts

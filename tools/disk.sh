@@ -33,6 +33,11 @@
 # 4、如果配置 /etc/fstab 挂载盘不存在重启服务器会报错：Authorization not available. Check if polkit service is running or see debug message for more
 #    建议配置 /etc/fstab 时多注意，不是肯定会保留的盘不要配置，否则重启异常
 #
+# 动态扩容分区，示例扩容：/dev/sda1
+# 1、使用 fsidk -l 查看挂载的分区信息
+# 1、使用 growpart /dev/sda 1 扩容sda1分区的空间，此时 df -h 还无法查扩容
+# 2、使用 resize2fs /dev/sda1 扩容文件系统
+#
 #
 
 # 参数信息配置

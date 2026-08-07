@@ -321,6 +321,14 @@ else
 fi
 # 默认模式配置
 cat >> $MY_CNF <<MY_CONF
+# 慢日志记录
+slow_query_log = ON
+# 慢查询时间阈值，单位秒
+long_query_time = 1
+# 不记录未使用索引的查询
+log_queries_not_using_indexes = OFF
+
+
 # 关闭加载本地文件，加载本地文件可能存在安全隐患，无特殊要求不建议开启
 local-infile=0
 
