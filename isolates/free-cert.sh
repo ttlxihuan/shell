@@ -29,26 +29,28 @@ show_help(){
     $(basename "${BASH_SOURCE[0]}") dns server [-h|-?]
 
 参数：
-    dns             指定DNS解析平台，注意需要在外部配置相关环境配置变量，具体请参考acme.sh官方文档。
-                    常用DNS解析平台：
-                        dns_ali     阿里云DNS解析
-                        dns_tencent 腾讯云DNS解析
-                        dns_cf      CloudflareDNS解析
-                        dns_aws     AWS Route53 DNS解析
-    domains         要申请的域名配置文件，每行一个域名
+    dns                 指定DNS解析平台，注意需要在外部配置相关环境配置变量，具体请参考acme.sh官方文档。
+                        常用DNS解析平台：
+                            dns_ali     阿里云DNS解析
+                            dns_tencent 腾讯云DNS解析
+                            dns_cf      CloudflareDNS解析
+                            dns_aws     AWS Route53 DNS解析
+    domains             要申请的域名配置文件，每行一个域名
     
 选项：
-    --before-days   默认10天，指定证书自动更新时间间隔
-    --home-dir      工作目录，默认当前目录
-    --save-dir      保存证书目录，默认当前目录
-    --reload-cmd    刷新服务器配置命令，让证书生效
-    -h, -?          显示帮助信息
+    --before-days       默认10天，指定证书自动更新时间间隔
+    --home-dir          工作目录，默认当前目录
+    --save-dir          保存证书目录，默认当前目录
+    --reload-cmd        刷新服务器配置命令，让证书生效
+    --save-format-cert  保存证书格式，默认： {DOMAIN}.pem
+    --save-format-key   保存证书密钥格式，默认： {DOMAIN}.key
+    -h, -?              显示帮助信息
 
 说明：
     证书申请需要dns解析平台用户域名验证，acme.sh支持上百个平台的dns解析，包含国内外主流的dns解析平台。
     支持的DNS官方文档：https://github.com/acmesh-official/acme.sh/wiki/dnsapi
     示例：
-    bash ./free-cert.sh dns_ali ./gitlab.conf --home-dir ./ --save-dir /usr/local/nginx/conf/certs/ --reload-cmd "/usr/local/nginx/sbin/nginx -t && /usr/local/nginx/sbin/nginx -s reload"
+    bash ./free-cert.sh dns_ali ./gitlab.conf --home-dir ./ --save-dir /usr/local/nginx/conf/certs/ --reload-cmd \"/usr/local/nginx/sbin/nginx -t && /usr/local/nginx/sbin/nginx -s reload\"
 "
     exit 0
 }
@@ -70,6 +72,8 @@ fi
 
 BEFORE_DAYS=10
 HOME_DIR=$(pwd)
+SAVE_FORMAT_CERT="{DOMAIN}.pem"
+SAVE_FORMAT_KEY="{DOMAIN}.key"
 
 for((INDEX=1; INDEX<=$#; INDEX++));do
     case "${@:$INDEX:1}" in
@@ -84,6 +88,12 @@ for((INDEX=1; INDEX<=$#; INDEX++));do
         ;;
         --reload-cmd)
             RELOAD_CMD=${@:((++INDEX)):1}
+        ;;
+        --save-format-cert)
+            SAVE_FORMAT_CERT=${@:((++INDEX)):1}
+        ;;
+        --save-format-key)
+            SAVE_FORMAT_KEY=${@:((++INDEX)):1}
         ;;
         -h|-\?)
             show_help
@@ -119,7 +129,9 @@ fi
 
 if [ ! -e ./acme.sh ];then
     # 下载acme.sh
-    if ! wget -O acme.sh https://fastly.jsdelivr.net/gh/acmesh-official/acme.sh@master/acme.sh && ! wget -O acme.sh https://raw.githubusercontent.com/acmesh-official/acme.sh/refs/heads/master/acme.sh; then
+    if wget https://github.com/acmesh-official/acme.sh/archive/master.tar.gz; then
+        tar -vzxf master.tar.gz && mv -f ./acme.sh-master/* ./ && rm -rf ./acme.sh-master
+    elif ! wget -O acme.sh https://fastly.jsdelivr.net/gh/acmesh-official/acme.sh@master/acme.sh && ! wget -O acme.sh https://raw.githubusercontent.com/acmesh-official/acme.sh/refs/heads/master/acme.sh; then
         error_exit "acme.sh 下载失败"
     fi
 
@@ -166,11 +178,13 @@ apply_cert() {
 reload_cert() {
     if [ -n "$SAVE_DIR" ];then
         # 判断当前使用的证书是否已经过期了
-        if [ -e "$SAVE_DIR/${1}.pem" ] && check_cert "$SAVE_DIR/${1}.pem";then
+        SAVE_CERT_FILE="${SAVE_FORMAT_CERT//\{DOMAIN\}/$DOMAIN}"
+        SAVE_KEY_FILE="${SAVE_FORMAT_KEY//\{DOMAIN\}/$DOMAIN}"
+        if [ -e "$SAVE_DIR/${SAVE_CERT_FILE}" ] && check_cert "$SAVE_DIR/${SAVE_CERT_FILE}";then
             return
         fi
-        cp -f "$HOME_DIR/certs/${1}_ecc/fullchain.cer" "$SAVE_DIR/${1}.pem"
-        cp -f "$HOME_DIR/certs/${1}_ecc/${1}.key" "$SAVE_DIR/${1}.key"
+        cp -f "$HOME_DIR/certs/${1}_ecc/fullchain.cer" "$SAVE_DIR/${SAVE_CERT_FILE}"
+        cp -f "$HOME_DIR/certs/${1}_ecc/${1}.key" "$SAVE_DIR/${SAVE_KEY_FILE}"
     elif [ "$2" == "has" ];then
         return
     fi
